@@ -13,7 +13,9 @@ rule token = parse
 | [' ' '\t' '\n']
     { token lexbuf }
 | ';'
-    { SEMICOLON } (* add the semicolon as a new token *)
+    { SEMICOLON }
+| ','
+    { COMMA}
 | "int"
     { TINT }
 | "if"

@@ -23,6 +23,7 @@ and expr =
   | EAdd   of expr * expr
   | ESub   of expr * expr
   | EMod   of expr * expr
+  | EApp   of name * (expr list)
   | ELt    of expr * expr
   | EEq    of expr * expr
 and value =

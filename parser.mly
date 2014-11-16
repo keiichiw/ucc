@@ -9,7 +9,7 @@
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token PLUS MINUS MOD EQ LT
-%token SEMICOLON
+%token SEMICOLON COMMA
 %token SUBST
 %token EOF
 
@@ -70,9 +70,17 @@ expr:
     { EEq($1, $3)}
 | expr LT expr
     { ELt($1, $3)}
+| ID LPAREN args RPAREN
+    { EApp(Name $1, $3) }
 | ID
     { EVar (Name $1)}
 | value
     { EConst($1)}
 value:
 | INT {VInt($1)}
+
+args:
+| expr
+    {[$1]}
+| expr COMMA args
+    {$1::$3}

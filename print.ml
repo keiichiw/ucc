@@ -43,6 +43,11 @@ and pp_stmt fmt = function
      fprintf fmt "SReturn(%a)" pp_expr e
   | SExpr e ->
      fprintf fmt "SExpr(%a);" pp_expr e
+and pp_exprs fmt= function
+  | [] ->
+     fprintf fmt ""
+  | x::xs ->
+     pp_expr fmt x;pp_exprs fmt xs;
 and pp_expr fmt = function
   | EConst v ->
      fprintf fmt "EConst(%a)" pp_value v
@@ -54,6 +59,8 @@ and pp_expr fmt = function
      fprintf fmt "ESub(%a, %a)" pp_expr e1 pp_expr e2
   | EMod (e1, e2) ->
      fprintf fmt "EMod(%a, %a)" pp_expr e1 pp_expr e2
+  | EApp (Name s, args) ->
+     fprintf fmt "EApp(%s, %a)" s pp_exprs args
   | ELt (e1, e2) ->
      fprintf fmt "ELt(%a, %a)" pp_expr e1 pp_expr e2
   | EEq (e1, e2) ->
