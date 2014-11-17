@@ -12,10 +12,16 @@ and pp_defs fmt = function
     fprintf fmt ",\n";
     pp_defs fmt xs
 and pp_def fmt = function
-  | DVar (ty, Name s, e) ->
-     fprintf fmt "DVar(int, %s, %a)" s pp_expr e
-  | DFun (ty, Name s, l1, st) ->
-     fprintf fmt "DFun(int, %s, [%a], %a)" s pp_params l1 pp_stmts st
+  | DVars (ty, nl, (a, b)) ->
+     fprintf fmt "offset=%d:\nDVars(int, [%a])" a.pos_cnum pp_namelist nl
+  | DFun (ty, Name s, l1, st, (a, _)) ->
+     fprintf fmt "offset=%d:\nDFun(int, %s, [%a], %a)" a.pos_cnum s pp_params l1 pp_stmts st
+and pp_namelist fmt = function
+  | [] ->
+     fprintf fmt ""
+  | (Name n)::ns ->
+     fprintf fmt "%s," n;
+     pp_namelist fmt ns
 and pp_params fmt = function
   | [] ->
      fprintf fmt ""

@@ -17,24 +17,26 @@
 %left LT
 %left PLUS MINUS
 %right MOD
-%start <Syntax.defin list> main
+%start <Syntax.decl list> main
 
 %%
 
 main:
-| top_defs EOF {$1}
+| decl* EOF {$1}
 
-top_defs:
-| defun  { [$1]}
-| defvar { [$1]}
-| defun  top_defs  { $1::$2}
-| defvar top_defs  { $1::$2}
 
-defvar:
-| typeref ID SUBST expr SEMICOLON {DVar($1, Name $2, $4)}
+decl:
+| decl_fun  { $1}
+| decl_vars { $1 }
 
-defun:
-| typeref ID LPAREN params RPAREN block {DFun($1, Name $2, $4, $6)}
+
+decl_vars:
+| t= typeref; vlist= separated_nonempty_list(COMMA, ID); SEMICOLON
+  {DVars(t, List.map (fun x -> Name x) vlist, ($startpos, $endpos))}
+
+decl_fun:
+| t=typeref; name=ID; LPAREN; p=params; RPAREN; b=block
+  {DFun(t, Name name, p, b, ($startpos, $endpos))}
 
 params:
 | typeref ID {[($1, (Syntax.Name $2))]}
@@ -43,11 +45,7 @@ typeref:
 | TINT { TInt }
 
 block:
-| LBRACE stmts RBRACE {$2}
-
-stmts:
-| stmt {[$1]}
-| stmt stmts {$1::$2}
+| LBRACE stmt* RBRACE {$2}
 
 stmt:
 | SEMICOLON {SNil}

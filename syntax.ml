@@ -5,11 +5,14 @@ exception EvalError
 exception TypeError of string
 exception TODO of string
 
+(*location*)
+type loc = Lexing.position * Lexing.position
+
 type name = Name of string
 type ctype = TInt | TChar
-type defin =
-  | DVar of ctype * name * expr
-  | DFun of ctype * name * (ctype * name) list * stmt list
+type decl =
+  | DVars of ctype * (name list) * loc
+  | DFun of ctype * name * (ctype * name) list * stmt list * loc
 and stmt =
   | SNil
   | SWhile of expr * stmt list

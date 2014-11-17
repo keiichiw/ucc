@@ -1,3 +1,5 @@
+int x, y, z;
+int a, b, c;
 int fib (int x) {
   if (x < 2) {
     return x;
