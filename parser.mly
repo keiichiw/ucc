@@ -13,6 +13,7 @@
 %token SUBST
 %token EOF
 
+%right SUBST
 %left EQ NEQ
 %left LT
 %left PLUS MINUS
@@ -26,38 +27,48 @@ main:
 
 
 decl:
-| decl_fun  { $1}
 | decl_var { $1 }
+| decl_fun  { $1}
 
-
+/*
+  variables | prototype declaration
+ */
 decl_var:
+// e.g. int x, y;
 | t= typeref; vlist= separated_nonempty_list(COMMA, ID); SEMICOLON
-  { DVars(t,
+  {
+    DVars(t,
           List.map
             (fun x -> DeclIdent (Name x))
             vlist,
           ($startpos, $endpos))
   }
-| t=typeref; x=ID; LPAREN; tlist= separated_nonempty_list(COMMA, typeref); RPAREN; SEMICOLON
-  { let tys = List.map (fun x -> TInt) tlist in
+
+// e.g. int f(int x, int y);
+| t=typeref; x=ID; LPAREN; tlist= separated_list(COMMA, fun_arg); RPAREN; SEMICOLON
+  {
+    let tys = List.map (fun x -> TInt) tlist in
     let name = Name x in
     DVars(t,
           [DeclFProto(DeclIdent name, tys)],
           ($startpos, $endpos))
   }
 
-decl_fun:
-| t=typeref; name=ID; LPAREN; p=params; RPAREN; b=block
-  {DFun(t, Name name, p, b, ($startpos, $endpos))}
 
-params:
-| typeref ID {[($1, (Syntax.Name $2))]}
+
+decl_fun: //e.g. int f(int x) {statement}
+| t=typeref; name=ID; LPAREN; a=separated_list(COMMA, fun_arg); RPAREN; b=block
+  {DFun(t, Name name, a, b, ($startpos, $endpos))}
+
+
+fun_arg:
+| ty=typeref; name=ID { (ty, (Syntax.Name name)) }
 
 typeref:
 | TINT { TInt }
 
 block:
-| LBRACE s=stmt*; RBRACE {s}
+| LBRACE s=stmt*; RBRACE { s }
 
 stmt:
 | SEMICOLON {SNil}

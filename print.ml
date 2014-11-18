@@ -1,5 +1,5 @@
-open Format
 open Syntax
+open Printf
 let rec print_program fmt p =
   fprintf fmt "[\n";
   pp_defs fmt p;
@@ -15,7 +15,7 @@ and pp_def fmt = function
   | DVars (ty, dl, (a, b)) ->
      fprintf fmt "offset=%d:\nDVars(int, [%a])" a.pos_cnum pp_declars dl
   | DFun (ty, Name s, l1, st, (a, _)) ->
-     fprintf fmt "offset=%d:\nDFun(int, %s, %a, {%a})" a.pos_cnum s pp_params l1 pp_stmts st
+     fprintf fmt "offset=%d:\nDFun(int, %s, [%a], {%a})" a.pos_cnum s pp_params l1 pp_stmts st
 and pp_declars fmt = function
   | [] ->
      fprintf fmt ""
