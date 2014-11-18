@@ -15,7 +15,9 @@ type decl =
   | DFun of ctype * name * (ctype * name) list * stmt list * loc
 and stmt =
   | SNil
+  | SVars of ctype * (name list) * loc
   | SWhile of expr * stmt list
+  | SFor of (expr list) * (expr option) * (expr list) * (stmt list)
   | SIf of expr * stmt list
   | SIfElse of expr * stmt list * stmt list
   | SReturn of expr
@@ -25,9 +27,11 @@ and expr =
   | EVar   of name
   | EAdd   of expr * expr
   | ESub   of expr * expr
+  | ESubst of expr * expr
   | EMod   of expr * expr
   | EApp   of name * (expr list)
   | ELt    of expr * expr
   | EEq    of expr * expr
+  | ENeq    of expr * expr
 and value =
   | VInt of int

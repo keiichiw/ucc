@@ -24,6 +24,8 @@ rule token = parse
     { ELSE }
 | "while"
     { WHILE }
+| "for"
+    { FOR }
 | "return"
     { RETURN }
 | '+'
@@ -34,6 +36,8 @@ rule token = parse
     { MOD }
 | "=="
     { EQ}
+| "!="
+    { NEQ}
 | "="
     { SUBST }
 | "<"

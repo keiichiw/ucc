@@ -15,7 +15,7 @@ and pp_def fmt = function
   | DVars (ty, nl, (a, b)) ->
      fprintf fmt "offset=%d:\nDVars(int, [%a])" a.pos_cnum pp_namelist nl
   | DFun (ty, Name s, l1, st, (a, _)) ->
-     fprintf fmt "offset=%d:\nDFun(int, %s, [%a], %a)" a.pos_cnum s pp_params l1 pp_stmts st
+     fprintf fmt "offset=%d:\nDFun(int, %s, %a, {%a})" a.pos_cnum s pp_params l1 pp_stmts st
 and pp_namelist fmt = function
   | [] ->
      fprintf fmt ""
@@ -35,16 +35,22 @@ and pp_stmts fmt = function
   |[] ->
     fprintf fmt ""
   |x::xs ->
-    pp_stmt fmt x;pp_stmts fmt xs
+    pp_stmt fmt x;fprintf fmt ", ";pp_stmts fmt xs
 and pp_stmt fmt = function
   | SNil ->
      fprintf fmt ";"
+  | SVars (ty, nl, (a, b)) ->
+     fprintf fmt "SVars(int, [%a])" pp_namelist nl
   | SWhile (e, s) ->
-     fprintf fmt "SWhile(%a, %a)" pp_expr e pp_stmts s
+     fprintf fmt "SWhile(%a, {%a})" pp_expr e pp_stmts s
+  | SFor (el1, Some e2, el3, s) ->
+     fprintf fmt "SFor([%a], %a, [%a], %a)" pp_exprs el1 pp_expr e2 pp_exprs el3 pp_stmts s
+  | SFor (el1, None, el3, s) ->
+     fprintf fmt "SFor([%a],, [%a], %a)" pp_exprs el1 pp_exprs el3 pp_stmts s
   | SIf (e, s) ->
-     fprintf fmt "SIf(%a, %a)" pp_expr e pp_stmts s
+     fprintf fmt "SIf(%a, {%a})" pp_expr e pp_stmts s
   | SIfElse (e, s1, s2) ->
-     fprintf fmt "SIfElse(%a, %a, %a)" pp_expr e pp_stmts s1 pp_stmts s2
+     fprintf fmt "SIfElse(%a, {%a}, {%a})" pp_expr e pp_stmts s1 pp_stmts s2
   | SReturn e ->
      fprintf fmt "SReturn(%a)" pp_expr e
   | SExpr e ->
@@ -53,7 +59,9 @@ and pp_exprs fmt= function
   | [] ->
      fprintf fmt ""
   | x::xs ->
-     pp_expr fmt x;pp_exprs fmt xs;
+     pp_expr fmt x;
+     fprintf fmt ",";
+     pp_exprs fmt xs;
 and pp_expr fmt = function
   | EConst v ->
      fprintf fmt "EConst(%a)" pp_value v
@@ -63,6 +71,8 @@ and pp_expr fmt = function
      fprintf fmt "EAdd(%a, %a)" pp_expr e1 pp_expr e2
   | ESub (e1, e2) ->
      fprintf fmt "ESub(%a, %a)" pp_expr e1 pp_expr e2
+  | ESubst (e1, e2) ->
+     fprintf fmt "ESubst(%a, %a)" pp_expr e1 pp_expr e2
   | EMod (e1, e2) ->
      fprintf fmt "EMod(%a, %a)" pp_expr e1 pp_expr e2
   | EApp (Name s, args) ->
@@ -71,6 +81,8 @@ and pp_expr fmt = function
      fprintf fmt "ELt(%a, %a)" pp_expr e1 pp_expr e2
   | EEq (e1, e2) ->
      fprintf fmt "EEq(%a, %a)" pp_expr e1 pp_expr e2
+  | ENeq (e1, e2) ->
+     fprintf fmt "ENeq(%a, %a)" pp_expr e1 pp_expr e2
 and pp_value fmt = function
   | VInt i ->
      fprintf fmt "VInt(%d)" i
