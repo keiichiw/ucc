@@ -27,12 +27,24 @@ main:
 
 decl:
 | decl_fun  { $1}
-| decl_vars { $1 }
+| decl_var { $1 }
 
 
-decl_vars:
+decl_var:
 | t= typeref; vlist= separated_nonempty_list(COMMA, ID); SEMICOLON
-  {DVars(t, List.map (fun x -> Name x) vlist, ($startpos, $endpos))}
+  { DVars(t,
+          List.map
+            (fun x -> DeclIdent (Name x))
+            vlist,
+          ($startpos, $endpos))
+  }
+| t=typeref; x=ID; LPAREN; tlist= separated_nonempty_list(COMMA, typeref); RPAREN; SEMICOLON
+  { let tys = List.map (fun x -> TInt) tlist in
+    let name = Name x in
+    DVars(t,
+          [DeclFProto(DeclIdent name, tys)],
+          ($startpos, $endpos))
+  }
 
 decl_fun:
 | t=typeref; name=ID; LPAREN; p=params; RPAREN; b=block

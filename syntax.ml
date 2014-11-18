@@ -11,8 +11,11 @@ type loc = Lexing.position * Lexing.position
 type name = Name of string
 type ctype = TInt | TChar
 type decl =
-  | DVars of ctype * (name list) * loc
+  | DVars of ctype * (declarator list) * loc
   | DFun of ctype * name * (ctype * name) list * stmt list * loc
+and declarator =
+  | DeclIdent of name
+  | DeclFProto of declarator * (ctype list)
 and stmt =
   | SNil
   | SVars of ctype * (name list) * loc

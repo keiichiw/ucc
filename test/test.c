@@ -1,6 +1,8 @@
 int x, y, z;
 
-int fib (int x) {
+int proto(int, int);
+
+int fib (int x)  {
   if (x < 2) {
     return x;
   } else {

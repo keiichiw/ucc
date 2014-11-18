@@ -12,10 +12,28 @@ and pp_defs fmt = function
     fprintf fmt ",\n";
     pp_defs fmt xs
 and pp_def fmt = function
-  | DVars (ty, nl, (a, b)) ->
-     fprintf fmt "offset=%d:\nDVars(int, [%a])" a.pos_cnum pp_namelist nl
+  | DVars (ty, dl, (a, b)) ->
+     fprintf fmt "offset=%d:\nDVars(int, [%a])" a.pos_cnum pp_declars dl
   | DFun (ty, Name s, l1, st, (a, _)) ->
      fprintf fmt "offset=%d:\nDFun(int, %s, %a, {%a})" a.pos_cnum s pp_params l1 pp_stmts st
+and pp_declars fmt = function
+  | [] ->
+     fprintf fmt ""
+  | d::ds ->
+     pp_declar fmt d;
+     fprintf fmt ",";
+     pp_declars fmt ds
+and pp_declar fmt = function
+  | DeclIdent name ->
+     let Name x = name in
+     fprintf fmt "%s" x
+  | DeclFProto (d, tlist) ->
+     fprintf fmt "Fun %a (%a)" pp_declar d pp_types tlist
+and pp_types fmt = function
+  | [] ->
+     fprintf fmt ""
+  | t::ts ->
+     fprintf fmt "int, %a" pp_types ts;
 and pp_namelist fmt = function
   | [] ->
      fprintf fmt ""
