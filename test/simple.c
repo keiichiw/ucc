@@ -1,3 +1,3 @@
-int fun () {
-  return 1+1;
+int fun (int x, int y, int z) {
+  return 1+(2+3);
 }
