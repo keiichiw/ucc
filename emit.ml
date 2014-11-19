@@ -76,25 +76,45 @@ and st = function
   | [] -> ()
   | x::xs -> st' x; st xs
 and st' = function
+  | SWhile (cond, sl) ->
+     let lnum = label_create () in
+     let endlnum = label_create () in
+     push_buffer (sprintf "L%d:\n" lnum);
+     let cond_reg = ex cond in
+     push_buffer (sprintf "\tbeq r0, r%d, L%d\n"
+                          cond_reg
+                          endlnum);
+     st sl;
+     push_buffer (sprintf "\tbr L%d\n" endlnum);
+     push_buffer (sprintf "L%d:\n" endlnum)
   | SIfElse (cond, sl1, sl2) ->
      let cond_reg = ex cond in
      let lnum = label_create () in
      let endlnum = label_create () in
-     push_buffer (sprintf "\tbeq r0, r%d, L%d\n" cond_reg lnum);
+     push_buffer (sprintf "\tbeq r0, r%d, L%d\n"
+                          cond_reg
+                          lnum);
      st sl1;
      push_buffer (sprintf "\tbr L%d\n" endlnum);
      push_buffer (sprintf "L%d:\n" lnum);
      st sl2;
-     push_buffer (sprintf "L%d:\n" endlnum);
+     push_buffer (sprintf "L%d:\n" endlnum)
   | SReturn exp ->
      let reg = ex exp in
      if reg != 1 then
        push_buffer (sprintf "\tmov r1, r%d\n" reg);
      push_buffer (sprintf "\tret\n");
      reg_free reg
+  | SExpr exp ->
+     let temp = ex exp in
+     reg_free temp
   | _ -> raise (TODO "emit: st'")
 and ex arg =
   (match arg with
+   | EComma (ex1, ex2) ->
+      let temp = ex ex1 in
+      reg_free temp;
+      ex ex2
    | EConst (VInt i) ->
       let ret_reg = reg_alloc () in
       push_buffer (sprintf "\tli r%d, %d\n" ret_reg i);

@@ -13,9 +13,9 @@ and pp_defs fmt = function
     pp_defs fmt xs
 and pp_def fmt = function
   | DVars (ty, dl, (a, b)) ->
-     fprintf fmt "offset=%d:\nDVars(int, [%a])" a.pos_cnum pp_declars dl
+     fprintf fmt "offset=%d:\nDVars(int, [%a])" a.Lexing.pos_cnum pp_declars dl
   | DFun (ty, Name s, l1, st, (a, _)) ->
-     fprintf fmt "offset=%d:\nDFun(int, %s, [%a], {%a})" a.pos_cnum s pp_params l1 pp_stmts st
+     fprintf fmt "offset=%d:\nDFun(int, %s, [%a], {%a})" a.Lexing.pos_cnum s pp_params l1 pp_stmts st
 and pp_declars fmt = function
   | [] ->
      fprintf fmt ""
@@ -61,10 +61,10 @@ and pp_stmt fmt = function
      fprintf fmt "SVars(int, [%a])" pp_namelist nl
   | SWhile (e, s) ->
      fprintf fmt "SWhile(%a, {%a})" pp_expr e pp_stmts s
-  | SFor (el1, Some e2, el3, s) ->
-     fprintf fmt "SFor([%a], %a, [%a], %a)" pp_exprs el1 pp_expr e2 pp_exprs el3 pp_stmts s
-  | SFor (el1, None, el3, s) ->
-     fprintf fmt "SFor([%a],, [%a], %a)" pp_exprs el1 pp_exprs el3 pp_stmts s
+  (*| SFor (el1, Some e2, el3, s) ->
+     fprintf fmt "SFor([%a], %a, [%a], %a)" pp_exprs el1 pp_expr e2 pp_exprs el3 pp_stmts s*)
+  (*| SFor (el1, None, el3, s) ->
+     fprintf fmt "SFor([%a],, [%a], %a)" pp_exprs el1 pp_exprs el3 pp_stmts s*)
   | SIf (e, s) ->
      fprintf fmt "SIf(%a, {%a})" pp_expr e pp_stmts s
   | SIfElse (e, s1, s2) ->
@@ -73,6 +73,7 @@ and pp_stmt fmt = function
      fprintf fmt "SReturn(%a)" pp_expr e
   | SExpr e ->
      fprintf fmt "SExpr(%a);" pp_expr e
+  | _ -> raise (TODO "print.ml")
 and pp_exprs fmt= function
   | [] ->
      fprintf fmt ""
@@ -89,8 +90,8 @@ and pp_expr fmt = function
      fprintf fmt "EAdd(%a, %a)" pp_expr e1 pp_expr e2
   | ESub (e1, e2) ->
      fprintf fmt "ESub(%a, %a)" pp_expr e1 pp_expr e2
-  | ESubst (e1, e2) ->
-     fprintf fmt "ESubst(%a, %a)" pp_expr e1 pp_expr e2
+  | ESubst (Name s, e2) ->
+     fprintf fmt "ESubst(%s, %a)" s pp_expr e2
   | EMod (e1, e2) ->
      fprintf fmt "EMod(%a, %a)" pp_expr e1 pp_expr e2
   | EApp (Name s, args) ->
@@ -101,6 +102,7 @@ and pp_expr fmt = function
      fprintf fmt "EEq(%a, %a)" pp_expr e1 pp_expr e2
   | ENeq (e1, e2) ->
      fprintf fmt "ENeq(%a, %a)" pp_expr e1 pp_expr e2
+  | _ -> raise (TODO "print pp_expr")
 and pp_value fmt = function
   | VInt i ->
      fprintf fmt "VInt(%d)" i

@@ -17,7 +17,7 @@ and stmt =
   | SNil
   | SVars of ctype * (name list) * loc
   | SWhile of expr * stmt list
-  | SFor of (expr list) * (expr option) * (expr list) * (stmt list)
+  | SFor of (expr option) * (expr option) * (expr option) * (stmt list)
   | SIf of expr * stmt list
   | SIfElse of expr * stmt list * stmt list
   | SReturn of expr
@@ -25,9 +25,10 @@ and stmt =
 and expr =
   | EConst of value
   | EVar   of name
+  | EComma of expr * expr
   | EAdd   of expr * expr
   | ESub   of expr * expr
-  | ESubst of expr * expr
+  | ESubst of name * expr
   | EMod   of expr * expr
   | EApp   of name * (expr list)
   | ELt    of expr * expr

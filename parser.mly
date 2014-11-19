@@ -13,6 +13,8 @@
 %token SUBST
 %token EOF
 
+%nonassoc below_COMMA
+%left COMMA
 %right SUBST
 %left EQ NEQ
 %left LT
@@ -76,14 +78,19 @@ stmt:
 | t= typeref; vlist= separated_nonempty_list(COMMA, ID); SEMICOLON
   {SVars(t, List.map (fun x -> Name x) vlist, ($startpos, $endpos))}
 | WHILE LPAREN expr RPAREN block {SWhile($3, $5)}
-| FOR LPAREN el1= separated_list(COMMA, expr); SEMICOLON e2= expr?; SEMICOLON
-  el3=separated_list(COMMA, expr); RPAREN; b=block
-  {SFor(el1, e2, el3, b)}
+| FOR LPAREN e1= expr?; SEMICOLON e2= expr?; SEMICOLON e3=expr?; RPAREN; b=block
+  {SFor(e1, e2, e3, b)}
 | IF LPAREN expr RPAREN block {SIf($3, $5)}
 | IF LPAREN expr RPAREN block ELSE block {SIfElse($3, $5, $7)}
 | RETURN expr SEMICOLON {SReturn $2}
 
 expr:
+| simple_expr %prec below_COMMA
+    { $1 }
+| simple_expr COMMA expr
+    { EComma($1, $3) }
+
+simple_expr:
 | LPAREN expr RPAREN
     { $2 }
 | expr PLUS expr
@@ -98,19 +105,20 @@ expr:
     { ENeq($1, $3)}
 | expr LT expr
     { ELt($1, $3)}
-| expr SUBST expr
-    { ESubst($1, $3)}
+| ID SUBST expr
+    { ESubst(Name $1, $3) }
 | ID LPAREN args RPAREN
     { EApp(Name $1, $3) }
 | ID
     { EVar (Name $1)}
 | value
     { EConst($1)}
+
 value:
 | INT {VInt($1)}
 
 args:
-| expr
+| simple_expr
     {[$1]}
-| expr COMMA args
+| simple_expr COMMA args
     {$1::$3}
