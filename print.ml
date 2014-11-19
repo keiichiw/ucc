@@ -65,8 +65,6 @@ and pp_stmt fmt = function
      fprintf fmt "SFor([%a], %a, [%a], %a)" pp_exprs el1 pp_expr e2 pp_exprs el3 pp_stmts s*)
   (*| SFor (el1, None, el3, s) ->
      fprintf fmt "SFor([%a],, [%a], %a)" pp_exprs el1 pp_exprs el3 pp_stmts s*)
-  | SIf (e, s) ->
-     fprintf fmt "SIf(%a, {%a})" pp_expr e pp_stmts s
   | SIfElse (e, s1, s2) ->
      fprintf fmt "SIfElse(%a, {%a}, {%a})" pp_expr e pp_stmts s1 pp_stmts s2
   | SReturn e ->

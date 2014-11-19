@@ -80,7 +80,7 @@ stmt:
 | WHILE LPAREN expr RPAREN block {SWhile($3, $5)}
 | FOR LPAREN e1= expr?; SEMICOLON e2= expr?; SEMICOLON e3=expr?; RPAREN; b=block
   {SFor(e1, e2, e3, b)}
-| IF LPAREN expr RPAREN block {SIf($3, $5)}
+| IF LPAREN expr RPAREN block { SIfElse($3, $5, [SNil]) }
 | IF LPAREN expr RPAREN block ELSE block {SIfElse($3, $5, $7)}
 | RETURN expr SEMICOLON {SReturn $2}
 

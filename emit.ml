@@ -76,6 +76,7 @@ and st = function
   | [] -> ()
   | x::xs -> st' x; st xs
 and st' = function
+  | SNil -> ()
   | SWhile (cond, sl) ->
      let lnum = label_create () in
      let endlnum = label_create () in
@@ -84,7 +85,28 @@ and st' = function
      push_buffer (sprintf "\tbeq r0, r%d, L%d\n"
                           cond_reg
                           endlnum);
+     reg_free cond_reg;
      st sl;
+     push_buffer (sprintf "\tbr L%d\n" endlnum);
+     push_buffer (sprintf "L%d:\n" endlnum)
+  | SFor(init, cond, iter, sl) ->
+     let lnum = label_create () in
+     let endlnum = label_create () in
+     (if init != None then
+        let Some iex = init in
+        let temp = ex iex in
+        reg_free temp);
+     push_buffer (sprintf "L%d:\n" lnum);
+     (if cond != None then
+        let Some cex = cond in
+        let cond_reg = ex cex in
+        push_buffer (sprintf "\tbeq r0, r%d, L%d\n" cond_reg endlnum);
+        reg_free cond_reg);
+     st sl;
+     (if iter != None then
+        let Some itex = iter in
+        let temp = ex itex in
+        reg_free temp);
      push_buffer (sprintf "\tbr L%d\n" endlnum);
      push_buffer (sprintf "L%d:\n" endlnum)
   | SIfElse (cond, sl1, sl2) ->

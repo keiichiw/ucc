@@ -18,7 +18,6 @@ and stmt =
   | SVars of ctype * (name list) * loc
   | SWhile of expr * stmt list
   | SFor of (expr option) * (expr option) * (expr option) * (stmt list)
-  | SIf of expr * stmt list
   | SIfElse of expr * stmt list * stmt list
   | SReturn of expr
   | SExpr of expr
