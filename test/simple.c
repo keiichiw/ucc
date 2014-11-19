@@ -1,3 +1,9 @@
-int fun (int x, int y, int z) {
-  return 1+(2+3);
+int fun (int x) {
+  if (x) {
+    return 1;
+  } else {
+    return 0;
+  }
+
+  return 1+2;
 }
