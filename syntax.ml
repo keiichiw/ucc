@@ -1,8 +1,5 @@
 open Format
-exception Error
 exception NotMatch
-exception EvalError
-exception TypeError of string
 exception TODO of string
 
 (*location*)
