@@ -9,16 +9,19 @@ type name = Name of string
 type ctype = TInt | TChar
 type decl =
   | DVars of ctype * (declarator list) * loc
-  | DFun of ctype * name * (ctype * name) list * stmt list * loc
+  | DFun of ctype * name * (ctype * name) list * block * loc
 and declarator =
   | DeclIdent of name
   | DeclFProto of declarator * (ctype list)
+and block =
+  | Block of svar list * stmt list
+and svar =
+  | SVar of ctype * name
 and stmt =
   | SNil
-  | SVars of ctype * (name list) * loc
-  | SWhile of expr * stmt list
-  | SFor of (expr option) * (expr option) * (expr option) * (stmt list)
-  | SIfElse of expr * stmt list * stmt list
+  | SWhile of expr * block
+  | SFor of (expr option) * (expr option) * (expr option) * block
+  | SIfElse of expr * block * block
   | SReturn of expr
   | SExpr of expr
 and expr =

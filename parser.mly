@@ -64,23 +64,25 @@ decl_fun: //e.g. int f(int x) {statement}
 
 
 fun_arg:
-| ty=typeref; name=ID { (ty, (Syntax.Name name)) }
+| ty=typeref; name=ID { (ty, (Name name)) }
 
 typeref:
 | TINT { TInt }
 
 block:
-| LBRACE s=stmt*; RBRACE { s }
+| LBRACE; l=lvar*; s=stmt*; RBRACE { Block (List.concat l, s) }
 
-stmt:
+lvar: // local variables
+| t= typeref; vlist= separated_nonempty_list(COMMA, ID); SEMICOLON
+  {List.map (fun x -> SVar (t, Name x)) vlist}
+
+stmt: // statement
 | SEMICOLON {SNil}
 | expr SEMICOLON {SExpr($1)}
-| t= typeref; vlist= separated_nonempty_list(COMMA, ID); SEMICOLON
-  {SVars(t, List.map (fun x -> Name x) vlist, ($startpos, $endpos))}
 | WHILE LPAREN expr RPAREN block {SWhile($3, $5)}
 | FOR LPAREN e1= expr?; SEMICOLON e2= expr?; SEMICOLON e3=expr?; RPAREN; b=block
   {SFor(e1, e2, e3, b)}
-| IF LPAREN expr RPAREN block { SIfElse($3, $5, [SNil]) }
+| IF LPAREN expr RPAREN block { SIfElse($3, $5, (Block ([],[]))) }
 | IF LPAREN expr RPAREN block ELSE block {SIfElse($3, $5, $7)}
 | RETURN expr SEMICOLON {SReturn $2}
 
