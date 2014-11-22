@@ -66,13 +66,14 @@ let rec range a b =
   if a > b then []
   else a :: range (a+1) b;;
 
-let push_vars fp lst =
+let push_vars flg lst =
   let len = List.length lst in
-  if fp = 0 then (*引数を追加*)
+  if flg = 0 then (*引数を追加*)
     let l = List.map2 (fun (ty, Name name) i -> (ty, name, Reg i)) lst (range 1 len) in
     env_ref := l@(!env_ref)
   else (*ローカル変数を追加*)
-    let l = List.map2 (fun (ty, Name name) i -> (ty, name, Mem i)) lst (range 1 len) in
+    let idxlist = range (!sp_diff_ref+1) ((!sp_diff_ref)+len) in
+    let l = List.map2 (fun (ty, Name name) i -> (ty, name, Mem i)) lst idxlist in
     env_ref := l@(!env_ref)
 
 let pop_vars num =
@@ -83,9 +84,9 @@ let pop_vars num =
     | (_, _::ys) -> drop ys (n - 1) in
   env_ref := drop (!env_ref) num
 
-let rec main oc = function
-  | []  -> ()
-  |x::xs -> emit oc x;main oc xs
+let rec main oc defs =
+  let _ = List.map (fun x -> emit oc x) defs in
+  ()
 and emit oc = function
   | DFun(TInt, Name name, args, b, _) ->
      using_reg_num := List.length args;
@@ -97,23 +98,23 @@ and emit oc = function
 and bl = function
   | Block (vars, stmts) ->
      let lvar_num = List.length vars in
-     sp_diff_ref := !sp_diff_ref + lvar_num;
      if lvar_num != 0 then
        (let reg = reg_alloc () in
-        push_buffer (sprintf "\tli r%d, %d\n" reg lvar_num);
+        push_buffer (sprintf "\tmov r%d, %d\n" reg lvar_num);
         push_buffer (sprintf "\tsub sp, sp, r%d\n" reg);
         reg_free reg
        );
      push_vars 1 (List.map (fun sv ->let SVar(x,y) = sv in (x,y)) vars);
+     sp_diff_ref := !sp_diff_ref + lvar_num;
      st stmts;
+     sp_diff_ref := !sp_diff_ref - lvar_num;
      pop_vars lvar_num;
      if lvar_num != 0 then
        (let reg = reg_alloc () in
-        push_buffer (sprintf "\tli r%d, %d\n" reg lvar_num);
+        push_buffer (sprintf "\tmov r%d, %d\n" reg lvar_num);
         push_buffer (sprintf "\tadd sp, sp, r%d\n" reg);
         reg_free reg
-       );
-     sp_diff_ref := !sp_diff_ref - lvar_num
+       )
 and st = function
   | [] -> ()
   | x::xs -> st' x; st xs
@@ -132,13 +133,13 @@ and st' = function
      push_buffer (sprintf "\tbr L%d\n" endlnum);
      push_buffer (sprintf "L%d:\n" endlnum)
   | SFor(init, cond, iter, b) ->
-     let lnum = label_create () in
+     let startlnum = label_create () in
      let endlnum = label_create () in
      (match init with
       | Some iex ->
          let temp = ex iex in reg_free temp
       | _ -> ());
-     push_buffer (sprintf "L%d:\n" lnum);
+     push_buffer (sprintf "L%d:\n" startlnum);
      (match cond with
       | Some cex ->
          let cond_reg = ex cex in
@@ -151,7 +152,7 @@ and st' = function
          let temp = ex itex in
          reg_free temp
       |  _ -> ());
-     push_buffer (sprintf "\tbr L%d\n" endlnum);
+     push_buffer (sprintf "\tbr L%d\n" startlnum);
      push_buffer (sprintf "L%d:\n" endlnum)
   | SIfElse (cond, b1, b2) ->
      let cond_reg = ex cond in

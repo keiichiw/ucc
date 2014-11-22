@@ -8,7 +8,8 @@
 %token IF ELSE RETURN WHILE FOR
 %token LPAREN RPAREN
 %token LBRACE RBRACE
-%token PLUS MINUS MOD EQ NEQ LT
+%token PLUS MINUS MOD
+%token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
 %token SUBST
 %token EOF
@@ -17,7 +18,7 @@
 %left COMMA
 %right SUBST
 %left EQ NEQ
-%left LT
+%left LT LE GT GE
 %left PLUS MINUS
 %right MOD
 %start <Syntax.decl list> main
@@ -107,6 +108,12 @@ simple_expr:
     { ENeq($1, $3)}
 | expr LT expr
     { ELt($1, $3)}
+| expr GT expr
+    { ELt($3, $1)}
+| expr LE expr
+    { ELe($1, $3)}
+| expr GE expr
+    { ELe($3, $1)}
 | ID SUBST expr
     { ESubst(Name $1, $3) }
 | ID LPAREN args RPAREN

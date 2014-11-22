@@ -42,6 +42,12 @@ rule token = parse
     { SUBST }
 | "<"
     { LT }
+| ">"
+    { GT }
+| "<="
+    { LE }
+| ">="
+    { GE }
 | '('
     { LPAREN }
 | ')'
