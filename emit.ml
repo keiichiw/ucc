@@ -2,26 +2,15 @@ open Syntax
 open Printf
 exception EmitError of string
 
-let label_num = ref 0;;
-let reg_num = ref 0;;
-let max_reg = ref 0;;
-
-let param_ref = ref [];;
-let param_num = ref 0;;
-
-let buffer_ref = ref [];;
-
+let created_label_num = ref 0;;
+let using_reg_num = ref 0;;
+let max_reg_num = ref 0;;
+let buffer_ref : string list ref = ref [];;
 let sp_diff_ref = ref 0;;
-
-
-(*
-  (type, name, offset)
-  offsetが負の時はレジスタ番号あらわす
- *)
-let env_ref = ref [(TInt, "init", 0)];;
+type strplace = Reg of int | Mem of int
+let env_ref : (ctype * string * strplace) list ref = ref [];;
 
 (* Access ref values*)
-
 let push_buffer str =
   buffer_ref := str::!buffer_ref
 
@@ -46,21 +35,21 @@ let print_buffer oc name =
 
 
 let reg_alloc _ =
-  reg_num := !reg_num + 1;
-  max_reg := (max !max_reg !reg_num);
-  if !reg_num > 28 then
+  using_reg_num := !using_reg_num + 1;
+  max_reg_num := (max !max_reg_num !using_reg_num);
+  if !using_reg_num > 28 then
     raise (EmitError "register starvation!!");
-  !reg_num
+  !using_reg_num
 
 let regs_alloc_num x =
-  reg_num := x
+  using_reg_num := x
 
 let reg_free a =
-  reg_num := a-1
+  using_reg_num := a-1
 
 let label_create _ =
-  label_num := !label_num + 1;
-  !label_num
+  created_label_num := !created_label_num + 1;
+  !created_label_num
 
 
 
@@ -79,11 +68,11 @@ let rec range a b =
 
 let push_vars fp lst =
   let len = List.length lst in
-  if fp = 0 then (*レジスタに保存されている変数を追加 アドレスは負*)
-    let l = List.map2 (fun (ty, Name name) i -> (ty, name, -i)) lst (range 1 len) in
+  if fp = 0 then (*引数を追加*)
+    let l = List.map2 (fun (ty, Name name) i -> (ty, name, Reg i)) lst (range 1 len) in
     env_ref := l@(!env_ref)
-  else (*ローカル変数を追加 アドレス*)
-    let l = List.map2 (fun (ty, Name name) i -> (ty, name, i)) lst (range 1 len) in
+  else (*ローカル変数を追加*)
+    let l = List.map2 (fun (ty, Name name) i -> (ty, name, Mem i)) lst (range 1 len) in
     env_ref := l@(!env_ref)
 
 let pop_vars num =
@@ -99,13 +88,10 @@ let rec main oc = function
   |x::xs -> emit oc x;main oc xs
 and emit oc = function
   | DFun(TInt, Name name, args, b, _) ->
-     param_ref := args;
-     reg_num := List.length args;
-     param_num := List.length args;
+     using_reg_num := List.length args;
      push_vars 0 args;
      bl b;
      pop_vars (List.length args);
-     param_num := 0;
      print_buffer oc name
   | _ -> raise (TODO "emit:emit")
 and bl = function
@@ -203,14 +189,14 @@ and ex arg =
       push_buffer (sprintf "\tli r%d, %d\n" ret_reg i);
       ret_reg
    | EVar (Name s) ->
-      let offset = resolve_var s in
       let ret_reg = reg_alloc () in
-      if offset < 0 then
-        (push_buffer (sprintf "\tmov r%d, r%d\n" ret_reg (-offset));
-         ret_reg)
-      else
-        (push_buffer (sprintf "\tmov r%d, [bp-%d]\n" ret_reg offset);
-         ret_reg)
+      (match resolve_var s with
+       | Reg i ->
+          (push_buffer (sprintf "\tmov r%d, r%d\n" ret_reg i);
+           ret_reg)
+       | Mem offset ->
+          (push_buffer (sprintf "\tmov r%d, [bp-%d]\n" ret_reg offset);
+           ret_reg))
    | EAdd (e1, e2) ->
       (
         let ret_reg = reg_alloc () in
@@ -247,7 +233,7 @@ and ex arg =
              if i != reg then
                push_buffer(sprintf "\tmov r%d, r%d\n" i reg);
              pfun (i+1) es in
-        let used_num = !reg_num in
+        let used_num = !using_reg_num in
         for i = 1 to used_num do (*pushes*)
           push_buffer (sprintf "\tpush r%d\n" i)
         done;
@@ -263,17 +249,14 @@ and ex arg =
         ret_reg
       )
    | ESubst (Name name, exp) ->
-      let offset = resolve_var name in
-      let ret_reg = reg_alloc () in
-      let temp_reg = ex exp in
-      reg_free temp_reg;
-      if offset < 0 then
-        let argi = -offset in
-        (push_buffer (sprintf "\tmov r%d, r%d\n" argi temp_reg);
-         push_buffer (sprintf "\tmov r%d, r%d\n" ret_reg temp_reg);
-         ret_reg)
-      else
-        (push_buffer (sprintf "\tmov [bp-%d], r%d\n" offset temp_reg);
-         push_buffer (sprintf "\tmov r%d, r%d\n" ret_reg temp_reg);
-         ret_reg)
+      let ret_reg = ex exp in
+      (match resolve_var name with
+       | Reg i ->
+          (push_buffer (sprintf "\tmov r%d, r%d\n" i ret_reg);
+           reg_free ret_reg;
+           i)
+       | Mem offset ->
+          (push_buffer (sprintf "\tmov [bp-%d], r%d\n" offset ret_reg);
+           ret_reg)
+      )
    | _ -> raise (TODO "emit: ex"));
