@@ -15,23 +15,15 @@ let push_buffer str =
   buffer_ref := str::!buffer_ref
 
 let print_buffer oc name =
-  let rec p_save _ =
-    fprintf oc "\tpush r31\n" in
-  let rec p_restore _ =
-    fprintf oc "\tpop r31\n" in
-  let rec p = function
-    | [] -> ()
-    | inst::insts ->
-       if inst = "\tret\n" then
-         p_restore ();
-       fprintf oc "%s" inst;
-       p insts in
+  fprintf oc ".global %s\n%s:\n" name name;
   let buf = List.rev !buffer_ref in
-  buffer_ref := [];
-  fprintf oc "%s:\n" name;
-  p_save ();
-  p buf
-
+  let _ = List.map
+            (fun s -> if name = "main" && s = "\tret\n" then
+                        fprintf oc "\thalt\n"
+                      else
+                        fprintf oc "%s" s)
+            buf in
+  buffer_ref := []
 
 
 let reg_alloc _ =
@@ -50,7 +42,6 @@ let reg_free a =
 let label_create _ =
   created_label_num := !created_label_num + 1;
   !created_label_num
-
 
 
 let resolve_var name =
@@ -84,6 +75,7 @@ let pop_vars num =
     | (_, _::ys) -> drop ys (n - 1) in
   env_ref := drop (!env_ref) num
 
+
 let rec main oc defs =
   let _ = List.map (fun x -> emit oc x) defs in
   ()
@@ -100,8 +92,8 @@ and bl = function
      let lvar_num = List.length vars in
      if lvar_num != 0 then
        (let reg = reg_alloc () in
-        push_buffer (sprintf "\tmov r%d, %d\n" reg lvar_num);
-        push_buffer (sprintf "\tsub sp, sp, r%d\n" reg);
+        push_buffer (sprintf "\tmov $%d, %d\n" reg lvar_num);
+        push_buffer (sprintf "\tsub $sp, $sp, $%d\n" reg);
         reg_free reg
        );
      push_vars 1 (List.map (fun sv ->let SVar(x,y) = sv in (x,y)) vars);
@@ -111,8 +103,8 @@ and bl = function
      pop_vars lvar_num;
      if lvar_num != 0 then
        (let reg = reg_alloc () in
-        push_buffer (sprintf "\tmov r%d, %d\n" reg lvar_num);
-        push_buffer (sprintf "\tadd sp, sp, r%d\n" reg);
+        push_buffer (sprintf "\tmov $%d, %d\n" reg lvar_num);
+        push_buffer (sprintf "\tadd $sp, $sp, $%d\n" reg);
         reg_free reg
        )
 and st = function
@@ -125,7 +117,7 @@ and st' = function
      let endlnum = label_create () in
      push_buffer (sprintf "L%d:\n" lnum);
      let cond_reg = ex cond in
-     push_buffer (sprintf "\tbeq r0, r%d, L%d\n"
+     push_buffer (sprintf "\tbeq $0, $%d, L%d\n"
                           cond_reg
                           endlnum);
      reg_free cond_reg;
@@ -143,7 +135,7 @@ and st' = function
      (match cond with
       | Some cex ->
          let cond_reg = ex cex in
-         push_buffer (sprintf "\tbeq r0, r%d, L%d\n" cond_reg endlnum);
+         push_buffer (sprintf "\tbeq $0, $%d, L%d\n" cond_reg endlnum);
          reg_free cond_reg
       | _ -> ());
      bl b;
@@ -158,7 +150,7 @@ and st' = function
      let cond_reg = ex cond in
      let lnum = label_create () in
      let endlnum = label_create () in
-     push_buffer (sprintf "\tbeq r0, r%d, L%d\n"
+     push_buffer (sprintf "\tbeq $0, $%d, L%d\n"
                           cond_reg
                           lnum);
      reg_free cond_reg;
@@ -170,10 +162,10 @@ and st' = function
   | SReturn exp ->
      let reg = ex exp in
      if reg != 1 then
-       push_buffer (sprintf "\tmov r1, r%d\n" reg);
+       push_buffer (sprintf "\tmov $1, $%d\n" reg);
      if !sp_diff_ref != 0 then
-       (push_buffer (sprintf "\tli r%d, %d\n" reg !sp_diff_ref);
-        push_buffer (sprintf "\tadd sp, r%d\n" reg));
+       (push_buffer (sprintf "\tmov $%d, %d\n" reg !sp_diff_ref);
+        push_buffer (sprintf "\tadd $sp, $sp, $%d\n" reg));
      push_buffer (sprintf "\tret\n");
      reg_free reg
   | SExpr exp ->
@@ -187,23 +179,23 @@ and ex arg =
       ex ex2
    | EConst (VInt i) ->
       let ret_reg = reg_alloc () in
-      push_buffer (sprintf "\tli r%d, %d\n" ret_reg i);
+      push_buffer (sprintf "\tmov $%d, %d\n" ret_reg i);
       ret_reg
    | EVar (Name s) ->
       let ret_reg = reg_alloc () in
       (match resolve_var s with
        | Reg i ->
-          (push_buffer (sprintf "\tmov r%d, r%d\n" ret_reg i);
+          (push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg i);
            ret_reg)
        | Mem offset ->
-          (push_buffer (sprintf "\tmov r%d, [bp-%d]\n" ret_reg offset);
+          (push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" ret_reg offset);
            ret_reg))
    | EAdd (e1, e2) ->
       (
         let ret_reg = reg_alloc () in
         let lreg = ex e1 in
         let rreg = ex e2 in
-        push_buffer (sprintf "\tadd r%d, r%d, r%d\n" ret_reg lreg rreg);
+        push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg lreg rreg);
         reg_free (ret_reg+1);
         ret_reg
       )
@@ -212,17 +204,21 @@ and ex arg =
         let ret_reg = reg_alloc () in
         let lreg = ex e1 in
         let rreg = ex e2 in
-        push_buffer (sprintf "\tsub r%d, r%d, r%d\n" ret_reg lreg rreg);
+        push_buffer (sprintf "\tsub $%d, $%d, $%d\n" ret_reg lreg rreg);
         reg_free (ret_reg+1);
         ret_reg
       )
-   | ELt (e1, e2) ->
+   | ELe (e1, e2) ->
       (
         let ret_reg = reg_alloc () in
         let lreg = ex e1 in
         let rreg = ex e2 in
-        push_buffer (sprintf "\tcmplt r%d, r%d, r%d\n" ret_reg lreg rreg);
-        reg_free (ret_reg+1);
+        let lnum = label_create () in
+        push_buffer (sprintf "\tmov $%d, -1\n" ret_reg);
+        push_buffer (sprintf "\tble $%d, $%d, L%d\n" lreg rreg lnum);
+        push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
+        push_buffer (sprintf "L%d:\n" lnum);
+        reg_free lreg;
         ret_reg
       )
    | EApp (Name fname, exlst) ->
@@ -232,20 +228,20 @@ and ex arg =
           | e::es ->
              let reg = ex e in
              if i != reg then
-               push_buffer(sprintf "\tmov r%d, r%d\n" i reg);
+               push_buffer(sprintf "\tmov $%d, $%d\n" i reg);
              pfun (i+1) es in
         let used_num = !using_reg_num in
         for i = 1 to used_num do (*pushes*)
-          push_buffer (sprintf "\tpush r%d\n" i)
+          push_buffer (sprintf "\tpush $%d\n" i)
         done;
         reg_free 1;
         pfun 1 exlst;
         push_buffer (sprintf "\tcall %s\n" fname);
         regs_alloc_num used_num;
         let ret_reg = reg_alloc () in
-        push_buffer (sprintf "\tmov r%d, r1\n" ret_reg);
+        push_buffer (sprintf "\tmov $%d, $1\n" ret_reg);
         for i = used_num downto 1 do (*pops*)
-          push_buffer (sprintf "\tpop r%d\n" i)
+          push_buffer (sprintf "\tpop $%d\n" i)
         done;
         ret_reg
       )
@@ -253,11 +249,11 @@ and ex arg =
       let ret_reg = ex exp in
       (match resolve_var name with
        | Reg i ->
-          (push_buffer (sprintf "\tmov r%d, r%d\n" i ret_reg);
+          (push_buffer (sprintf "\tmov $%d, $%d\n" i ret_reg);
            reg_free ret_reg;
            i)
        | Mem offset ->
-          (push_buffer (sprintf "\tmov [bp-%d], r%d\n" offset ret_reg);
+          (push_buffer (sprintf "\tmov [$bp-%d], $%d\n" offset ret_reg);
            ret_reg)
       )
    | _ -> raise (TODO "emit: ex"));

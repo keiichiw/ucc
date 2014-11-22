@@ -67,15 +67,12 @@ and pp_stmt fmt = function
      fprintf fmt "SWhile(%a, %a)" pp_expr e pp_block b
   | SFor (op1, op2, op3, s) ->
      fprintf fmt "SFor((%a; %a; %a), %a)" pp_op op1 pp_op op2 pp_op op3 pp_block s
-  (*| SFor (el1, None, el3, s) ->
-     fprintf fmt "SFor([%a],, [%a], %a)" pp_exprs el1 pp_exprs el3 pp_stmts s*)
   | SIfElse (e, b1, b2) ->
      fprintf fmt "SIfElse(%a, %a, %a)" pp_expr e pp_block b1 pp_block b2
   | SReturn e ->
      fprintf fmt "SReturn(%a)" pp_expr e
   | SExpr e ->
      fprintf fmt "SExpr(%a);" pp_expr e
-  | _ -> raise (TODO "print.ml")
 and pp_op fmt = function
   | Some e -> pp_expr fmt e
   | None -> ()
