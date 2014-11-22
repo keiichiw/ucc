@@ -25,7 +25,11 @@ let main () =
     | Lexer.Error msg ->
        Printf.eprintf "%s%!" msg
     | Parser.Error ->
-       Printf.eprintf "At offset %d: syntax error.\n%!" (Lexing.lexeme_start filebuf)
+       (Printf.eprintf
+         "File %s, line %d:\nsyntax error: near \"%s\".\n%!"
+         fname
+         (filebuf.Lexing.lex_curr_p.Lexing.pos_lnum)
+         (Lexing.lexeme filebuf))
       ;
       close_in inchan;
       close_out outchan

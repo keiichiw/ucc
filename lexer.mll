@@ -5,13 +5,15 @@
 }
 
 let digit = ['0'-'9']
-let space = ' ' | '\t' | '\r' | '\n'
+let space = ' ' | '\t'
 let alpha = ['a'-'z' 'A'-'Z' '_' ]
 let ident = alpha (alpha | digit)*
 
 rule token = parse
-| [' ' '\t' '\n']
+| space
     { token lexbuf }
+| ['\r' '\n']
+    { Lexing.new_line lexbuf; token lexbuf }
 | ';'
     { SEMICOLON }
 | ','
@@ -40,6 +42,10 @@ rule token = parse
     { NEQ}
 | "="
     { SUBST }
+| "+="
+    { PLUSSUBST }
+| "-="
+    { MINUSSUBST }
 | "<"
     { LT }
 | ">"
@@ -56,6 +62,10 @@ rule token = parse
     { LBRACE }
 | '}'
     { RBRACE }
+| "//"
+    { commentbis lexbuf }
+| "/*"
+    { comment lexbuf }
 | digit+ as i
     { INT (int_of_string i) }
 | ident  as n
@@ -63,4 +73,23 @@ rule token = parse
 | eof
     { EOF }
 | _
-    { raise (Error (Printf.sprintf "At offset %d: unexpected character.\n" (Lexing.lexeme_start lexbuf))) }
+    { raise (Error
+               (Printf.sprintf "At offset %d: unexpected character.\n"
+                               (Lexing.lexeme_start lexbuf)))
+    }
+
+and comment = parse
+| "*/"
+    { token lexbuf }
+| _
+    { comment lexbuf }
+| eof
+    { raise (Error "Error: unclosed comment\n") }
+
+and commentbis = parse
+| '\n'
+    { Lexing.new_line lexbuf; token lexbuf }
+| _
+    { commentbis lexbuf }
+| eof
+    { EOF }

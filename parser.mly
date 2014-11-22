@@ -11,12 +11,12 @@
 %token PLUS MINUS MOD
 %token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
-%token SUBST
+%token SUBST PLUSSUBST MINUSSUBST
 %token EOF
 
 %nonassoc below_COMMA
 %left COMMA
-%right SUBST
+%right SUBST PLUSSUBST MINUSSUBST
 %left EQ NEQ
 %left LT LE GT GE
 %left PLUS MINUS
@@ -96,6 +96,10 @@ expr:
 simple_expr:
 | LPAREN expr RPAREN
     { $2 }
+| PLUS expr
+    { $2 }
+| MINUS expr
+    { ESub(EConst(VInt 0), $2)}
 | expr PLUS expr
     { EAdd($1, $3)}
 | expr MINUS expr
@@ -116,6 +120,10 @@ simple_expr:
     { ELe($3, $1)}
 | ID SUBST expr
     { ESubst(Name $1, $3) }
+| ID PLUSSUBST expr
+    { ESubst(Name $1, EAdd(EVar (Name $1), $3)) }
+| ID MINUSSUBST expr
+    { ESubst(Name $1, ESub(EVar (Name $1), $3)) }
 | ID LPAREN args RPAREN
     { EApp(Name $1, $3) }
 | ID

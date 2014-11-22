@@ -1,5 +1,6 @@
 *~
-_build/
 *.native
-ucc
+*.bin
 /test/*.s
+_build/
+ucc
