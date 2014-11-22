@@ -114,8 +114,8 @@ and bl = function
      sp_diff_ref := !sp_diff_ref + lvar_num;
      if lvar_num != 0 then
        (let reg = reg_alloc () in
-        push_buffer (sprintf "\tli r%d %d\n" reg lvar_num);
-        push_buffer (sprintf "\tsub sp sp r%d\n" reg);
+        push_buffer (sprintf "\tli r%d, %d\n" reg lvar_num);
+        push_buffer (sprintf "\tsub sp, sp, r%d\n" reg);
         reg_free reg
        );
      push_vars 1 (List.map (fun sv ->let SVar(x,y) = sv in (x,y)) vars);
@@ -123,8 +123,8 @@ and bl = function
      pop_vars lvar_num;
      if lvar_num != 0 then
        (let reg = reg_alloc () in
-        push_buffer (sprintf "\tli r%d %d\n" reg lvar_num);
-        push_buffer (sprintf "\tadd sp sp r%d\n" reg);
+        push_buffer (sprintf "\tli r%d, %d\n" reg lvar_num);
+        push_buffer (sprintf "\tadd sp, sp, r%d\n" reg);
         reg_free reg
        );
      sp_diff_ref := !sp_diff_ref - lvar_num
@@ -209,7 +209,7 @@ and ex arg =
         (push_buffer (sprintf "\tmov r%d, r%d\n" ret_reg (-offset));
          ret_reg)
       else
-        (push_buffer (sprintf "\tmov r%d, -%d(fp)\n" ret_reg offset);
+        (push_buffer (sprintf "\tmov r%d, [bp-%d]\n" ret_reg offset);
          ret_reg)
    | EAdd (e1, e2) ->
       (
@@ -262,4 +262,18 @@ and ex arg =
         done;
         ret_reg
       )
+   | ESubst (Name name, exp) ->
+      let offset = resolve_var name in
+      let ret_reg = reg_alloc () in
+      let temp_reg = ex exp in
+      reg_free temp_reg;
+      if offset < 0 then
+        let argi = -offset in
+        (push_buffer (sprintf "\tmov r%d, r%d\n" argi temp_reg);
+         push_buffer (sprintf "\tmov r%d, r%d\n" ret_reg temp_reg);
+         ret_reg)
+      else
+        (push_buffer (sprintf "\tmov [bp-%d], r%d\n" offset temp_reg);
+         push_buffer (sprintf "\tmov r%d, r%d\n" ret_reg temp_reg);
+         ret_reg)
    | _ -> raise (TODO "emit: ex"));
