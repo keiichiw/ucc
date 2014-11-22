@@ -1,2 +1,1 @@
-<*>: pkg_batteries,batteries.pa_string.syntax,pkg_threads
 true: use_menhir
