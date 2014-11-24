@@ -60,11 +60,15 @@ let rec range a b =
 let push_vars flg lst =
   let len = List.length lst in
   if flg = 0 then (*引数を追加*)
-    let l = List.map2 (fun (ty, Name name) i -> (ty, name, Reg i)) lst (range 1 len) in
+    let l = List.map2
+              (fun (ty, Name name) i -> (ty, name, Reg i))
+              lst (range 1 len) in
     env_ref := l@(!env_ref)
   else (*ローカル変数を追加*)
     let idxlist = range (!sp_diff_ref+1) ((!sp_diff_ref)+len) in
-    let l = List.map2 (fun (ty, Name name) i -> (ty, name, Mem i)) lst idxlist in
+    let l = List.map2
+              (fun (ty, Name name) i -> (ty, name, Mem i))
+              lst idxlist in
     env_ref := l@(!env_ref)
 
 let pop_vars num =

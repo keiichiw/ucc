@@ -6,9 +6,12 @@ exception TODO of string
 type loc = Lexing.position * Lexing.position
 
 type name = Name of string
-type ctype = TInt | TChar
+type ctype =
+  | TInt
+  | TChar
+  | TPtr of ctype (* pointer of type *)
 type decl =
-  | DVars of ctype * (declarator list) * loc
+  | DVar of ctype * declarator * loc
   | DFun of ctype * name * (ctype * name) list * block * loc
 and declarator =
   | DeclIdent of name
@@ -26,11 +29,12 @@ and stmt =
   | SExpr of expr
 and expr =
   | EConst of value
-  | EVar   of name
+  | EVar   of lvalue
+  | EAddr  of lvalue
   | EComma of expr * expr
   | EAdd   of expr * expr
   | ESub   of expr * expr
-  | ESubst of name * expr
+  | ESubst of lvalue * expr
   | EMod   of expr * expr
   | EApp   of name * (expr list)
   | ELt    of expr * expr
@@ -39,3 +43,6 @@ and expr =
   | ENeq    of expr * expr
 and value =
   | VInt of int
+and lvalue =
+  | LVar of name
+  | LPtr of lvalue

@@ -5,35 +5,29 @@ let rec print_program fmt p =
   pp_defs fmt p;
   fprintf fmt "]\n";
 and pp_defs fmt = function
-  |[] ->
-    fprintf fmt ""
+  |[] -> ()
   |x::xs ->
-    pp_def fmt x;
+    let _ = pp_def fmt x in
     fprintf fmt ",\n";
     pp_defs fmt xs
 and pp_def fmt = function
-  | DVars (ty, dl, (a, b)) ->
-     fprintf fmt "offset=%d:\nDVars(int, [%a])" a.Lexing.pos_cnum pp_declars dl
+  | DVar (ty, d, (a, b)) ->
+     fprintf fmt "offset=%d:\nDVars(int, [%a])" a.Lexing.pos_cnum pp_declar d
   | DFun (ty, Name s, l1, b, (a, _)) ->
-     fprintf fmt "offset=%d:\nDFun(int, %s, [%a], %a)" a.Lexing.pos_cnum s pp_params l1 pp_block b
-and pp_declars fmt = function
-  | [] ->
-     fprintf fmt ""
-  | d::ds ->
-     pp_declar fmt d;
-     fprintf fmt ",";
-     pp_declars fmt ds
+     fprintf fmt "offset=%d:\nDFun(int, %s, [%a], \n%a)" a.Lexing.pos_cnum s pp_params l1 pp_block b
 and pp_declar fmt = function
   | DeclIdent name ->
      let Name x = name in
      fprintf fmt "%s" x
   | DeclFProto (d, tlist) ->
      fprintf fmt "Fun %a (%a)" pp_declar d pp_types tlist
-and pp_types fmt = function
-  | [] ->
-     fprintf fmt ""
-  | t::ts ->
-     fprintf fmt "int, %a" pp_types ts;
+and pp_types fmt l =
+  let _ = List.map (pp_type fmt) l in
+  ()
+and pp_type fmt = function
+  | TInt -> fprintf fmt "int,"
+  | TPtr x -> fprintf fmt "*%a" pp_type x
+  | _ -> fprintf fmt "unknown type"
 and pp_namelist fmt = function
   | [] ->
      fprintf fmt ""
@@ -48,18 +42,17 @@ and pp_params fmt = function
      fprintf fmt ", ";
      pp_params fmt xs
 and pp_param fmt (ty, Name v) =
-  fprintf fmt "(int, %s)" v
+  fprintf fmt "(%a %s)" pp_type ty v
 and pp_block fmt = function
-  | Block (vs, s) -> fprintf fmt "{[%a], %a}" pp_svars vs pp_stmts s
+  | Block (vs, s) -> fprintf fmt "\n{[local: %a],\n%a}\n" pp_svars vs pp_stmts s
 and pp_svars fmt vs =
   let _ =List.map (fun (SVar (t, Name n)) ->
-            fprintf fmt "(int,%s)," n) vs in
+            fprintf fmt "(%a %s)," pp_type t n) vs in
   ()
 and pp_stmts fmt = function
-  |[] ->
-    fprintf fmt ""
+  |[] -> ()
   |x::xs ->
-    pp_stmt fmt x;fprintf fmt ", ";pp_stmts fmt xs
+    pp_stmt fmt x;fprintf fmt ",\n";pp_stmts fmt xs
 and pp_stmt fmt = function
   | SNil ->
      fprintf fmt ";"
@@ -86,14 +79,16 @@ and pp_exprs fmt= function
 and pp_expr fmt = function
   | EConst v ->
      fprintf fmt "EConst(%a)" pp_value v
-  | EVar (Name s) ->
-     fprintf fmt "EVar(%s)" s
+  | EVar v ->
+     fprintf fmt "EVar(%a)" pp_lvalue v
   | EAdd (e1, e2) ->
      fprintf fmt "EAdd(%a, %a)" pp_expr e1 pp_expr e2
   | ESub (e1, e2) ->
      fprintf fmt "ESub(%a, %a)" pp_expr e1 pp_expr e2
-  | ESubst (Name s, e2) ->
-     fprintf fmt "ESubst(%s, %a)" s pp_expr e2
+  | ESubst (lv, e2) ->
+     fprintf fmt "ESubst(%a, %a)" pp_lvalue lv pp_expr e2
+  | EAddr lv ->
+     fprintf fmt "EAddr(%a)" pp_lvalue lv
   | EMod (e1, e2) ->
      fprintf fmt "EMod(%a, %a)" pp_expr e1 pp_expr e2
   | EApp (Name s, args) ->
@@ -108,3 +103,8 @@ and pp_expr fmt = function
 and pp_value fmt = function
   | VInt i ->
      fprintf fmt "VInt(%d)" i
+and pp_lvalue fmt = function
+  | LVar (Name n) ->
+     fprintf fmt "%s" n
+  | LPtr lv ->
+     fprintf fmt "LPtr(%a)" pp_lvalue lv

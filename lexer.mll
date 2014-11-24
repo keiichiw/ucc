@@ -34,8 +34,12 @@ rule token = parse
     { PLUS }
 | '-'
     { MINUS }
+| '*'
+    { STAR }
 | '%'
     { MOD }
+| '&'
+    { AMP }
 | "=="
     { EQ}
 | "!="
