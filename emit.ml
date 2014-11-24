@@ -7,8 +7,8 @@ let using_reg_num = ref 0;;
 let max_reg_num = ref 0;;
 let buffer_ref : string list ref = ref [];;
 let sp_diff_ref = ref 0;;
-type strplace = Reg of int | Mem of int
-let env_ref : (ctype * string * strplace) list ref = ref [];;
+type storageplace = Reg of int | Mem of int | Ptr of storageplace
+let env_ref : (ctype * string * storageplace) list ref = ref [];;
 
 (* Access ref values*)
 let push_buffer str =
@@ -185,15 +185,11 @@ and ex arg =
       let ret_reg = reg_alloc () in
       push_buffer (sprintf "\tmov $%d, %d\n" ret_reg i);
       ret_reg
-   | EVar (Name s) ->
+   | EVar l ->
       let ret_reg = reg_alloc () in
-      (match resolve_var s with
-       | Reg i ->
-          (push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg i);
-           ret_reg)
-       | Mem offset ->
-          (push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" ret_reg offset);
-           ret_reg))
+      let mem = lvstr l in
+      push_buffer (sprintf "\tmov $%d, %s\n" ret_reg mem);
+      ret_reg
    | EAdd (e1, e2) ->
       (
         let ret_reg = reg_alloc () in
@@ -243,21 +239,48 @@ and ex arg =
         push_buffer (sprintf "\tcall %s\n" fname);
         regs_alloc_num used_num;
         let ret_reg = reg_alloc () in
-        push_buffer (sprintf "\tmov $%d, $1\n" ret_reg);
+        if ret_reg != 1 then
+          push_buffer (sprintf "\tmov $%d, $1\n" ret_reg);
         for i = used_num downto 1 do (*pops*)
           push_buffer (sprintf "\tpop $%d\n" i)
         done;
         ret_reg
       )
-   | ESubst (Name name, exp) ->
+   | ESubst (l, exp) ->
       let ret_reg = ex exp in
-      (match resolve_var name with
-       | Reg i ->
-          (push_buffer (sprintf "\tmov $%d, $%d\n" i ret_reg);
-           reg_free ret_reg;
-           i)
+      let mem = lvstr l in
+      push_buffer (sprintf "\tmov %s, $%d\n" mem ret_reg);
+      ret_reg
+   | EAddr (l) ->
+      (match lv l with
+       | Reg i -> raise (EmitError "ref of address of arg")
        | Mem offset ->
-          (push_buffer (sprintf "\tmov [$bp-%d], $%d\n" offset ret_reg);
-           ret_reg)
+          let ret_reg = reg_alloc () in
+          push_buffer (sprintf "\tsub $%d, $bp, %d\n" ret_reg offset);
+          ret_reg
+       | _ -> raise (TODO "EAddr")
       )
-   | _ -> raise (TODO "emit: ex"));
+   | _ -> raise (TODO "emit: ex"))
+and lvstr l =
+  match lv l with
+  | (Reg i) -> (sprintf "$%d" i)
+  | Mem offset -> (sprintf "[$bp-%d]" offset)
+  | Ptr x ->
+     let rec hoge = function
+       | Reg i -> i
+       | Mem offset ->
+          let r = reg_alloc () in
+          push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" r offset);
+          reg_free r;
+          r
+       | Ptr x ->
+          let a = hoge x in
+          let r = reg_alloc () in
+          push_buffer (sprintf "\tmov $%d, [$%d]\n" r a);
+          reg_free r;
+          r in
+     (sprintf "[$%d]" (hoge x))
+
+and lv = function
+  | LVar (Name s) -> resolve_var s
+  | LPtr leftv -> Ptr (lv leftv)
