@@ -286,7 +286,7 @@ and getAddress l =
      push_buffer (sprintf "\tsub $%d, $bp, %d\n" ret_reg offset);
      ret_reg
   | Ptr x ->
-     let rec hoge = function
+     let rec go = function
        | Reg i ->
           let ret_reg = reg_alloc () in
           push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg i);
@@ -296,12 +296,12 @@ and getAddress l =
           push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" r offset);
           r
        | Ptr x ->
-          let a = hoge x in
+          let a = go x in
           let r = reg_alloc () in
           push_buffer (sprintf "\tmov $%d, [$%d]\n" r a);
           reg_free a;
           r in
-     (hoge x)
+     (go x)
   | _ -> raise (EmitError "can't get register's address\n")
 and lv = function (*left-value -> storage place *)
   | EVar (Name s) -> resolve_var s
