@@ -29,20 +29,18 @@ and stmt =
   | SExpr of expr
 and expr =
   | EConst of value
-  | EVar   of lvalue
-  | EAddr  of lvalue
+  | EVar   of name
   | EComma of expr * expr
   | EAdd   of expr * expr
   | ESub   of expr * expr
-  | ESubst of lvalue * expr
+  | ESubst of expr * expr
   | EMod   of expr * expr
   | EApp   of name * (expr list)
   | ELt    of expr * expr
   | ELe    of expr * expr
   | EEq    of expr * expr
   | ENeq    of expr * expr
+  | EPtr   of expr
+  | EAddr   of expr
 and value =
   | VInt of int
-and lvalue =
-  | LVar of name
-  | LPtr of lvalue

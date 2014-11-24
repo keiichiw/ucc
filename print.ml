@@ -79,16 +79,16 @@ and pp_exprs fmt= function
 and pp_expr fmt = function
   | EConst v ->
      fprintf fmt "EConst(%a)" pp_value v
-  | EVar v ->
-     fprintf fmt "EVar(%a)" pp_lvalue v
+  | EVar (Name str) ->
+     fprintf fmt "EVar(%s)" str
   | EAdd (e1, e2) ->
      fprintf fmt "EAdd(%a, %a)" pp_expr e1 pp_expr e2
   | ESub (e1, e2) ->
      fprintf fmt "ESub(%a, %a)" pp_expr e1 pp_expr e2
-  | ESubst (lv, e2) ->
-     fprintf fmt "ESubst(%a, %a)" pp_lvalue lv pp_expr e2
-  | EAddr lv ->
-     fprintf fmt "EAddr(%a)" pp_lvalue lv
+  | ESubst (e1, e2) ->
+     fprintf fmt "ESubst(%a, %a)" pp_expr e1 pp_expr e2
+  | EAddr e ->
+     fprintf fmt "EAddr(%a)" pp_expr e
   | EMod (e1, e2) ->
      fprintf fmt "EMod(%a, %a)" pp_expr e1 pp_expr e2
   | EApp (Name s, args) ->
@@ -103,8 +103,3 @@ and pp_expr fmt = function
 and pp_value fmt = function
   | VInt i ->
      fprintf fmt "VInt(%d)" i
-and pp_lvalue fmt = function
-  | LVar (Name n) ->
-     fprintf fmt "%s" n
-  | LPtr lv ->
-     fprintf fmt "LPtr(%a)" pp_lvalue lv

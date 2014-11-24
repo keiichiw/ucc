@@ -1,13 +1,17 @@
 open Syntax
 open Printf
 exception EmitError of string
+exception Unreachable
 
 let created_label_num = ref 0;;
 let using_reg_num = ref 0;;
 let max_reg_num = ref 0;;
 let buffer_ref : string list ref = ref [];;
 let sp_diff_ref = ref 0;;
-type storageplace = Reg of int | Mem of int | Ptr of storageplace
+type storageplace =
+  | Reg of int (*register*)
+  | Mem of int (*memory*)
+  | Ptr of storageplace (*pointer*)
 let env_ref : (ctype * string * storageplace) list ref = ref [];;
 
 (* Access ref values*)
@@ -185,11 +189,16 @@ and ex arg =
       let ret_reg = reg_alloc () in
       push_buffer (sprintf "\tmov $%d, %d\n" ret_reg i);
       ret_reg
-   | EVar l ->
-      let ret_reg = reg_alloc () in
-      let mem = lvstr l in
-      push_buffer (sprintf "\tmov $%d, %s\n" ret_reg mem);
-      ret_reg
+   | EVar (Name s) ->
+      (let ret_reg = reg_alloc () in
+       match resolve_var s with
+       | Reg i ->
+          push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg i);
+          ret_reg
+       | Mem offset ->
+          push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" ret_reg offset);
+          ret_reg
+       | _ -> raise Unreachable)
    | EAdd (e1, e2) ->
       (
         let ret_reg = reg_alloc () in
@@ -247,40 +256,59 @@ and ex arg =
         ret_reg
       )
    | ESubst (l, exp) ->
-      let ret_reg = ex exp in
-      let mem = lvstr l in
-      push_buffer (sprintf "\tmov %s, $%d\n" mem ret_reg);
-      ret_reg
-   | EAddr (l) ->
-      (match lv l with
-       | Reg i -> raise (EmitError "ref of address of arg")
-       | Mem offset ->
-          let ret_reg = reg_alloc () in
-          push_buffer (sprintf "\tsub $%d, $bp, %d\n" ret_reg offset);
-          ret_reg
-       | _ -> raise (TODO "EAddr")
+      (
+        let ret_reg = ex exp in
+        match lv l with
+        | Reg i ->
+           push_buffer (sprintf "\tmov $%d, $%d\n" i ret_reg);
+           ret_reg
+        | Mem offset ->
+           push_buffer (sprintf "\tmov [$bp-%d], $%d\n" offset ret_reg);
+           ret_reg
+        | _ ->
+           let addr_reg = getAddress l in
+           push_buffer (sprintf "\tmov [$%d], $%d\n" addr_reg ret_reg);
+           reg_free addr_reg;
+           ret_reg
       )
+   | EAddr e -> getAddress e
+   | EPtr e ->
+      let addr_reg = ex e in
+      let ret_reg = reg_alloc () in
+      push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg addr_reg);
+      reg_free addr_reg;
+      ret_reg
    | _ -> raise (TODO "emit: ex"))
-and lvstr l =
+and getAddress l =
   match lv l with
-  | (Reg i) -> (sprintf "$%d" i)
-  | Mem offset -> (sprintf "[$bp-%d]" offset)
+  | Mem offset ->
+     let ret_reg = reg_alloc () in
+     push_buffer (sprintf "\tsub $%d, $bp, %d\n" ret_reg offset);
+     ret_reg
   | Ptr x ->
      let rec hoge = function
-       | Reg i -> i
+       | Reg i ->
+          let ret_reg = reg_alloc () in
+          push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg i);
+          ret_reg
        | Mem offset ->
           let r = reg_alloc () in
           push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" r offset);
-          reg_free r;
           r
        | Ptr x ->
           let a = hoge x in
           let r = reg_alloc () in
           push_buffer (sprintf "\tmov $%d, [$%d]\n" r a);
-          reg_free r;
+          reg_free a;
           r in
-     (sprintf "[$%d]" (hoge x))
-
-and lv = function
-  | LVar (Name s) -> resolve_var s
-  | LPtr leftv -> Ptr (lv leftv)
+     (hoge x)
+  | _ -> raise (EmitError "can't get register's address\n")
+and lv = function (*left-value -> storage place *)
+  | EVar (Name s) -> resolve_var s
+  | EPtr leftv -> Ptr (lv leftv)
+  | EAddr leftv ->
+     (match lv leftv with
+      | Ptr x -> x
+      | _ ->
+         raise (EmitError (sprintf "This is not a left-value\n")))
+  | _ -> raise (EmitError (sprintf "This is not a left-value\n"))

@@ -30,36 +30,28 @@
 %%
 
 main:
-| decl* EOF {List.concat $1}
+| decl* EOF { $1 }
 
 
 decl:
 | decl_vars { $1 }
-| decl_fun  { [$1] }
+| decl_fun  { $1 }
 
 
 
 /*
-  variables | prototype declaration
+  prototype declaration
+  TODO: global variables
  */
 decl_vars:
-// e.g. int x, **y, z;
-| t= prim_type; vlist= separated_nonempty_list(COMMA, lvar_def); SEMICOLON
-  {
-    List.map
-      (fun (starnum, name) ->
-       DVar ((nestPtr t starnum), DeclIdent name, ($startpos, $endpos))
-      )
-      vlist
-  }
 // e.g. int f(int x, int y);
 | t=prim_type; x=ID; LPAREN; tlist= separated_list(COMMA, fun_arg); RPAREN; SEMICOLON
   {
     let tys = List.map (fun x -> TInt) tlist in
     let name = Name x in
-    [DVar(t,
+    DVar(t,
          DeclFProto(DeclIdent name, tys),
-         ($startpos, $endpos))]
+         ($startpos, $endpos))
   }
 
 ///////////
@@ -119,12 +111,6 @@ expr:
   { EComma($1, $3) }
 
 simple_expr:
-| LPAREN expr RPAREN
-  { $2 }
-| PLUS expr
-  { $2 }
-| MINUS expr
-  { ESub(EConst(VInt 0), $2)}
 | expr PLUS expr
   { EAdd($1, $3)}
 | expr MINUS expr
@@ -143,31 +129,38 @@ simple_expr:
   { ELe($1, $3)}
 | expr GE expr
   { ELe($3, $1)}
-| left_value SUBST expr
+| unary SUBST expr
   { ESubst($1, $3) }
-| left_value PLUSSUBST expr
-  { ESubst($1, EAdd(EVar $1, $3)) }
-| left_value MINUSSUBST expr
-  { ESubst($1, ESub(EVar $1, $3)) }
-| AMP left_value
-  { EAddr ($2) }
+| unary PLUSSUBST expr
+  { ESubst($1, EAdd($1, $3)) }
+| unary MINUSSUBST expr
+  { ESubst($1, ESub($1, $3)) }
 | ID LPAREN args RPAREN
   { EApp(Name $1, $3) }
-| left_value
-  { EVar $1 }
-| value
-  { EConst($1)}
-
-value:
-| INT {VInt($1)}
+| unary
+  { $1 }
 
 args:
 | simple_expr
   {[$1]}
 | simple_expr COMMA args
   {$1::$3}
-left_value:
+
+unary:
+| PLUS unary
+  { $2 }
+| MINUS unary
+  { ESub(EConst(VInt 0), $2) }
+| STAR unary
+  { EPtr $2 }
+| AMP unary
+  { EAddr $2 }
+| primary
+  { $1 }
+primary:
+| INT
+  { EConst(VInt $1) }
 | ID
-  { LVar (Name $1) }
-| STAR left_value
-  { LPtr $2 }
+  { EVar (Name $1)}
+| LPAREN expr RPAREN
+  { $2 }

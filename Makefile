@@ -5,4 +5,4 @@ all:
 .PHONY: clean
 clean:
 	ocamlbuild -clean
-	rm -f *~ ./test/*~ ucc
+	rm -f *~ ./test/*~ ./test/*.out ucc
