@@ -61,19 +61,21 @@ let rec range a b =
   if a > b then []
   else a :: range (a+1) b;;
 
-let push_vars flg lst =
+let push_vars flg svarlist =
+  let lst = List.map (fun sv -> let SVar(ty, Name nm) = sv in (ty, nm)) svarlist in
   let len = List.length lst in
-  if flg = 0 then (*引数を追加*)
+  if flg = 0 then (* add args *)
     let l = List.map2
-              (fun (ty, Name name) i -> (ty, name, Reg i))
+              (fun (ty, name) i -> (ty, name, Reg i))
               lst (range 1 len) in
     env_ref := l@(!env_ref)
-  else (*ローカル変数を追加*)
+  else (* add local variables *)
     let idxlist = range (!sp_diff_ref+1) ((!sp_diff_ref)+len) in
     let l = List.map2
-              (fun (ty, Name name) i -> (ty, name, Mem i))
+              (fun (ty, name) i -> (ty, name, Mem i))
               lst idxlist in
     env_ref := l@(!env_ref)
+
 
 let pop_vars num =
   let rec drop xs n =
@@ -83,12 +85,11 @@ let pop_vars num =
     | (_, _::ys) -> drop ys (n - 1) in
   env_ref := drop (!env_ref) num
 
-
 let rec main oc defs =
   let _ = List.map (fun x -> emit oc x) defs in
   ()
 and emit oc = function
-  | DFun(TInt, Name name, args, b, _) ->
+  | DFun(ty, Name name, args, b, _) ->
      using_reg_num := List.length args;
      push_vars 0 args;
      bl b;
@@ -104,7 +105,7 @@ and bl = function
         push_buffer (sprintf "\tsub $sp, $sp, $%d\n" reg);
         reg_free reg
        );
-     push_vars 1 (List.map (fun sv ->let SVar(x,y) = sv in (x,y)) vars);
+     push_vars 1 vars;
      sp_diff_ref := !sp_diff_ref + lvar_num;
      st stmts;
      sp_diff_ref := !sp_diff_ref - lvar_num;

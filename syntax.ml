@@ -6,15 +6,17 @@ exception TODO of string
 type loc = Lexing.position * Lexing.position
 
 type name = Name of string
+type size = int
+
 type ctype =
   | TInt
-  | TChar
   | TPtr of ctype (* pointer of type *)
 type decl =
   | DVar of ctype * declarator * loc
-  | DFun of ctype * name * (ctype * name) list * block * loc
+  | DFun of ctype * name * (svar list) * block * loc
 and declarator =
   | DeclIdent of name
+  | DeclArray of declarator * size
   | DeclFProto of declarator * (ctype list)
 and block =
   | Block of svar list * stmt list

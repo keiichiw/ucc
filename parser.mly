@@ -1,8 +1,13 @@
 %{
   open Syntax
+  exception ParserError of string
+  let rec getNameFromDecl = function
+    | DeclIdent n -> n
+    | DeclArray (x, _) -> getNameFromDecl x
+    | DeclFProto (x,_) -> getNameFromDecl x;;
   let rec nestPtr t = function
-    | 0 -> t
-    | i -> TPtr (nestPtr t (i-1))
+      | 0 -> t
+      | i -> TPtr (nestPtr t (i-1))
 %}
 
 %token <int> INT
@@ -11,6 +16,7 @@
 %token IF ELSE RETURN WHILE FOR
 %token LPAREN RPAREN
 %token LBRACE RBRACE
+%token LBRACKET RBRACKET
 %token PLUS MINUS MOD STAR AMP
 %token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
@@ -30,63 +36,68 @@
 %%
 
 main:
-| decl* EOF { $1 }
+| top_decl* EOF { $1 }
 
 
-decl:
-| decl_vars { $1 }
-| decl_fun  { $1 }
+top_decl:
+| fun_definition  { $1 }
 
-
-
-/*
-  prototype declaration
-  TODO: global variables
- */
-decl_vars:
-// e.g. int f(int x, int y);
-| t=prim_type; x=ID; LPAREN; tlist= separated_list(COMMA, fun_arg); RPAREN; SEMICOLON
+// int f (int x, int y) {...}
+fun_definition:
+| ty=decl_specifier; f=declarator; LPAREN; dlist=separated_list(COMMA, declaration);  RPAREN; b=block
   {
-    let tys = List.map (fun x -> TInt) tlist in
-    let name = Name x in
-    DVar(t,
-         DeclFProto(DeclIdent name, tys),
-         ($startpos, $endpos))
+    let (starNum, decl) = f in
+    let nm = getNameFromDecl decl in
+    let typ = nestPtr ty starNum in
+    DFun (typ, nm, List.concat dlist, b,  ($startpos, $endpos))
   }
 
-///////////
-
-//e.g. int f(int x) {statement}
-decl_fun:
-| t=prim_type; name=ID; LPAREN; a=separated_list(COMMA, fun_arg); RPAREN; b=block
-  {DFun(t, Name name, a, b, ($startpos, $endpos))}
-
-
-fun_arg:
-| ty=prim_type; s=STAR*; name=ID
-  {
-    let typ = nestPtr ty (List.length s) in
-    (typ, (Name name))
-  }
-
-prim_type:
+decl_specifier:
 | TINT
   { TInt }
 
-block:
-| LBRACE; l=lvar*; s=stmt*; RBRACE { Block (List.concat l, s) }
 
-lvar: // local variables
-| ty= prim_type; vlist= separated_nonempty_list(COMMA, lvar_def); SEMICOLON
+declarator:
+| direct_declarator
+  { (0, $1) }
+| STAR d=declarator
   {
-    List.map
-      (fun (starnum, name) -> SVar (nestPtr ty starnum, name))
-      vlist
+    let (x, y) = d in
+    (x+1, y)
   }
 
-lvar_def: // e.g. **a -> (2, Name "a")
-| s=STAR* n=ID
-  { ( List.length s, Name n)}
+direct_declarator:
+| ID
+  { DeclIdent(Name $1) }
+| d=direct_declarator LBRACKET i=INT RBRACKET
+  { DeclArray(d, i) }
+
+
+
+block:
+| LBRACE; l=declaration_stmt*; s=stmt*; RBRACE
+  { Block (List.concat l, s) }
+
+declaration_stmt:
+| declaration SEMICOLON
+  { $1 }
+
+declarator_list:
+| declarator %prec below_COMMA
+  { [$1] }
+| declarator COMMA declarator_list
+  { $1::$3 }
+
+declaration: // local variables
+| ty=decl_specifier; dlist=declarator_list
+  {
+    List.map
+      (fun (starNum, d) ->
+       let typ = nestPtr ty starNum in
+       SVar (typ,
+             getNameFromDecl d))
+      dlist
+  }
 
 stmt: // statement
 | SEMICOLON
@@ -135,16 +146,9 @@ simple_expr:
   { ESubst($1, EAdd($1, $3)) }
 | unary MINUSSUBST expr
   { ESubst($1, ESub($1, $3)) }
-| ID LPAREN args RPAREN
-  { EApp(Name $1, $3) }
 | unary
   { $1 }
 
-args:
-| simple_expr
-  {[$1]}
-| simple_expr COMMA args
-  {$1::$3}
 
 unary:
 | PLUS unary
@@ -155,8 +159,19 @@ unary:
   { EPtr $2 }
 | AMP unary
   { EAddr $2 }
+| postfix_expr
+  { $1 }
+
+postfix_expr:
 | primary
   { $1 }
+| p=postfix_expr LPAREN args=separated_list(COMMA, simple_expr);RPAREN
+  {
+    match p with
+    | EVar name -> EApp(name, args)
+    | _ -> raise (ParserError "hoge")
+  }
+
 primary:
 | INT
   { EConst(VInt $1) }

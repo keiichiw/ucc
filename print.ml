@@ -13,11 +13,10 @@ and pp_defs fmt = function
 and pp_def fmt = function
   | DVar (ty, d, (a, b)) ->
      fprintf fmt "offset=%d:\nDVars(int, [%a])" a.Lexing.pos_cnum pp_declar d
-  | DFun (ty, Name s, l1, b, (a, _)) ->
-     fprintf fmt "offset=%d:\nDFun(int, %s, [%a], \n%a)" a.Lexing.pos_cnum s pp_params l1 pp_block b
+  | DFun (ty, Name name, l1, b, (a, _)) ->
+     fprintf fmt "offset=%d:\nDFun(int, %s, [%a], \n%a)" a.Lexing.pos_cnum name pp_svars l1 pp_block b
 and pp_declar fmt = function
-  | DeclIdent name ->
-     let Name x = name in
+  | DeclIdent (Name x) ->
      fprintf fmt "%s" x
   | DeclFProto (d, tlist) ->
      fprintf fmt "Fun %a (%a)" pp_declar d pp_types tlist
@@ -34,20 +33,12 @@ and pp_namelist fmt = function
   | (Name n)::ns ->
      fprintf fmt "%s," n;
      pp_namelist fmt ns
-and pp_params fmt = function
-  | [] ->
-     fprintf fmt ""
-  | x::xs ->
-     pp_param fmt x;
-     fprintf fmt ", ";
-     pp_params fmt xs
-and pp_param fmt (ty, Name v) =
-  fprintf fmt "(%a %s)" pp_type ty v
 and pp_block fmt = function
   | Block (vs, s) -> fprintf fmt "\n{[local: %a],\n%a}\n" pp_svars vs pp_stmts s
 and pp_svars fmt vs =
-  let _ =List.map (fun (SVar (t, Name n)) ->
-            fprintf fmt "(%a %s)," pp_type t n) vs in
+  let _ =List.map
+           (fun (SVar (t, Name n)) ->
+            fprintf fmt "(%a %s)," pp_type t n) in
   ()
 and pp_stmts fmt = function
   |[] -> ()

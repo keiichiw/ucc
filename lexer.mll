@@ -66,6 +66,10 @@ rule token = parse
     { LBRACE }
 | '}'
     { RBRACE }
+| '['
+    { LBRACKET }
+| ']'
+    { RBRACKET }
 | "//"
     { commentbis lexbuf }
 | "/*"
