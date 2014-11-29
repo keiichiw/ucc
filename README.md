@@ -10,6 +10,10 @@ You need OCaml and menhir.
 
 Example
 ==========
-``./ucc ./test/fib-loop.c``
+``./bin/ucc ./test/fib-loop.c``
 
-Then ``./test/fib-loop.s`` will be created.
+Then ``./test/fib-loop.out`` will be created.
+
+You can simulate by running the following command.
+
+``./bin/sim ./test/fib-loop.out``
