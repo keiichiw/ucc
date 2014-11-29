@@ -65,3 +65,49 @@ int __mul (int a, b) {
   }
   return r;
 }
+
+int __and(int a, b) {
+  int i, x;
+
+  x = 0;
+  for (i = 31; i >= 0; --i) {
+    x = x << 1;
+    if (__bitget(a, i) + __bitget(b, i) >= 2) {
+      x += 1;
+    }
+  }
+
+  return x;
+}
+
+int __or(int a, b) {
+  int i, x;
+
+  x = 0;
+  for (i = 31; i >= 0; --i) {
+    x = x << 1;
+    if (__bitget(a, i) + __bitget(b, i) >= 1) {
+      x += 1;
+    }
+  }
+
+  return x;
+}
+
+int __not(int a) {
+  return - a - 1;
+}
+
+int __xor(int a, b) {
+  int i, x;
+
+  x = 0;
+  for (i = 31; i >= 0; --i) {
+    x = x << 1;
+    if (__bitget(a, i) + __bitget(b, i) == 1) {
+      x += 1;
+    }
+  }
+
+  return x;
+}

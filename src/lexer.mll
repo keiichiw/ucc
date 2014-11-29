@@ -50,6 +50,12 @@ rule token = parse
     { RSHIFT }
 | '&'
     { AMP }
+| '^'
+    { HAT }
+| '|'
+    { BAR }
+| '~'
+    { TILDE }
 | "=="
     { EQ}
 | "!="

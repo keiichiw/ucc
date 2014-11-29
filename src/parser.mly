@@ -17,7 +17,8 @@
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
 %token INC DEC
-%token PLUS MINUS MOD STAR AMP LSHIFT RSHIFT SLASH
+%token AMP HAT BAR TILDE
+%token PLUS MINUS MOD STAR LSHIFT RSHIFT SLASH
 %token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
 %token SUBST PLUSSUBST MINUSSUBST
@@ -27,6 +28,9 @@
 %nonassoc below_COMMA
 %left COMMA
 %right SUBST PLUSSUBST MINUSSUBST
+%left BAR
+%left HAT
+%left AMP
 %left EQ NEQ
 %left LT LE GT GE
 %left LSHIFT RSHIFT
@@ -143,6 +147,12 @@ simple_expr:
   { EApp(Name "__div", [$1;$3]) }
 | expr MOD expr
   { EApp(Name "__mod", [$1;$3]) }
+| expr AMP expr
+  { EApp(Name "__and", [$1;$3]) }
+| expr BAR expr
+  { EApp(Name "__or", [$1;$3]) }
+| expr HAT expr
+  { EApp(Name "__xor", [$1;$3]) }
 | expr EQ expr
   { EEq($1, $3)}
 | expr NEQ expr
@@ -178,6 +188,8 @@ unary:
   { EPtr $2 }
 | AMP unary
   { EAddr $2 }
+| TILDE unary
+  { EApp(Name "__not", [$2]) }
 | postfix_expr
   { $1 }
 
