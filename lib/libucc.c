@@ -6,11 +6,11 @@ int print_int (int n) {
   return 0;
 }
 
-int __bitget (int n,  i) {
+int __bitget (int n, int i) {
   return (n<<(31-i))>>31;
 }
 
-int __bitset (int n,  i,  x) {
+int __bitset (int n, int i, int x) {
   if (__bitget(n, i) == x) {
     return n;
   } else {
@@ -22,7 +22,7 @@ int __bitset (int n,  i,  x) {
   }
 }
 
-int __div_kernel (int n, d, *q1, *r1) {
+int __div_kernel (int n, int d, int *q1, int *r1) {
   int q, r, i;
   q = r = 0;
   if (d == 0) {
@@ -43,18 +43,18 @@ int __div_kernel (int n, d, *q1, *r1) {
   return 0;
 }
 
-int __div (int n, d) {
+int __div (int n, int d) {
   int p, q;
   __div_kernel(n, d, &p, &q);
   return p;
 }
-int __mod (int n, d) {
+int __mod (int n, int d) {
   int p, q;
   __div_kernel(n, d, &p, &q);
   return q;
 }
 
-int __mul (int a, b) {
+int __mul (int a, int b) {
   int i,r;
   r=0;
   for (i=31; i>=0; i-=1) {
@@ -66,7 +66,7 @@ int __mul (int a, b) {
   return r;
 }
 
-int __and(int a, b) {
+int __and(int a, int b) {
   int i, x;
 
   x = 0;
@@ -80,7 +80,7 @@ int __and(int a, b) {
   return x;
 }
 
-int __or(int a, b) {
+int __or(int a, int b) {
   int i, x;
 
   x = 0;
@@ -98,7 +98,7 @@ int __not(int a) {
   return - a - 1;
 }
 
-int __xor(int a, b) {
+int __xor(int a, int b) {
   int i, x;
 
   x = 0;

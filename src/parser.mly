@@ -49,12 +49,12 @@ top_decl:
 
 // int f (int x, int y) {...}
 fun_definition:
-| ty=decl_specifier; f=declarator; LPAREN; dlist=separated_list(COMMA, declaration);  RPAREN; b=block
+| ty=decl_specifier; f=declarator; LPAREN; dlist=separated_list(COMMA, arg_declaration);  RPAREN; b=block
   {
     let (starNum, decl) = f in
     let nm = getNameFromDecl decl in
     let typ = nestPtr ty starNum in
-    DefFun (typ, nm, List.concat dlist, b,  ($startpos, $endpos))
+    DefFun (typ, nm, dlist, b,  ($startpos, $endpos))
   }
 
 decl_specifier:
@@ -87,14 +87,26 @@ declaration_stmt:
 | declaration SEMICOLON
   { $1 }
 
-declarator_list:
-| declarator %prec below_COMMA
-  { [$1] }
-| declarator COMMA declarator_list
-  { $1::$3 }
+
+arg_declaration:
+| ty=decl_specifier; d=declarator
+  {
+    let rec f (starNum,decl) =
+      let typ = nestPtr ty starNum in
+      let rec sizeOf = function
+        | DeclIdent(_) -> 1
+        | DeclArray(d,i) ->
+           (sizeOf d) * i in
+      match decl with
+      | DeclIdent(name) ->
+         DVar(typ, name)
+      | DeclArray(d, i) ->
+         DArray(typ, getNameFromDecl d, sizeOf d) in
+    f d
+  }
 
 declaration: // local variables
-| ty=decl_specifier; dlist=declarator_list
+| ty=decl_specifier; dlist=separated_list(COMMA, declarator)
   {
     let rec f (starNum,decl) =
       let typ = nestPtr ty starNum in
