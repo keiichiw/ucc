@@ -16,6 +16,7 @@
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
+%token INC DEC
 %token PLUS MINUS MOD STAR AMP LSHIFT RSHIFT SLASH
 %token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
@@ -169,6 +170,10 @@ unary:
   { $2 }
 | MINUS unary
   { ESub(EConst(VInt 0), $2) }
+| INC unary
+  { ESubst($2, EAdd($2, EConst(VInt(1)))) }
+| DEC unary
+  { ESubst($2, ESub($2, EConst(VInt(1)))) }
 | STAR unary
   { EPtr $2 }
 | AMP unary
@@ -185,9 +190,20 @@ postfix_expr:
     | EVar name -> EApp(name, args)
     | _ -> raise (ParserError "postfix: function application")
   }
+| p=postfix_expr INC
+  {
+    (* i++ -> (++i,i-1) *)
+    EComma( ESubst(p, EAdd(p, EConst(VInt(1)))),
+            ESub(p, EConst(VInt(1))))
+  }
+| p=postfix_expr DEC
+  {
+    (* i-- -> (--i,i+1) *)
+    EComma( ESubst(p, ESub(p, EConst(VInt(1)))),
+            EAdd(p, EConst(VInt(1))))
+  }
 | p=postfix_expr LBRACKET e=expr;RBRACKET
   { EPtr(EAdd(p, e)) }
-
 primary:
 | INT
   { EConst(VInt $1) }

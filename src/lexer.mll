@@ -32,8 +32,12 @@ rule token = parse
     { RETURN }
 | '+'
     { PLUS }
+| "++"
+    { INC }
 | '-'
     { MINUS }
+| "--"
+    { DEC }
 | '*'
     { STAR }
 | '/'

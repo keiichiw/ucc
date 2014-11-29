@@ -5,10 +5,10 @@
 
 int main () {
   int a[10], i;
-  for (i=0;i<=4;i+=1) {
+  for (i=0;i<=4;i++) {
     a[i] = i;
   }
-  for (i=4;i>=0;i-=1) {
+  for (i=4;i>=0;--i) {
     print_int(a[i]);
   }
   return 0;
