@@ -23,6 +23,7 @@ and dvar =
 and stmt =
   | SNil
   | SWhile of expr * block
+  | SDoWhile of block * expr
   | SFor of (expr option) * (expr option) * (expr option) * block
   | SIfElse of expr * block * block
   | SReturn of expr

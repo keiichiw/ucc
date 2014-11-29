@@ -12,7 +12,7 @@
 %token <int> INT
 %token <string> ID
 %token TINT
-%token IF ELSE RETURN WHILE FOR
+%token IF ELSE RETURN WHILE FOR DO
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
@@ -129,6 +129,8 @@ stmt: // statement
   { SExpr($1) }
 | WHILE LPAREN expr RPAREN block
   { SWhile($3, $5) }
+| DO b=block WHILE LPAREN e=expr RPAREN SEMICOLON
+  { SDoWhile( b, e) }
 | FOR LPAREN e1= expr?; SEMICOLON e2= expr?; SEMICOLON e3=expr?; RPAREN; b=block
   { SFor(e1, e2, e3, b) }
 | IF LPAREN expr RPAREN block

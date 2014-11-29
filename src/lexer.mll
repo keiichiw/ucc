@@ -26,6 +26,8 @@ rule token = parse
     { ELSE }
 | "while"
     { WHILE }
+| "do"
+    { DO }
 | "for"
     { FOR }
 | "return"

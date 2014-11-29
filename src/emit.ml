@@ -153,6 +153,18 @@ and st' = function
      bl b;
      push_buffer (sprintf "\tbr L%d\n" beginlabel);
      push_buffer (sprintf "L%d:\n" endlabel)
+  | SDoWhile (b, cond) ->
+     let beginlabel = label_create () in
+     let endlabel = label_create () in
+     push_buffer (sprintf "L%d:\n" beginlabel);
+     bl b;
+     let cond_reg = ex cond in
+     push_buffer (sprintf "\tbeq $0, $%d, L%d\n"
+                          cond_reg
+                          endlabel);
+     push_buffer (sprintf "\tbr L%d\n" beginlabel);
+     push_buffer (sprintf "L%d:\n" endlabel);
+     reg_free cond_reg;
   | SFor(init, cond, iter, b) ->
      let startlnum = label_create () in
      let endlnum = label_create () in
