@@ -4,7 +4,6 @@
   let rec getNameFromDecl = function
     | DeclIdent n -> n
     | DeclArray (x, _) -> getNameFromDecl x
-    | DeclFProto (x,_) -> getNameFromDecl x;;
   let rec nestPtr t = function
       | 0 -> t
       | i -> TPtr (nestPtr t (i-1))
@@ -31,7 +30,7 @@
 %left LT LE GT GE
 %left PLUS MINUS
 %right MOD
-%start <Syntax.decl list> main
+%start <Syntax.def list> main
 
 %%
 
@@ -49,7 +48,7 @@ fun_definition:
     let (starNum, decl) = f in
     let nm = getNameFromDecl decl in
     let typ = nestPtr ty starNum in
-    DFun (typ, nm, List.concat dlist, b,  ($startpos, $endpos))
+    DefFun (typ, nm, List.concat dlist, b,  ($startpos, $endpos))
   }
 
 decl_specifier:
@@ -91,12 +90,18 @@ declarator_list:
 declaration: // local variables
 | ty=decl_specifier; dlist=declarator_list
   {
-    List.map
-      (fun (starNum, d) ->
-       let typ = nestPtr ty starNum in
-       SVar (typ,
-             getNameFromDecl d))
-      dlist
+    let rec f (starNum,decl) =
+      let typ = nestPtr ty starNum in
+      let rec sizeOf = function
+        | DeclIdent(_) -> 1
+        | DeclArray(d,i) ->
+           (sizeOf d) * i in
+      match decl with
+      | DeclIdent(name) ->
+         DVar(typ, name)
+      | DeclArray(d, i) ->
+         DArray(typ, getNameFromDecl d, sizeOf d) in
+    List.map f dlist
   }
 
 stmt: // statement
@@ -169,8 +174,10 @@ postfix_expr:
   {
     match p with
     | EVar name -> EApp(name, args)
-    | _ -> raise (ParserError "hoge")
+    | _ -> raise (ParserError "postfix: function application")
   }
+| p=postfix_expr LBRACKET e=expr;RBRACKET
+  { EPtr(EAdd(p, e)) }
 
 primary:
 | INT

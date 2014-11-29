@@ -61,41 +61,63 @@ let rec range a b =
   if a > b then []
   else a :: range (a+1) b;;
 
-let push_vars flg svarlist =
-  let lst = List.map (fun sv -> let SVar(ty, Name nm) = sv in (ty, nm)) svarlist in
-  let len = List.length lst in
-  if flg = 0 then (* add args *)
-    let l = List.map2
-              (fun (ty, name) i -> (ty, name, Reg i))
-              lst (range 1 len) in
-    env_ref := l@(!env_ref)
-  else (* add local variables *)
-    let idxlist = range (!sp_diff_ref+1) ((!sp_diff_ref)+len) in
-    let l = List.map2
-              (fun (ty, name) i -> (ty, name, Mem i))
-              lst idxlist in
-    env_ref := l@(!env_ref)
+let push_args args = (* add args in env *)
+  let rec go i = function
+    | [] -> ()
+    | (DVar (ty, Name name))::xs ->
+       env_ref := (ty, name, Reg i)::!env_ref;
+       go (i+1) xs
+    | _ -> raise (EmitError "array can't be an argument of function.") in
+  go 1 args
 
+let push_local_vars vars = (* add local vars in env *)
+  let go = function
+    | DVar (ty, Name name) ->
+       sp_diff_ref := !sp_diff_ref + 1;
+       env_ref := (ty, name, Mem !sp_diff_ref)::!env_ref
+    | DArray (ty, Name name, sz) ->
+       sp_diff_ref := !sp_diff_ref + 1;
+       env_ref := (TPtr ty, name, Mem !sp_diff_ref)::!env_ref;
+       sp_diff_ref := !sp_diff_ref + (sz-1) in
+  let _ = List.map go vars in ()
 
-let pop_vars num =
+let pop_args num =
+  let rec drop xs n =
+    match (n, xs) with
+    | (0, _) -> xs
+    | (_, (_,_,Reg _)::ys) -> drop ys (n - 1)
+    | (_, (_,_,Mem _)::ys) ->
+       raise (EmitError "local vars can't be removed")
+    | _ ->
+       raise (EmitError "pop_local_args") in
+  env_ref := drop (!env_ref) num
+
+let pop_local_vars num =
   let rec drop xs n =
     match (n, xs) with
     | (0, _) -> xs
     | (_, []) -> []
-    | (_, _::ys) -> drop ys (n - 1) in
-  env_ref := drop (!env_ref) num
+    | (_, (_,_,Mem _)::ys) -> drop ys (n - 1)
+    | (_, (_,_,Reg _)::ys) ->
+       raise (EmitError "args can't be removed")
+    | _ ->
+       raise (EmitError "pop_local_vars") in
+  env_ref := drop (!env_ref) num;
+  sp_diff_ref := !sp_diff_ref - num
+
+
+
 
 let rec main oc defs =
   let _ = List.map (fun x -> emit oc x) defs in
   ()
 and emit oc = function
-  | DFun(ty, Name name, args, b, _) ->
+  | DefFun(ty, Name name, args, b, _) ->
      using_reg_num := List.length args;
-     push_vars 0 args;
+     push_args args;
      bl b;
-     pop_vars (List.length args);
+     pop_args (List.length args);
      print_buffer oc name
-  | _ -> raise (TODO "emit:emit")
 and bl = function
   | Block (vars, stmts) ->
      let lvar_num = List.length vars in
@@ -105,11 +127,9 @@ and bl = function
         push_buffer (sprintf "\tsub $sp, $sp, $%d\n" reg);
         reg_free reg
        );
-     push_vars 1 vars;
-     sp_diff_ref := !sp_diff_ref + lvar_num;
+     push_local_vars vars;
      st stmts;
-     sp_diff_ref := !sp_diff_ref - lvar_num;
-     pop_vars lvar_num;
+     pop_local_vars lvar_num;
      if lvar_num != 0 then
        (let reg = reg_alloc () in
         push_buffer (sprintf "\tmov $%d, %d\n" reg lvar_num);
@@ -256,22 +276,27 @@ and ex arg =
         done;
         ret_reg
       )
-   | ESubst (l, exp) ->
-      (
-        let ret_reg = ex exp in
-        match lv l with
-        | Reg i ->
-           push_buffer (sprintf "\tmov $%d, $%d\n" i ret_reg);
-           ret_reg
-        | Mem offset ->
-           push_buffer (sprintf "\tmov [$bp-%d], $%d\n" offset ret_reg);
-           ret_reg
-        | _ ->
-           let addr_reg = getAddress l in
-           push_buffer (sprintf "\tmov [$%d], $%d\n" addr_reg ret_reg);
-           reg_free addr_reg;
-           ret_reg
+   | ESubst (dist, exp) ->
+      let ret_reg =  ex exp in
+      (match dist with
+      | EVar (Name s) ->
+         (match resolve_var s with
+          | Reg i ->
+             push_buffer (sprintf "\tmov $%d, $%d\n" i ret_reg);
+             ret_reg
+          | Mem offset ->
+             push_buffer (sprintf "\tmov [$bp-%d], $%d\n" offset ret_reg);
+             ret_reg
+          | _ -> raise Unreachable
+         )
+      | EPtr e ->
+         let r = ex e in
+         push_buffer (sprintf "\tmov [$%d], $%d\n" r ret_reg);
+         reg_free r;
+         ret_reg
+      | _ -> raise (EmitError "emit:substitution error")
       )
+
    | EAddr e -> getAddress e
    | EPtr e ->
       let addr_reg = ex e in
@@ -279,7 +304,11 @@ and ex arg =
       push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg addr_reg);
       reg_free addr_reg;
       ret_reg
-   | _ -> raise (TODO "emit: ex"))
+   | x ->
+      fprintf stderr "In emit.ml\n";
+      Print.pp_expr stderr x;
+      fprintf stderr "\nThis expr can't be compiled yet.\n";
+      raise (TODO "emit: ex"))
 and getAddress l =
   match lv l with
   | Mem offset ->
@@ -289,9 +318,9 @@ and getAddress l =
   | Ptr x ->
      let rec go = function
        | Reg i ->
-          let ret_reg = reg_alloc () in
-          push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg i);
-          ret_reg
+          let r = reg_alloc () in
+          push_buffer (sprintf "\tmov $%d, $%d\n" r i);
+          r
        | Mem offset ->
           let r = reg_alloc () in
           push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" r offset);
@@ -312,4 +341,6 @@ and lv = function (*left-value -> storage place *)
       | Ptr x -> x
       | _ ->
          raise (EmitError (sprintf "This is not a left-value\n")))
-  | _ -> raise (EmitError (sprintf "This is not a left-value\n"))
+  | x ->
+     Print.pp_expr stderr x;
+     raise (EmitError (sprintf "This is not a left-value\n"))

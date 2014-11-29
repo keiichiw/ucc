@@ -11,22 +11,14 @@ and pp_defs fmt = function
     fprintf fmt ",\n";
     pp_defs fmt xs
 and pp_def fmt = function
-  | DVar (ty, d, (a, b)) ->
-     fprintf fmt "offset=%d:\nDVars(int, [%a])" a.Lexing.pos_cnum pp_declar d
-  | DFun (ty, Name name, l1, b, (a, _)) ->
-     fprintf fmt "offset=%d:\nDFun(int, %s, [%a], \n%a)" a.Lexing.pos_cnum name pp_svars l1 pp_block b
-and pp_declar fmt = function
-  | DeclIdent (Name x) ->
-     fprintf fmt "%s" x
-  | DeclFProto (d, tlist) ->
-     fprintf fmt "Fun %a (%a)" pp_declar d pp_types tlist
+  | DefFun (ty, Name name, l1, b, (a, _)) ->
+     fprintf fmt "Line:%d\nDefFun(int, %s, [%a], \n%a)" a.Lexing.pos_lnum name pp_svars l1 pp_block b
 and pp_types fmt l =
   let _ = List.map (pp_type fmt) l in
   ()
 and pp_type fmt = function
   | TInt -> fprintf fmt "int,"
   | TPtr x -> fprintf fmt "*%a" pp_type x
-  | _ -> fprintf fmt "unknown type"
 and pp_namelist fmt = function
   | [] ->
      fprintf fmt ""
@@ -35,11 +27,14 @@ and pp_namelist fmt = function
      pp_namelist fmt ns
 and pp_block fmt = function
   | Block (vs, s) -> fprintf fmt "\n{[local: %a],\n%a}\n" pp_svars vs pp_stmts s
-and pp_svars fmt vs =
-  let _ =List.map
-           (fun (SVar (t, Name n)) ->
-            fprintf fmt "(%a %s)," pp_type t n) in
-  ()
+and pp_svars fmt = function
+  | [] -> ()
+  | (DVar (t, Name n))::xs ->
+     fprintf fmt "(%a %s)," pp_type t n;
+     pp_svars fmt xs
+  | (DArray (t, Name n, sz))::xs ->
+     fprintf fmt "(%a%s[%d])," pp_type t n sz;
+     pp_svars fmt xs
 and pp_stmts fmt = function
   |[] -> ()
   |x::xs ->
@@ -86,11 +81,15 @@ and pp_expr fmt = function
      fprintf fmt "EApp(%s, %a)" s pp_exprs args
   | ELt (e1, e2) ->
      fprintf fmt "ELt(%a, %a)" pp_expr e1 pp_expr e2
+  | ELe (e1, e2) ->
+     fprintf fmt "ELe(%a, %a)" pp_expr e1 pp_expr e2
   | EEq (e1, e2) ->
      fprintf fmt "EEq(%a, %a)" pp_expr e1 pp_expr e2
   | ENeq (e1, e2) ->
      fprintf fmt "ENeq(%a, %a)" pp_expr e1 pp_expr e2
-  | _ -> raise (TODO "print pp_expr")
+  | EPtr (e) ->
+     fprintf fmt "EPtr(%a)" pp_expr e
+  | _ -> raise (TODO "print: pp_expr")
 and pp_value fmt = function
   | VInt i ->
      fprintf fmt "VInt(%d)" i
