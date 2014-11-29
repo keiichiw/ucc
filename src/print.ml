@@ -77,8 +77,6 @@ and pp_expr fmt = function
      fprintf fmt "EAddr(%a)" pp_expr e
   | EApp (Name s, args) ->
      fprintf fmt "EApp(%s, %a)" s pp_exprs args
-  | ELt (e1, e2) ->
-     fprintf fmt "ELt(%a, %a)" pp_expr e1 pp_expr e2
   | ELe (e1, e2) ->
      fprintf fmt "ELe(%a, %a)" pp_expr e1 pp_expr e2
   | EEq (e1, e2) ->

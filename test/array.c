@@ -5,11 +5,12 @@
 
 int main () {
   int a[10], i;
-  for (i=0;i<=4;i++) {
+  for (i=0;i<10;i++) {
     a[i] = i;
   }
-  for (i=4;i>=0;--i) {
-    print_int(a[i]);
+  i = 9;
+  while (i>=0) {
+    print_int(a[i--]);
   }
   return 0;
 }

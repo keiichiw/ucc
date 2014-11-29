@@ -148,9 +148,9 @@ simple_expr:
 | expr NEQ expr
   { ENeq($1, $3)}
 | expr LT expr
-  { ELt($1, $3)}
+  { ELe(EConst(VInt 1), ESub($3, $1)) }
 | expr GT expr
-  { ELt($3, $1)}
+  { ELe(EConst(VInt 1), ESub($1, $3)) }
 | expr LE expr
   { ELe($1, $3)}
 | expr GE expr

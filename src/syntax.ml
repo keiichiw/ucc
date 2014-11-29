@@ -36,7 +36,6 @@ and expr =
   | ESub   of expr * expr
   | ESubst of expr * expr
   | EApp   of name * (expr list)
-  | ELt    of expr * expr
   | ELe    of expr * expr
   | EEq    of expr * expr
   | ENeq    of expr * expr
