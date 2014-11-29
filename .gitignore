@@ -3,6 +3,7 @@
 *.bin
 *.out
 /test/*.s
+/bin/sim
 _build/
 libucc.s
 cc
