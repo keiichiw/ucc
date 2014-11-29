@@ -142,17 +142,17 @@ and st = function
 and st' = function
   | SNil -> ()
   | SWhile (cond, b) ->
-     let lnum = label_create () in
-     let endlnum = label_create () in
-     push_buffer (sprintf "L%d:\n" lnum);
+     let beginlabel = label_create () in
+     let endlabel = label_create () in
+     push_buffer (sprintf "L%d:\n" beginlabel);
      let cond_reg = ex cond in
      push_buffer (sprintf "\tbeq $0, $%d, L%d\n"
                           cond_reg
-                          endlnum);
+                          endlabel);
      reg_free cond_reg;
      bl b;
-     push_buffer (sprintf "\tbr L%d\n" endlnum);
-     push_buffer (sprintf "L%d:\n" endlnum)
+     push_buffer (sprintf "\tbr L%d\n" beginlabel);
+     push_buffer (sprintf "L%d:\n" endlabel)
   | SFor(init, cond, iter, b) ->
      let startlnum = label_create () in
      let endlnum = label_create () in
