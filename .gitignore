@@ -1,6 +1,8 @@
 *~
 *.native
 *.bin
+*.out
 /test/*.s
 _build/
-ucc
+libucc.s
+cc

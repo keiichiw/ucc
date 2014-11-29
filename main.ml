@@ -7,7 +7,7 @@ let out_file fname =
   if 2<fnlen && (String.sub fname (fnlen-2) 2) = ".c" then
     Format.sprintf "%s.s" (String.sub fname 0 (fnlen-2))
   else
-    "out.s"
+    Format.sprintf "%s.s" fname
 
 let main () =
   let argc = Array.length Sys.argv in

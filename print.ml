@@ -75,8 +75,6 @@ and pp_expr fmt = function
      fprintf fmt "ESubst(%a, %a)" pp_expr e1 pp_expr e2
   | EAddr e ->
      fprintf fmt "EAddr(%a)" pp_expr e
-  | EMod (e1, e2) ->
-     fprintf fmt "EMod(%a, %a)" pp_expr e1 pp_expr e2
   | EApp (Name s, args) ->
      fprintf fmt "EApp(%s, %a)" s pp_exprs args
   | ELt (e1, e2) ->

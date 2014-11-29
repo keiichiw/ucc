@@ -78,6 +78,8 @@ rule token = parse
     { RBRACKET }
 | "//"
     { commentbis lexbuf }
+| "#"
+    { commentbis lexbuf }
 | "/*"
     { comment lexbuf }
 | digit+ as i
