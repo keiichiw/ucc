@@ -32,9 +32,9 @@ and expr =
   | EVar   of name
   | EComma of expr * expr
   | EAdd   of expr * expr
+  | EShift of expr * expr
   | ESub   of expr * expr
   | ESubst of expr * expr
-  | EMod   of expr * expr
   | EApp   of name * (expr list)
   | ELt    of expr * expr
   | ELe    of expr * expr

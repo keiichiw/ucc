@@ -229,6 +229,15 @@ and ex arg =
         reg_free (ret_reg+1);
         ret_reg
       )
+   | EShift (e1, e2) ->
+      (
+        let ret_reg = reg_alloc () in
+        let lreg = ex e1 in
+        let rreg = ex e2 in
+        push_buffer (sprintf "\tshift $%d, $%d, $%d, 0\n" ret_reg lreg rreg);
+        reg_free (ret_reg+1);
+        ret_reg
+      )
    | ESub (e1, e2) ->
       (
         let ret_reg = reg_alloc () in
@@ -246,6 +255,19 @@ and ex arg =
         let lnum = label_create () in
         push_buffer (sprintf "\tmov $%d, -1\n" ret_reg);
         push_buffer (sprintf "\tble $%d, $%d, L%d\n" lreg rreg lnum);
+        push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
+        push_buffer (sprintf "L%d:\n" lnum);
+        reg_free lreg;
+        ret_reg
+      )
+   | EEq (e1, e2) ->
+      (
+        let ret_reg = reg_alloc () in
+        let lreg = ex e1 in
+        let rreg = ex e2 in
+        let lnum = label_create () in
+        push_buffer (sprintf "\tmov $%d, -1\n" ret_reg);
+        push_buffer (sprintf "\tbeq $%d, $%d, L%d\n" lreg rreg lnum);
         push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
         push_buffer (sprintf "L%d:\n" lnum);
         reg_free lreg;

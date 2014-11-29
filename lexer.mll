@@ -36,8 +36,14 @@ rule token = parse
     { MINUS }
 | '*'
     { STAR }
+| '/'
+    { SLASH }
 | '%'
     { MOD }
+| "<<"
+    { LSHIFT }
+| ">>"
+    { RSHIFT }
 | '&'
     { AMP }
 | "=="

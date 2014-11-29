@@ -16,7 +16,7 @@
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
-%token PLUS MINUS MOD STAR AMP
+%token PLUS MINUS MOD STAR AMP LSHIFT RSHIFT SLASH
 %token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
 %token SUBST PLUSSUBST MINUSSUBST
@@ -28,8 +28,9 @@
 %right SUBST PLUSSUBST MINUSSUBST
 %left EQ NEQ
 %left LT LE GT GE
+%left LSHIFT RSHIFT
 %left PLUS MINUS
-%right MOD
+%right MOD STAR SLASH
 %start <Syntax.def list> main
 
 %%
@@ -129,10 +130,18 @@ expr:
 simple_expr:
 | expr PLUS expr
   { EAdd($1, $3)}
+| expr LSHIFT expr
+  { EShift($1, $3)}
+| expr RSHIFT expr
+  { EShift($1, ESub(EConst(VInt 0), $3))}
 | expr MINUS expr
   { ESub($1, $3)}
+| expr STAR expr
+  { EApp(Name "__mul", [$1;$3]) }
+| expr SLASH expr
+  { EApp(Name "__div", [$1;$3]) }
 | expr MOD expr
-  { EMod($1, $3)}
+  { EApp(Name "__mod", [$1;$3]) }
 | expr EQ expr
   { EEq($1, $3)}
 | expr NEQ expr
