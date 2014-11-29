@@ -1,16 +1,16 @@
-all: cc libucc.s
+all: ./bin/cc ./lib/libucc.s
 
-cc: FORCE
-	ocamlbuild main.native
-	mv main.native cc
+./bin/cc: FORCE
+	ocamlbuild ./src/main.native
+	mv ./main.native ./bin/cc
 
-libucc.s: libucc.c intrinsics.s cc
-	./cc libucc.c
-	cat intrinsics.s >> libucc.s
+./lib/libucc.s: ./lib/libucc.c ./lib/intrinsics.s ./bin/cc
+	./bin/cc ./lib/libucc.c
+	cat ./lib/intrinsics.s >> ./lib/libucc.s
 
 clean:
 	ocamlbuild -clean
-	rm -f *~ ./test/*~ ./test/*.out cc libucc.s
+	rm -f *~ ./test/*~ ./test/*.out ./bin/cc ./lib/libucc.s
 
 FORCE:
 .PHONY: FORCE clean all

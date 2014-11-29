@@ -1,0 +1,7 @@
+#!/bin/bash
+dir=`dirname "$0"`
+cpp $1 > $1.x
+$dir/cc $1.x
+$dir/as $1.x.s -l $dir/../lib/libucc.s
+rm $1.x $1.x.s
+mv $1.x.out ${1%.*}.out

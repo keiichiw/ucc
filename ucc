@@ -1,6 +1,0 @@
-#!/bin/bash
-cpp $1 > $1.x
-./cc $1.x
-./as $1.x.s
-rm $1.x $1.x.s
-mv $1.x.out ${1%.*}.out

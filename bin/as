@@ -9,7 +9,7 @@ import argparse
 
 srcs = {'_main': {0: 'br main'}}
 filename = ''
-library = 'libucc.s'
+library = ''
 pos = 0
 
 def error(msg):
