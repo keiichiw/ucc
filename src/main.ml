@@ -20,7 +20,7 @@ let main () =
     let filebuf = Lexing.from_channel inchan in
     try
       let parse = Parser.main Lexer.token filebuf in
-      (*Print.print_program stdout parse;*)
+      (*Print.print_program stderr parse;*)
       Emit.main outchan parse;
     with
     | Lexer.Error msg ->

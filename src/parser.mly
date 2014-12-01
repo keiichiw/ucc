@@ -101,7 +101,7 @@ arg_declaration:
       | DeclIdent(name) ->
          DVar(typ, name)
       | DeclArray(d, i) ->
-         DArray(typ, getNameFromDecl d, sizeOf d) in
+         DArray(typ, getNameFromDecl d, sizeOf decl) in
     f d
   }
 
@@ -112,13 +112,12 @@ declaration: // local variables
       let typ = nestPtr ty starNum in
       let rec sizeOf = function
         | DeclIdent(_) -> 1
-        | DeclArray(d,i) ->
-           (sizeOf d) * i in
+        | DeclArray(d,i) -> (sizeOf d) * i in
       match decl with
       | DeclIdent(name) ->
          DVar(typ, name)
       | DeclArray(d, i) ->
-         DArray(typ, getNameFromDecl d, sizeOf d) in
+         DArray(typ, getNameFromDecl d, sizeOf decl) in
     List.map f dlist
   }
 

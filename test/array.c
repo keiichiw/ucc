@@ -1,16 +1,22 @@
 /*
   Test for Array Expression
-  output: 4 3 2 1 0
+  output: 0 1 2 3 4 5 6
  */
 
 int main () {
-  int a[10], i;
-  for (i=0;i<10;i++) {
+  int a[3],b[4];
+  int i;
+  for (i=0;i<3;++i) {
     a[i] = i;
   }
-  i = 9;
-  while (i>=0) {
-    print_int(a[i--]);
+  for(i=0;i<4;++i){
+    b[i] = i+3;
+  }
+  for (i=0;i<3;++i) {
+    print_int(a[i]);
+  }
+  for(i=0;i<4;++i){
+    print_int(b[i]);
   }
   return 0;
 }

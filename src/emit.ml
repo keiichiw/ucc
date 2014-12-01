@@ -71,15 +71,26 @@ let push_args args = (* add args in env *)
   go 1 args
 
 let push_local_vars vars = (* add local vars in env *)
-  let go = function
+  let go arrList = function
     | DVar (ty, Name name) ->
        sp_diff_ref := !sp_diff_ref + 1;
-       env_ref := (ty, name, Mem !sp_diff_ref)::!env_ref
+       env_ref := (ty, name, Mem !sp_diff_ref)::!env_ref;
+       arrList
     | DArray (ty, Name name, sz) ->
        sp_diff_ref := !sp_diff_ref + 1;
        env_ref := (TPtr ty, name, Mem !sp_diff_ref)::!env_ref;
-       sp_diff_ref := !sp_diff_ref + (sz-1) in
-  let _ = List.map go vars in ()
+       (Mem !sp_diff_ref, sz)::arrList in
+  let go2 = function
+    | (Mem i, sz) ->
+       let reg = reg_alloc () in
+       push_buffer (sprintf "\tsub $%d, $bp, %d\n" reg (!sp_diff_ref+1));
+       push_buffer (sprintf "\tmov [$bp-%d], $%d\n" i reg);
+       reg_free reg;
+       sp_diff_ref := !sp_diff_ref + sz
+    | _ -> raise Unreachable in
+  let arrVars = List.fold_left go [] vars in
+  let _ = List.map go2 (List.rev arrVars) in
+  ()
 
 let pop_args num =
   let rec drop xs n =
@@ -106,7 +117,11 @@ let pop_local_vars num =
   sp_diff_ref := !sp_diff_ref - num
 
 
-
+let count_sp_move vars =
+  let go i = function
+    | DVar _ -> i+1
+    | DArray (_, _, sz) -> i+1+sz in
+  List.fold_left go 0 vars
 
 let rec main oc defs =
   let _ = List.map (fun x -> emit oc x) defs in
@@ -120,22 +135,14 @@ and emit oc = function
      print_buffer oc name
 and bl = function
   | Block (vars, stmts) ->
-     let lvar_num = List.length vars in
-     if lvar_num != 0 then
-       (let reg = reg_alloc () in
-        push_buffer (sprintf "\tmov $%d, %d\n" reg lvar_num);
-        push_buffer (sprintf "\tsub $sp, $sp, $%d\n" reg);
-        reg_free reg
-       );
+     let sp_move = count_sp_move vars in
+     if sp_move != 0 then
+       push_buffer (sprintf "\tsub $sp, $sp, %d\n" sp_move);
      push_local_vars vars;
      st stmts;
-     pop_local_vars lvar_num;
-     if lvar_num != 0 then
-       (let reg = reg_alloc () in
-        push_buffer (sprintf "\tmov $%d, %d\n" reg lvar_num);
-        push_buffer (sprintf "\tadd $sp, $sp, $%d\n" reg);
-        reg_free reg
-       )
+     pop_local_vars (List.length vars);
+     if sp_move != 0 then
+        push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_move);
 and st = function
   | [] -> ()
   | x::xs -> st' x; st xs
@@ -201,12 +208,15 @@ and st' = function
      bl b2;
      push_buffer (sprintf "L%d:\n" endlnum)
   | SReturn exp ->
+     if !sp_diff_ref != 0 then
+       (let temp = reg_alloc () in
+        push_buffer (sprintf "\tmov $%d, %d\n" temp !sp_diff_ref);
+        push_buffer (sprintf "\tadd $sp, $sp, $%d\n" temp);
+        reg_free temp
+       );
      let reg = ex exp in
      if reg != 1 then
        push_buffer (sprintf "\tmov $1, $%d\n" reg);
-     if !sp_diff_ref != 0 then
-       (push_buffer (sprintf "\tmov $%d, %d\n" reg !sp_diff_ref);
-        push_buffer (sprintf "\tadd $sp, $sp, $%d\n" reg));
      push_buffer (sprintf "\tret\n");
      reg_free reg
   | SExpr exp ->
