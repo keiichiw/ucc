@@ -12,7 +12,8 @@
 %token <int> INT
 %token <string> ID
 %token TINT
-%token IF ELSE RETURN WHILE FOR DO
+%token IF ELSE WHILE DO FOR
+%token RETURN CONTINUE BREAK
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
@@ -136,6 +137,10 @@ stmt: // statement
   { SIfElse($3, $5, (Block ([],[]))) }
 | IF LPAREN expr RPAREN block ELSE block
   { SIfElse($3, $5, $7) }
+| CONTINUE SEMICOLON
+  { SContinue }
+| BREAK SEMICOLON
+  { SBreak }
 | RETURN expr SEMICOLON
   { SReturn $2 }
 

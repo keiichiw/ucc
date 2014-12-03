@@ -4,8 +4,10 @@ int main () {
     int flg;
     flg = 1;
     for (j=2; j<=(i-1); j+=1) {
+      flg = 1;
       if (i%j==0) {
         flg = 0;
+        break;
       }
     }
     if (flg == 1) {

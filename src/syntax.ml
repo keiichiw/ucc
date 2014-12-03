@@ -27,6 +27,8 @@ and stmt =
   | SFor of (expr option) * (expr option) * (expr option) * block
   | SIfElse of expr * block * block
   | SReturn of expr
+  | SContinue
+  | SBreak
   | SExpr of expr
 and expr =
   | EConst of value

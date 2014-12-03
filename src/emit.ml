@@ -2,16 +2,20 @@ open Syntax
 open Printf
 exception EmitError of string
 exception Unreachable
+type storageplace =
+  | Reg of int (*register*)
+  | Mem of int (*memory*)
+  | Ptr of storageplace (*pointer*)
 
 let created_label_num = ref 0;;
 let using_reg_num = ref 0;;
 let max_reg_num = ref 0;;
 let buffer_ref : string list ref = ref [];;
 let sp_diff_ref = ref 0;;
-type storageplace =
-  | Reg of int (*register*)
-  | Mem of int (*memory*)
-  | Ptr of storageplace (*pointer*)
+let con_stack : int list ref = ref [];;
+let brk_stack : int list ref = ref [];;
+let sp_move_stack : int list ref = ref [];;
+let for_continue_flg_ref = ref 0;;
 let env_ref : (ctype * string * storageplace) list ref = ref [];;
 
 (* Access ref values*)
@@ -123,6 +127,14 @@ let count_sp_move vars =
     | DArray (_, _, sz) -> i+1+sz in
   List.fold_left go 0 vars
 
+
+let stack_push stack i =
+  stack := (i::!stack)
+let stack_pop stack =
+  stack := (List.tl !stack)
+
+
+(*emit main*)
 let rec main oc defs =
   let _ = List.map (fun x -> emit oc x) defs in
   ()
@@ -136,13 +148,15 @@ and emit oc = function
 and bl = function
   | Block (vars, stmts) ->
      let sp_move = count_sp_move vars in
+     stack_push sp_move_stack sp_move;
      if sp_move != 0 then
        push_buffer (sprintf "\tsub $sp, $sp, %d\n" sp_move);
      push_local_vars vars;
      st stmts;
      pop_local_vars (List.length vars);
+     stack_pop sp_move_stack;
      if sp_move != 0 then
-        push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_move);
+       push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_move)
 and st = function
   | [] -> ()
   | x::xs -> st' x; st xs
@@ -151,6 +165,8 @@ and st' = function
   | SWhile (cond, b) ->
      let beginlabel = label_create () in
      let endlabel = label_create () in
+     stack_push con_stack beginlabel;
+     stack_push brk_stack endlabel;
      push_buffer (sprintf "L%d:\n" beginlabel);
      let cond_reg = ex cond in
      push_buffer (sprintf "\tbeq $0, $%d, L%d\n"
@@ -159,12 +175,22 @@ and st' = function
      reg_free cond_reg;
      bl b;
      push_buffer (sprintf "\tbr L%d\n" beginlabel);
-     push_buffer (sprintf "L%d:\n" endlabel)
+     push_buffer (sprintf "L%d:\n" endlabel);
+     stack_pop con_stack;
+     stack_pop brk_stack
   | SDoWhile (b, cond) ->
      let beginlabel = label_create () in
+     let condlabel = label_create () in
      let endlabel = label_create () in
+     stack_push con_stack condlabel;
+     stack_push brk_stack endlabel;
      push_buffer (sprintf "L%d:\n" beginlabel);
+     let continue_flg = !for_continue_flg_ref in
+     for_continue_flg_ref := 0;
      bl b;
+     if !for_continue_flg_ref = 1 then
+       push_buffer (sprintf "L%d:\n" condlabel);
+     for_continue_flg_ref := continue_flg;
      let cond_reg = ex cond in
      push_buffer (sprintf "\tbeq $0, $%d, L%d\n"
                           cond_reg
@@ -172,9 +198,14 @@ and st' = function
      push_buffer (sprintf "\tbr L%d\n" beginlabel);
      push_buffer (sprintf "L%d:\n" endlabel);
      reg_free cond_reg;
+     stack_pop con_stack;
+     stack_pop brk_stack
   | SFor(init, cond, iter, b) ->
      let startlnum = label_create () in
+     let iterlnum = label_create () in
      let endlnum = label_create () in
+     stack_push con_stack iterlnum;
+     stack_push brk_stack endlnum;
      (match init with
       | Some iex ->
          let temp = ex iex in reg_free temp
@@ -186,14 +217,21 @@ and st' = function
          push_buffer (sprintf "\tbeq $0, $%d, L%d\n" cond_reg endlnum);
          reg_free cond_reg
       | _ -> ());
+     let continue_flg = !for_continue_flg_ref in
+     for_continue_flg_ref := 0;
      bl b;
+     if !for_continue_flg_ref = 1 then
+       push_buffer (sprintf "L%d:\n" iterlnum);
+     for_continue_flg_ref := continue_flg;
      (match iter with
       | Some itex ->
          let temp = ex itex in
          reg_free temp
       |  _ -> ());
      push_buffer (sprintf "\tbr L%d\n" startlnum);
-     push_buffer (sprintf "L%d:\n" endlnum)
+     push_buffer (sprintf "L%d:\n" endlnum);
+     stack_pop con_stack;
+     stack_pop brk_stack
   | SIfElse (cond, b1, b2) ->
      let cond_reg = ex cond in
      let lnum = label_create () in
@@ -208,17 +246,26 @@ and st' = function
      bl b2;
      push_buffer (sprintf "L%d:\n" endlnum)
   | SReturn exp ->
+     let reg = ex exp in
      if !sp_diff_ref != 0 then
        (let temp = reg_alloc () in
         push_buffer (sprintf "\tmov $%d, %d\n" temp !sp_diff_ref);
         push_buffer (sprintf "\tadd $sp, $sp, $%d\n" temp);
         reg_free temp
        );
-     let reg = ex exp in
      if reg != 1 then
        push_buffer (sprintf "\tmov $1, $%d\n" reg);
      push_buffer (sprintf "\tret\n");
      reg_free reg
+  | SContinue ->
+     let lbl = (List.hd !con_stack) in
+     push_buffer (sprintf "\tbr L%d\n" lbl);
+     for_continue_flg_ref := 1
+  | SBreak ->
+     let lbl = (List.hd !brk_stack) in
+     let sp_d = (List.hd !sp_move_stack) in
+     push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_d);
+     push_buffer (sprintf "\tbr L%d\n" lbl)
   | SExpr exp ->
      let temp = ex exp in
      reg_free temp

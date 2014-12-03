@@ -44,12 +44,18 @@ and pp_stmt fmt = function
      fprintf fmt ";"
   | SWhile (e, b) ->
      fprintf fmt "SWhile(%a, %a)" pp_expr e pp_block b
+  | SDoWhile (b, e) ->
+     fprintf fmt "SDoWhile(%a, %a)" pp_block b pp_expr e
   | SFor (op1, op2, op3, s) ->
      fprintf fmt "SFor((%a; %a; %a), %a)" pp_op op1 pp_op op2 pp_op op3 pp_block s
   | SIfElse (e, b1, b2) ->
      fprintf fmt "SIfElse(%a, %a, %a)" pp_expr e pp_block b1 pp_block b2
   | SReturn e ->
      fprintf fmt "SReturn(%a)" pp_expr e
+  | SContinue ->
+     fprintf fmt "SContinue"
+  | SBreak ->
+     fprintf fmt "SBreak"
   | SExpr e ->
      fprintf fmt "SExpr(%a);" pp_expr e
 and pp_op fmt = function

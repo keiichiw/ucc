@@ -32,6 +32,10 @@ rule token = parse
     { FOR }
 | "return"
     { RETURN }
+| "continue"
+    { CONTINUE }
+| "break"
+    { BREAK }
 | '+'
     { PLUS }
 | "++"
