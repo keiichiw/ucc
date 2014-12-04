@@ -66,6 +66,10 @@ rule token = parse
     { HAT }
 | '|'
     { BAR }
+| "&&"
+    { AND }
+| "||"
+    { OR }
 | '~'
     { TILDE }
 | "=="

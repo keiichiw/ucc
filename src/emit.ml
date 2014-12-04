@@ -315,6 +315,40 @@ and ex arg =
         reg_free (ret_reg+1);
         ret_reg
       )
+   | EAnd (e1, e2) ->
+      (
+        let ret_reg = reg_alloc () in
+        let l1 = label_create () in
+        let l2 = label_create () in
+        let lreg = ex e1 in
+        push_buffer (sprintf "\tbeq $%d, $0, L%d\n" lreg l1);
+        reg_free lreg;
+        let rreg = ex e2 in
+        push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg rreg);
+        push_buffer (sprintf "\tbr L%d\n" l2);
+        reg_free rreg;
+        push_buffer (sprintf "L%d:\n" l1);
+        push_buffer (sprintf "\tmov $%d, $0\n" ret_reg);
+        push_buffer (sprintf "L%d:\n" l2);
+        ret_reg
+      )
+   | EOr (e1, e2) ->
+      (
+        let ret_reg = reg_alloc () in
+        let l1 = label_create () in
+        let l2 = label_create () in
+        let lreg = ex e1 in
+        push_buffer (sprintf "\tbeq $%d, $0, L%d\n" lreg l1);
+        push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg lreg);
+        reg_free lreg;
+        push_buffer (sprintf "\tbr L%d\n" l2);
+        push_buffer (sprintf "L%d:\n" l1);
+        let rreg = ex e2 in
+        push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg rreg);
+        push_buffer (sprintf "L%d:\n" l2);
+        reg_free rreg;
+        ret_reg
+      )
    | EAdd (e1, e2) ->
       (
         let ret_reg = reg_alloc () in

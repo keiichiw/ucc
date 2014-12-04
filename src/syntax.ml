@@ -45,5 +45,7 @@ and expr =
   | EPtr   of expr
   | EAddr  of expr
   | ECond  of expr * expr * expr
+  | EAnd   of expr * expr
+  | EOr    of expr * expr
 and value =
   | VInt of int

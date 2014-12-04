@@ -18,6 +18,7 @@
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
 %token INC DEC
+%token AND OR
 %token NOT COND COLON
 %token AMP HAT BAR TILDE
 %token PLUS MINUS MOD STAR LSHIFT RSHIFT SLASH
@@ -188,10 +189,14 @@ cond_expr:
 logor_expr:
 | logand_expr
   { $1 }
+| logor_expr OR logand_expr
+  { EOr ($1, $3) }
 
 logand_expr:
 | bitor_expr
   { $1 }
+| logand_expr AND bitor_expr
+  { EAnd ($1, $3) }
 
 bitor_expr:
 | bitxor_expr
