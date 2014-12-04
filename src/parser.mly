@@ -126,7 +126,7 @@ declaration: // local variables
     List.map f dlist
   }
 
-stmt: // statement
+stmt:
 | SEMICOLON
   { SNil }
 | expr SEMICOLON
@@ -267,52 +267,55 @@ cast_expr:
   { $1 }
 
 unary_expr:
+| postfix_expr
+  { $1 }
+| INC unary_expr
+  { ESubst($2, EAdd($2, EConst(VInt(1)))) }
+| DEC unary_expr
+  { ESubst($2, ESub($2, EConst(VInt(1)))) }
 | NOT unary_expr
   { EEq(EConst(VInt 0), $2) }
 | PLUS unary_expr
   { $2 }
 | MINUS unary_expr
   { ESub(EConst(VInt 0), $2) }
-| INC unary_expr
-  { ESubst($2, EAdd($2, EConst(VInt(1)))) }
-| DEC unary_expr
-  { ESubst($2, ESub($2, EConst(VInt(1)))) }
 | STAR unary_expr
   { EPtr $2 }
 | AMP unary_expr
   { EAddr $2 }
 | TILDE unary_expr
   { EApp(Name "__not", [$2]) }
-| postfix_expr
-  { $1 }
 
 postfix_expr:
-| primary
+| primary_expr
   { $1 }
-| p=postfix_expr LPAREN args=separated_list(COMMA, assign_expr);RPAREN
+| postfix_expr LBRACKET expr RBRACKET
+  { EPtr(EAdd($1, $3)) }
+| postfix_expr INC
+  (* i++ -> (++i,i-1) *)
+  { EComma(ESubst($1, EAdd($1, EConst(VInt(1)))), ESub($1, EConst(VInt(1)))) }
+| postfix_expr DEC
+  (* i-- -> (--i,i+1) *)
+  { EComma(ESubst($1, ESub($1, EConst(VInt(1)))), EAdd($1, EConst(VInt(1)))) }
+| postfix_expr LPAREN arg_expr_list RPAREN
   {
-    match p with
-    | EVar name -> EApp(name, args)
+    match $1 with
+    | EVar name -> EApp(name, $3)
     | _ -> raise (ParserError "postfix: function application")
   }
-| p=postfix_expr INC
-  {
-    (* i++ -> (++i,i-1) *)
-    EComma( ESubst(p, EAdd(p, EConst(VInt(1)))),
-            ESub(p, EConst(VInt(1))))
-  }
-| p=postfix_expr DEC
-  {
-    (* i-- -> (--i,i+1) *)
-    EComma( ESubst(p, ESub(p, EConst(VInt(1)))),
-            EAdd(p, EConst(VInt(1))))
-  }
-| p=postfix_expr LBRACKET e=expr;RBRACKET
-  { EPtr(EAdd(p, e)) }
-primary:
-| INT
-  { EConst(VInt $1) }
+
+primary_expr:
+| constant_expr
+  { $1 }
 | ID
   { EVar (Name $1)}
 | LPAREN expr RPAREN
   { $2 }
+
+arg_expr_list:
+| args=separated_list(COMMA, assign_expr)
+  { args }
+
+constant_expr:
+| INT
+  { EConst(VInt $1) }
