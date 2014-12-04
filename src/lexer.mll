@@ -78,6 +78,22 @@ rule token = parse
     { PLUSSUBST }
 | "-="
     { MINUSSUBST }
+| "*="
+    { STARSUBST }
+| "/="
+    { SLASHSUBST }
+| "%="
+    { MODSUBST }
+| "<<="
+    { LSHIFTSUBST }
+| ">>="
+    { RSHIFTSUBST }
+| "&="
+    { AMPSUBST }
+| "^="
+    { HATSUBST }
+| "|="
+    { BARSUBST }
 | "<"
     { LT }
 | ">"

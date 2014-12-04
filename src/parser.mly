@@ -24,6 +24,8 @@
 %token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
 %token SUBST PLUSSUBST MINUSSUBST
+%token STARSUBST SLASHSUBST MODSUBST LSHIFTSUBST RSHIFTSUBST
+%token AMPSUBST HATSUBST BARSUBST
 %token EOF
 
 
@@ -160,6 +162,22 @@ assign_expr:
   { ESubst($1, EAdd($1, $3)) }
 | unary_expr MINUSSUBST assign_expr
   { ESubst($1, ESub($1, $3)) }
+| unary_expr STARSUBST assign_expr
+  { ESubst($1, EApp(Name "__mul", [$1;$3])) }
+| unary_expr SLASHSUBST assign_expr
+  { ESubst($1, EApp(Name "__div", [$1;$3])) }
+| unary_expr MODSUBST assign_expr
+  { ESubst($1, EApp(Name "__mod", [$1;$3])) }
+| unary_expr LSHIFTSUBST assign_expr
+  { ESubst($1, EShift($1, $3)) }
+| unary_expr RSHIFTSUBST assign_expr
+  { ESubst($1, EShift($1, ESub(EConst(VInt 0), $3))) }
+| unary_expr AMPSUBST assign_expr
+  { ESubst($1, EApp(Name "__and", [$1;$3])) }
+| unary_expr HATSUBST assign_expr
+  { ESubst($1, EApp(Name "__xor", [$1;$3])) }
+| unary_expr BARSUBST assign_expr
+  { ESubst($1, EApp(Name "__or", [$1;$3])) }
 
 cond_expr:
 | logor_expr
