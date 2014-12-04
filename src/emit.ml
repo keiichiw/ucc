@@ -68,17 +68,24 @@ let rec range a b =
 let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
-    | (DVar (ty, Name name))::xs ->
+    | (DVar (ty, Name name, _))::xs ->
        env_ref := (ty, name, Reg i)::!env_ref;
        go (i+1) xs
     | _ -> raise (EmitError "array can't be an argument of function.") in
   go 1 args
 
-let push_local_vars vars = (* add local vars in env *)
+let push_local_vars vars ex = (* add local vars in env *)
   let go arrList = function
-    | DVar (ty, Name name) ->
+    | DVar (ty, Name name, x) ->
        sp_diff_ref := !sp_diff_ref + 1;
        env_ref := (ty, name, Mem !sp_diff_ref)::!env_ref;
+       (match x with
+        | None ->
+           ()
+        | Some exp ->
+           (let reg = ex exp in
+            push_buffer (sprintf "\tmov [$bp-%d], $%d\n" !sp_diff_ref reg);
+            reg_free reg));
        arrList
     | DArray (ty, Name name, sz) ->
        sp_diff_ref := !sp_diff_ref + 1;
@@ -151,7 +158,7 @@ and bl = function
      stack_push sp_move_stack sp_move;
      if sp_move != 0 then
        push_buffer (sprintf "\tsub $sp, $sp, %d\n" sp_move);
-     push_local_vars vars;
+     push_local_vars vars ex;
      st stmts;
      pop_local_vars (List.length vars);
      stack_pop sp_move_stack;
