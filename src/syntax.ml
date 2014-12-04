@@ -41,8 +41,9 @@ and expr =
   | EApp   of name * (expr list)
   | ELe    of expr * expr
   | EEq    of expr * expr
-  | ENeq    of expr * expr
+  | ENeq   of expr * expr
   | EPtr   of expr
-  | EAddr   of expr
+  | EAddr  of expr
+  | ECond  of expr * expr * expr
 and value =
   | VInt of int

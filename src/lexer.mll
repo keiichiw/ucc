@@ -44,6 +44,10 @@ rule token = parse
     { MINUS }
 | '!'
     { NOT }
+| '?'
+    { COND }
+| ':'
+    { COLON }
 | "--"
     { DEC }
 | '*'

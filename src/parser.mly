@@ -18,7 +18,7 @@
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
 %token INC DEC
-%token NOT
+%token NOT COND COLON
 %token AMP HAT BAR TILDE
 %token PLUS MINUS MOD STAR LSHIFT RSHIFT SLASH
 %token EQ NEQ LT LE GT GE
@@ -164,6 +164,8 @@ assign_expr:
 cond_expr:
 | logor_expr
   { $1 }
+| logor_expr COND expr COLON cond_expr
+  { ECond($1, $3, $5) }
 
 logor_expr:
 | logand_expr

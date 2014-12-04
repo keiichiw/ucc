@@ -296,6 +296,25 @@ and ex arg =
           push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" ret_reg offset);
           ret_reg
        | _ -> raise Unreachable)
+   | ECond (c, t, e) ->
+      (
+        let ret_reg = reg_alloc () in
+        let lelse = label_create () in
+        let lend = label_create () in
+        let creg = ex c in
+        push_buffer (sprintf "\tbeq $%d, $0, L%d\n" creg lelse);
+        reg_free creg;
+        let treg = ex t in
+        push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg treg);
+        push_buffer (sprintf "\tbr L%d\n" lend);
+        reg_free treg;
+        push_buffer (sprintf "L%d:\n" lelse);
+        let ereg = ex e in
+        push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg ereg);
+        push_buffer (sprintf "L%d:\n" lend);
+        reg_free (ret_reg+1);
+        ret_reg
+      )
    | EAdd (e1, e2) ->
       (
         let ret_reg = reg_alloc () in
