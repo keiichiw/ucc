@@ -2,7 +2,7 @@
   open Syntax
   exception ParserError of string
   let rec getNameFromDecl = function
-    | DeclIdent n -> n
+    | DeclIdent (n, _) -> n
     | DeclArray (x, _) -> getNameFromDecl x
   let rec nestPtr t = function
       | 0 -> t
@@ -18,26 +18,18 @@
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
 %token INC DEC
-%token NOT
+%token AND OR
+%token NOT COND COLON
 %token AMP HAT BAR TILDE
 %token PLUS MINUS MOD STAR LSHIFT RSHIFT SLASH
 %token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
 %token SUBST PLUSSUBST MINUSSUBST
+%token STARSUBST SLASHSUBST MODSUBST LSHIFTSUBST RSHIFTSUBST
+%token AMPSUBST HATSUBST BARSUBST
 %token EOF
 
 
-%nonassoc below_COMMA
-%left COMMA
-%right SUBST PLUSSUBST MINUSSUBST
-%left BAR
-%left HAT
-%left AMP
-%left EQ NEQ
-%left LT LE GT GE
-%left LSHIFT RSHIFT
-%left PLUS MINUS
-%right MOD STAR SLASH
 %start <Syntax.def list> main
 
 %%
@@ -75,11 +67,22 @@ declarator:
 
 direct_declarator:
 | ID
-  { DeclIdent(Name $1) }
+  { DeclIdent(Name $1, None) }
 | d=direct_declarator LBRACKET i=INT RBRACKET
   { DeclArray(d, i) }
 
-
+init_declarator:
+| declarator
+  { $1 }
+| declarator SUBST assign_expr
+  {
+    let (num, decl) = $1 in
+    match decl with
+    | DeclIdent(name, _) ->
+       (num, DeclIdent(name, Some $3))
+    | DeclArray(d, i) ->
+       raise (ParserError "array initializer is unsupported")
+  }
 
 block:
 | LBRACE; l=declaration_stmt*; s=stmt*; RBRACE
@@ -100,15 +103,15 @@ arg_declaration:
         | DeclArray(d,i) ->
            (sizeOf d) * i in
       match decl with
-      | DeclIdent(name) ->
-         DVar(typ, name)
+      | DeclIdent(name, exp) ->
+         DVar(typ, name, exp)
       | DeclArray(d, i) ->
          DArray(typ, getNameFromDecl d, sizeOf decl) in
     f d
   }
 
 declaration: // local variables
-| ty=decl_specifier; dlist=separated_list(COMMA, declarator)
+| ty=decl_specifier; dlist=separated_list(COMMA, init_declarator)
   {
     let rec f (starNum,decl) =
       let typ = nestPtr ty starNum in
@@ -116,8 +119,8 @@ declaration: // local variables
         | DeclIdent(_) -> 1
         | DeclArray(d,i) -> (sizeOf d) * i in
       match decl with
-      | DeclIdent(name) ->
-         DVar(typ, name)
+      | DeclIdent(name, exp) ->
+         DVar(typ, name, exp)
       | DeclArray(d, i) ->
          DArray(typ, getNameFromDecl d, sizeOf decl) in
     List.map f dlist
@@ -146,70 +149,139 @@ stmt: // statement
   { SReturn $2 }
 
 expr:
-| simple_expr %prec below_COMMA
+| assign_expr
   { $1 }
-| simple_expr COMMA expr
+| expr COMMA assign_expr
   { EComma($1, $3) }
 
-simple_expr:
-| expr PLUS expr
-  { EAdd($1, $3)}
-| expr LSHIFT expr
-  { EShift($1, $3)}
-| expr RSHIFT expr
-  { EShift($1, ESub(EConst(VInt 0), $3))}
-| expr MINUS expr
-  { ESub($1, $3)}
-| expr STAR expr
-  { EApp(Name "__mul", [$1;$3]) }
-| expr SLASH expr
-  { EApp(Name "__div", [$1;$3]) }
-| expr MOD expr
-  { EApp(Name "__mod", [$1;$3]) }
-| expr AMP expr
-  { EApp(Name "__and", [$1;$3]) }
-| expr BAR expr
-  { EApp(Name "__or", [$1;$3]) }
-| expr HAT expr
-  { EApp(Name "__xor", [$1;$3]) }
-| expr EQ expr
-  { EEq($1, $3)}
-| expr NEQ expr
-  { ENeq($1, $3)}
-| expr LT expr
-  { ELe(EConst(VInt 1), ESub($3, $1)) }
-| expr GT expr
-  { ELe(EConst(VInt 1), ESub($1, $3)) }
-| expr LE expr
-  { ELe($1, $3)}
-| expr GE expr
-  { ELe($3, $1)}
-| unary SUBST expr
+assign_expr:
+| cond_expr
+  { $1 }
+| unary_expr SUBST assign_expr
   { ESubst($1, $3) }
-| unary PLUSSUBST expr
+| unary_expr PLUSSUBST assign_expr
   { ESubst($1, EAdd($1, $3)) }
-| unary MINUSSUBST expr
+| unary_expr MINUSSUBST assign_expr
   { ESubst($1, ESub($1, $3)) }
-| unary
+| unary_expr STARSUBST assign_expr
+  { ESubst($1, EApp(Name "__mul", [$1;$3])) }
+| unary_expr SLASHSUBST assign_expr
+  { ESubst($1, EApp(Name "__div", [$1;$3])) }
+| unary_expr MODSUBST assign_expr
+  { ESubst($1, EApp(Name "__mod", [$1;$3])) }
+| unary_expr LSHIFTSUBST assign_expr
+  { ESubst($1, EShift($1, $3)) }
+| unary_expr RSHIFTSUBST assign_expr
+  { ESubst($1, EShift($1, ESub(EConst(VInt 0), $3))) }
+| unary_expr AMPSUBST assign_expr
+  { ESubst($1, EApp(Name "__and", [$1;$3])) }
+| unary_expr HATSUBST assign_expr
+  { ESubst($1, EApp(Name "__xor", [$1;$3])) }
+| unary_expr BARSUBST assign_expr
+  { ESubst($1, EApp(Name "__or", [$1;$3])) }
+
+cond_expr:
+| logor_expr
+  { $1 }
+| logor_expr COND expr COLON cond_expr
+  { ECond($1, $3, $5) }
+
+logor_expr:
+| logand_expr
+  { $1 }
+| logor_expr OR logand_expr
+  { EOr ($1, $3) }
+
+logand_expr:
+| bitor_expr
+  { $1 }
+| logand_expr AND bitor_expr
+  { EAnd ($1, $3) }
+
+bitor_expr:
+| bitxor_expr
+  { $1 }
+| bitor_expr BAR bitxor_expr
+  { EApp(Name "__or", [$1;$3]) }
+
+bitxor_expr:
+| bitand_expr
+  { $1 }
+| bitxor_expr HAT bitand_expr
+  { EApp(Name "__xor", [$1;$3]) }
+
+bitand_expr:
+| equal_expr
+  { $1 }
+| bitand_expr AMP equal_expr
+  { EApp(Name "__and", [$1;$3]) }
+
+equal_expr:
+| rel_expr
+  { $1 }
+| equal_expr EQ rel_expr
+  { EEq($1, $3) }
+| equal_expr NEQ rel_expr
+  { ENeq($1, $3)}
+
+rel_expr:
+| shift_expr
+  { $1 }
+| rel_expr LT shift_expr
+  { ELe(EConst(VInt 1), ESub($3, $1)) }
+| rel_expr GT shift_expr
+  { ELe(EConst(VInt 1), ESub($1, $3)) }
+| rel_expr LE shift_expr
+  { ELe($1, $3)}
+| rel_expr GE shift_expr
+  { ELe($3, $1)}
+
+shift_expr:
+| additive_expr
+  { $1 }
+| shift_expr LSHIFT additive_expr
+  { EShift($1, $3)}
+| shift_expr RSHIFT additive_expr
+  { EShift($1, ESub(EConst(VInt 0), $3))}
+
+additive_expr:
+| multiplicative_expr
+  { $1 }
+| additive_expr PLUS multiplicative_expr
+  { EAdd($1, $3)}
+| additive_expr MINUS multiplicative_expr
+  { ESub($1, $3)}
+
+multiplicative_expr:
+| cast_expr
+  { $1 }
+| multiplicative_expr STAR cast_expr
+  { EApp(Name "__mul", [$1;$3]) }
+| multiplicative_expr SLASH cast_expr
+  { EApp(Name "__div", [$1;$3]) }
+| multiplicative_expr MOD cast_expr
+  { EApp(Name "__mod", [$1;$3]) }
+
+cast_expr:
+| unary_expr
   { $1 }
 
-
-unary:
-| NOT unary
+unary_expr:
+| NOT unary_expr
   { EEq(EConst(VInt 0), $2) }
-| PLUS unary
+| PLUS unary_expr
   { $2 }
-| MINUS unary
+| MINUS unary_expr
   { ESub(EConst(VInt 0), $2) }
-| INC unary
+| INC unary_expr
   { ESubst($2, EAdd($2, EConst(VInt(1)))) }
-| DEC unary
+| DEC unary_expr
   { ESubst($2, ESub($2, EConst(VInt(1)))) }
-| STAR unary
+| STAR unary_expr
   { EPtr $2 }
-| AMP unary
+| AMP unary_expr
   { EAddr $2 }
-| TILDE unary
+| TILDE unary_expr
   { EApp(Name "__not", [$2]) }
 | postfix_expr
   { $1 }
@@ -217,7 +289,7 @@ unary:
 postfix_expr:
 | primary
   { $1 }
-| p=postfix_expr LPAREN args=separated_list(COMMA, simple_expr);RPAREN
+| p=postfix_expr LPAREN args=separated_list(COMMA, assign_expr);RPAREN
   {
     match p with
     | EVar name -> EApp(name, args)

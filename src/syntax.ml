@@ -7,9 +7,6 @@ type loc = Lexing.position * Lexing.position
 
 type name = Name of string
 type size = int
-type dectype =
-  | DeclIdent of name
-  | DeclArray of dectype * size
 type ctype =
   | TInt
   | TPtr of ctype (* pointer of type *)
@@ -17,8 +14,11 @@ type def =
   | DefFun of ctype * name * (dvar list) * block * loc
 and block =
   | Block of dvar list * stmt list
+and dectype =
+  | DeclIdent of name * (expr option)
+  | DeclArray of dectype * size
 and dvar =
-  | DVar of ctype * name
+  | DVar of ctype * name * (expr option)
   | DArray of ctype * name * size
 and stmt =
   | SNil
@@ -41,8 +41,11 @@ and expr =
   | EApp   of name * (expr list)
   | ELe    of expr * expr
   | EEq    of expr * expr
-  | ENeq    of expr * expr
+  | ENeq   of expr * expr
   | EPtr   of expr
-  | EAddr   of expr
+  | EAddr  of expr
+  | ECond  of expr * expr * expr
+  | EAnd   of expr * expr
+  | EOr    of expr * expr
 and value =
   | VInt of int

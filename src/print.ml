@@ -29,8 +29,11 @@ and pp_block fmt = function
   | Block (vs, s) -> fprintf fmt "\n{[local: %a],\n%a}\n" pp_svars vs pp_stmts s
 and pp_svars fmt = function
   | [] -> ()
-  | (DVar (t, Name n))::xs ->
+  | (DVar (t, Name n, None))::xs ->
      fprintf fmt "(%a %s)," pp_type t n;
+     pp_svars fmt xs
+  | (DVar (t, Name n, Some x))::xs ->
+     fprintf fmt "(%a %s = %a)," pp_type t n pp_expr x;
      pp_svars fmt xs
   | (DArray (t, Name n, sz))::xs ->
      fprintf fmt "(%a%s[%d])," pp_type t n sz;

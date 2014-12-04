@@ -68,17 +68,24 @@ let rec range a b =
 let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
-    | (DVar (ty, Name name))::xs ->
+    | (DVar (ty, Name name, _))::xs ->
        env_ref := (ty, name, Reg i)::!env_ref;
        go (i+1) xs
     | _ -> raise (EmitError "array can't be an argument of function.") in
   go 1 args
 
-let push_local_vars vars = (* add local vars in env *)
+let push_local_vars vars ex = (* add local vars in env *)
   let go arrList = function
-    | DVar (ty, Name name) ->
+    | DVar (ty, Name name, x) ->
        sp_diff_ref := !sp_diff_ref + 1;
        env_ref := (ty, name, Mem !sp_diff_ref)::!env_ref;
+       (match x with
+        | None ->
+           ()
+        | Some exp ->
+           (let reg = ex exp in
+            push_buffer (sprintf "\tmov [$bp-%d], $%d\n" !sp_diff_ref reg);
+            reg_free reg));
        arrList
     | DArray (ty, Name name, sz) ->
        sp_diff_ref := !sp_diff_ref + 1;
@@ -151,7 +158,7 @@ and bl = function
      stack_push sp_move_stack sp_move;
      if sp_move != 0 then
        push_buffer (sprintf "\tsub $sp, $sp, %d\n" sp_move);
-     push_local_vars vars;
+     push_local_vars vars ex;
      st stmts;
      pop_local_vars (List.length vars);
      stack_pop sp_move_stack;
@@ -289,6 +296,59 @@ and ex arg =
           push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" ret_reg offset);
           ret_reg
        | _ -> raise Unreachable)
+   | ECond (c, t, e) ->
+      (
+        let ret_reg = reg_alloc () in
+        let lelse = label_create () in
+        let lend = label_create () in
+        let creg = ex c in
+        push_buffer (sprintf "\tbeq $%d, $0, L%d\n" creg lelse);
+        reg_free creg;
+        let treg = ex t in
+        push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg treg);
+        push_buffer (sprintf "\tbr L%d\n" lend);
+        reg_free treg;
+        push_buffer (sprintf "L%d:\n" lelse);
+        let ereg = ex e in
+        push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg ereg);
+        push_buffer (sprintf "L%d:\n" lend);
+        reg_free (ret_reg+1);
+        ret_reg
+      )
+   | EAnd (e1, e2) ->
+      (
+        let ret_reg = reg_alloc () in
+        let l1 = label_create () in
+        let l2 = label_create () in
+        let lreg = ex e1 in
+        push_buffer (sprintf "\tbeq $%d, $0, L%d\n" lreg l1);
+        reg_free lreg;
+        let rreg = ex e2 in
+        push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg rreg);
+        push_buffer (sprintf "\tbr L%d\n" l2);
+        reg_free rreg;
+        push_buffer (sprintf "L%d:\n" l1);
+        push_buffer (sprintf "\tmov $%d, $0\n" ret_reg);
+        push_buffer (sprintf "L%d:\n" l2);
+        ret_reg
+      )
+   | EOr (e1, e2) ->
+      (
+        let ret_reg = reg_alloc () in
+        let l1 = label_create () in
+        let l2 = label_create () in
+        let lreg = ex e1 in
+        push_buffer (sprintf "\tbeq $%d, $0, L%d\n" lreg l1);
+        push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg lreg);
+        reg_free lreg;
+        push_buffer (sprintf "\tbr L%d\n" l2);
+        push_buffer (sprintf "L%d:\n" l1);
+        let rreg = ex e2 in
+        push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg rreg);
+        push_buffer (sprintf "L%d:\n" l2);
+        reg_free rreg;
+        ret_reg
+      )
    | EAdd (e1, e2) ->
       (
         let ret_reg = reg_alloc () in

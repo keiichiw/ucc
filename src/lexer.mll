@@ -44,6 +44,10 @@ rule token = parse
     { MINUS }
 | '!'
     { NOT }
+| '?'
+    { COND }
+| ':'
+    { COLON }
 | "--"
     { DEC }
 | '*'
@@ -62,6 +66,10 @@ rule token = parse
     { HAT }
 | '|'
     { BAR }
+| "&&"
+    { AND }
+| "||"
+    { OR }
 | '~'
     { TILDE }
 | "=="
@@ -74,6 +82,22 @@ rule token = parse
     { PLUSSUBST }
 | "-="
     { MINUSSUBST }
+| "*="
+    { STARSUBST }
+| "/="
+    { SLASHSUBST }
+| "%="
+    { MODSUBST }
+| "<<="
+    { LSHIFTSUBST }
+| ">>="
+    { RSHIFTSUBST }
+| "&="
+    { AMPSUBST }
+| "^="
+    { HATSUBST }
+| "|="
+    { BARSUBST }
 | "<"
     { LT }
 | ">"
