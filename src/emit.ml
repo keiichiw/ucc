@@ -164,16 +164,15 @@ and bl = function
      if sp_move != 0 then
        push_buffer (sprintf "\tsub $sp, $sp, %d\n" sp_move);
      push_local_vars vars ex;
-     st stmts;
+     List.iter st stmts;
      pop_local_vars (List.length vars);
      stack_pop sp_move_stack;
      if sp_move != 0 then
        push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_move)
 and st = function
-  | [] -> ()
-  | x::xs -> st' x; st xs
-and st' = function
   | SNil -> ()
+  | SBlock (x,y) ->
+     bl (Block (x,y))
   | SWhile (cond, b) ->
      let beginlabel = label_create () in
      let endlabel = label_create () in
@@ -185,7 +184,7 @@ and st' = function
                           cond_reg
                           endlabel);
      reg_free cond_reg;
-     bl b;
+     st b;
      push_buffer (sprintf "\tbr L%d\n" beginlabel);
      push_buffer (sprintf "L%d:\n" endlabel);
      stack_pop con_stack;
@@ -199,7 +198,7 @@ and st' = function
      push_buffer (sprintf "L%d:\n" beginlabel);
      let continue_flg = !for_continue_flg_ref in
      for_continue_flg_ref := 0;
-     bl b;
+     st b;
      if !for_continue_flg_ref = 1 then
        push_buffer (sprintf "L%d:\n" condlabel);
      for_continue_flg_ref := continue_flg;
@@ -231,7 +230,7 @@ and st' = function
       | _ -> ());
      let continue_flg = !for_continue_flg_ref in
      for_continue_flg_ref := 0;
-     bl b;
+     st b;
      if !for_continue_flg_ref = 1 then
        push_buffer (sprintf "L%d:\n" iterlnum);
      for_continue_flg_ref := continue_flg;
@@ -252,10 +251,10 @@ and st' = function
                           cond_reg
                           lnum);
      reg_free cond_reg;
-     bl b1;
+     st b1;
      push_buffer (sprintf "\tbr L%d\n" endlnum);
      push_buffer (sprintf "L%d:\n" lnum);
-     bl b2;
+     st b2;
      push_buffer (sprintf "L%d:\n" endlnum)
   | SReturn exp ->
      let reg = ex exp in

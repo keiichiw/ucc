@@ -29,6 +29,9 @@
 %token AMPSUBST HATSUBST BARSUBST
 %token EOF
 
+(* avoid dangling-else problem *)
+%nonassoc RPAREN
+%nonassoc ELSE
 
 %start <Syntax.def list> main
 
@@ -43,12 +46,16 @@ top_decl:
 
 // int f (int x, int y) {...}
 fun_definition:
-| ty=decl_specifier; f=declarator; LPAREN; dlist=separated_list(COMMA, arg_declaration);  RPAREN; b=block
+| ty=decl_specifier; f=declarator; LPAREN; dlist=separated_list(COMMA, arg_declaration);  RPAREN; b=compound_stmt
   {
     let (starNum, decl) = f in
     let nm = getNameFromDecl decl in
     let typ = nestPtr ty starNum in
-    DefFun (typ, nm, dlist, b,  ($startpos, $endpos))
+    match b with
+    | SBlock (ds,ss) ->
+       DefFun (typ, nm, dlist, Block(ds,ss),  ($startpos, $endpos))
+    | _ ->
+       assert false
   }
 
 decl_specifier:
@@ -84,15 +91,6 @@ init_declarator:
        raise (ParserError "array initializer is unsupported")
   }
 
-block:
-| LBRACE; l=declaration_stmt*; s=stmt*; RBRACE
-  { Block (List.concat l, s) }
-
-declaration_stmt:
-| declaration SEMICOLON
-  { $1 }
-
-
 arg_declaration:
 | ty=decl_specifier; d=declarator
   {
@@ -111,7 +109,7 @@ arg_declaration:
   }
 
 declaration: // local variables
-| ty=decl_specifier; dlist=separated_list(COMMA, init_declarator)
+| ty=decl_specifier; dlist=separated_list(COMMA, init_declarator); SEMICOLON
   {
     let rec f (starNum,decl) =
       let typ = nestPtr ty starNum in
@@ -127,24 +125,46 @@ declaration: // local variables
   }
 
 stmt:
+| expr_stmt
+  { $1 }
+| compound_stmt
+  { $1 }
+| selection_stmt
+  { $1 }
+| iteration_stmt
+  { $1 }
+| jump_stmt
+  { $1 }
+
+expr_stmt:
 | SEMICOLON
   { SNil }
 | expr SEMICOLON
   { SExpr($1) }
-| WHILE LPAREN expr RPAREN block
-  { SWhile($3, $5) }
-| DO b=block WHILE LPAREN e=expr RPAREN SEMICOLON
-  { SDoWhile( b, e) }
-| FOR LPAREN e1= expr?; SEMICOLON e2= expr?; SEMICOLON e3=expr?; RPAREN; b=block
-  { SFor(e1, e2, e3, b) }
-| IF LPAREN expr RPAREN block
-  { SIfElse($3, $5, (Block ([],[]))) }
-| IF LPAREN expr RPAREN block ELSE block
+
+compound_stmt:
+| LBRACE declaration* stmt* RBRACE
+  { SBlock(List.concat $2, $3) }
+
+selection_stmt:
+| IF LPAREN expr RPAREN stmt
+  { SIfElse($3, $5, SNil) }
+| IF LPAREN expr RPAREN stmt ELSE stmt
   { SIfElse($3, $5, $7) }
-| CONTINUE SEMICOLON
-  { SContinue }
+
+iteration_stmt:
+| WHILE LPAREN expr RPAREN stmt
+  { SWhile($3, $5) }
+| DO stmt WHILE LPAREN expr RPAREN SEMICOLON
+  { SDoWhile($2, $5) }
+| FOR LPAREN e1=expr?; SEMICOLON e2=expr?; SEMICOLON e3=expr?; RPAREN stmt
+  { SFor(e1, e2, e3, $9) }
+
+jump_stmt:
 | BREAK SEMICOLON
   { SBreak }
+| CONTINUE SEMICOLON
+  { SContinue }
 | RETURN expr SEMICOLON
   { SReturn $2 }
 
