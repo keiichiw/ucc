@@ -285,6 +285,22 @@ and ex arg =
         reg_free lreg;
         ret_reg
       )
+   | ENeq (e1, e2) ->
+      (
+        let ret_reg = reg_alloc () in
+        let lreg = ex e1 in
+        let rreg = ex e2 in
+        let lelse = label_create () in
+        let lend = label_create () in
+        push_buffer (sprintf "\tbeq $%d, $%d, L%d\n" lreg rreg lelse);
+        push_buffer (sprintf "\tmov $%d, -1\n" ret_reg);
+        push_buffer (sprintf "\tbr L%d\n" lend);
+        push_buffer (sprintf "L%d:\n" lelse);
+        push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
+        push_buffer (sprintf "L%d:\n" lend);
+        reg_free lreg;
+        ret_reg
+      )
    | EApp (Name fname, exlst) ->
       (
         let rec pfun i = function
