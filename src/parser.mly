@@ -17,6 +17,7 @@
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
 %token INC DEC
+%token NOT
 %token AMP HAT BAR TILDE
 %token PLUS MINUS MOD STAR LSHIFT RSHIFT SLASH
 %token EQ NEQ LT LE GT GE
@@ -190,6 +191,8 @@ simple_expr:
 
 
 unary:
+| NOT unary
+  { EEq(EConst(VInt 0), $2) }
 | PLUS unary
   { $2 }
 | MINUS unary

@@ -38,6 +38,8 @@ rule token = parse
     { INC }
 | '-'
     { MINUS }
+| '!'
+    { NOT }
 | "--"
     { DEC }
 | '*'
