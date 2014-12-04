@@ -95,7 +95,7 @@ int __or(int a, int b) {
 }
 
 int __not(int a) {
-  return - a - 1;
+  return a ? 0 : 1;
 }
 
 int __xor(int a, int b) {
