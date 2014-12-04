@@ -25,6 +25,11 @@ let push_buffer str =
 let print_buffer oc name =
   fprintf oc ".global %s\n%s:\n" name name;
   let buf = List.rev !buffer_ref in
+  (* don't insert halt directly. the way of handling halt can be changed in the future *)
+  let buf = (if name = "main" then
+               buf @ [ "\tmov $1, $0\n"; "\tret\n" ]
+             else
+               buf) in
   let _ = List.map
             (fun s -> if name = "main" && s = "\tret\n" then
                         fprintf oc "\thalt\n"
