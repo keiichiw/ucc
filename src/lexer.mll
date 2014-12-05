@@ -38,6 +38,12 @@ rule token = parse
     { BREAK }
 | "goto"
     { GOTO }
+| "switch"
+    { SWITCH }
+| "case"
+    { CASE }
+| "default"
+    { DEFAULT }
 | '+'
     { PLUS }
 | "++"

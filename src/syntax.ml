@@ -32,6 +32,9 @@ and stmt =
   | SBreak
   | SLabel of string * stmt
   | SGoto of string
+  | SSwitch of expr * stmt
+  | SCase of expr
+  | SDefault
   | SExpr of expr
 and expr =
   | EConst of value

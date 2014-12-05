@@ -14,6 +14,10 @@ let buffer_ref : string list ref = ref [];;
 let sp_diff_ref = ref 0;;
 let con_stack : int list ref = ref [];;
 let brk_stack : int list ref = ref [];;
+let switch_counter = ref (-1);;
+let switch_stack = ref [];;
+let switch_cases = ref [];;
+let switch_defaults = ref [];;
 let sp_move_stack : int list ref = ref [];;
 let for_continue_flg_ref = ref 0;;
 let env_ref : (ctype * string * storageplace) list ref = ref [];;
@@ -60,6 +64,11 @@ let label_create _ =
 let escape_label s =
   sprintf "L_label_%s_%s" !fun_name_ref s
 
+let escape_case i =
+  sprintf "L_case_%s_%d_%d" !fun_name_ref (List.hd !switch_stack) i
+
+let escape_default () =
+  sprintf "L_default_%s_%d" !fun_name_ref (List.hd !switch_stack)
 
 let resolve_var name =
   let rec go var = function
@@ -70,6 +79,7 @@ let resolve_var name =
        else
          go var xs in
   go name !env_ref;;
+
 let rec range a b =
   if a > b then []
   else a :: range (a+1) b;;
@@ -288,6 +298,43 @@ and st = function
   | SGoto label ->
      let lbl = escape_label label in
      push_buffer (sprintf "\tbr %s\n" lbl)
+  | SCase e ->
+     (match e with
+      | EConst (VInt i) ->
+         switch_cases := (i :: List.hd !switch_cases) :: List.tl !switch_cases;
+         push_buffer (sprintf "%s:\n" (escape_case i))
+      | _ ->
+         raise (EmitError "non-constant value at case clause"))
+  | SDefault ->
+     (List.hd !switch_defaults) := true;
+     push_buffer (sprintf "%s:\n" (escape_default ()))
+  | SSwitch (e,s) ->
+     switch_counter := !switch_counter + 1;
+     switch_stack := !switch_counter :: !switch_stack;
+     switch_cases := [] :: !switch_cases;
+     switch_defaults := ref false :: !switch_defaults;
+     let l1 = label_create () in
+     let l2 = label_create () in
+     push_buffer (sprintf "\tbr L%d\n" l1);
+     stack_push brk_stack l2;
+     st s;
+     stack_pop brk_stack;
+     push_buffer (sprintf "\tbr L%d\n" l2);
+     (* dispatcher *)
+     push_buffer (sprintf "L%d:\n" l1);
+     let lreg = ex e in
+     let rreg = reg_alloc () in
+     List.iter
+       (fun i ->
+        push_buffer (sprintf "\tmov $%d, %d\n" rreg i);
+        push_buffer (sprintf "\tbeq $%d, $%d, %s\n" lreg rreg (escape_case i)))
+       (List.hd !switch_cases);
+     if !(List.hd !switch_defaults) then
+       push_buffer (sprintf "\tbr %s\n" (escape_default ()));
+     push_buffer (sprintf "L%d:\n" l2);
+     switch_defaults := List.tl !switch_defaults;
+     switch_cases := List.tl !switch_cases;
+     switch_stack := List.tl !switch_stack
   | SExpr exp ->
      let temp = ex exp in
      reg_free temp
