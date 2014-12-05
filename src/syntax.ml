@@ -9,17 +9,20 @@ type name = Name of string
 type size = int
 type ctype =
   | TInt
+  | TStruct of (name option) * ((dvar list) option)
   | TPtr of ctype (* pointer of type *)
-type def =
+and def =
   | DefFun of ctype * name * (dvar list) * block * loc
+  | DefVar of dvar
 and block =
   | Block of dvar list * stmt list
 and dectype =
-  | DeclIdent of name * (expr option)
-  | DeclArray of dectype * size
+  | DeclIdent  of name * (expr option)
+  | DeclArray  of dectype * size
 and dvar =
   | DVar of ctype * name * (expr option)
   | DArray of ctype * name * size
+  | DStruct of name * (dvar list)
 and stmt =
   | SNil
   | SBlock of dvar list * stmt list
@@ -53,5 +56,6 @@ and expr =
   | ECond  of expr * expr * expr
   | EAnd   of expr * expr
   | EOr    of expr * expr
+  | EDot   of expr * name
 and value =
   | VInt of int
