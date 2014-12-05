@@ -14,6 +14,7 @@
 %token TINT
 %token IF ELSE WHILE DO FOR
 %token RETURN CONTINUE BREAK GOTO
+%token SWITCH CASE DEFAULT
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
@@ -151,6 +152,8 @@ selection_stmt:
   { SIfElse($3, $5, SNil) }
 | IF LPAREN expr RPAREN stmt ELSE stmt
   { SIfElse($3, $5, $7) }
+| SWITCH LPAREN expr RPAREN stmt
+  { SSwitch($3, $5) }
 
 iteration_stmt:
 | WHILE LPAREN expr RPAREN stmt
@@ -173,6 +176,10 @@ jump_stmt:
 labeled_stmt:
 | ID COLON stmt
   { SLabel($1, $3) }
+| CASE cond_expr COLON
+  { SCase($2) }
+| DEFAULT COLON
+  { SDefault }
 
 expr:
 | assign_expr
