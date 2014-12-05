@@ -36,6 +36,8 @@ rule token = parse
     { CONTINUE }
 | "break"
     { BREAK }
+| "goto"
+    { GOTO }
 | '+'
     { PLUS }
 | "++"

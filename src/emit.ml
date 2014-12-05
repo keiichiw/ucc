@@ -17,6 +17,7 @@ let brk_stack : int list ref = ref [];;
 let sp_move_stack : int list ref = ref [];;
 let for_continue_flg_ref = ref 0;;
 let env_ref : (ctype * string * storageplace) list ref = ref [];;
+let fun_name_ref = ref "";;
 
 (* Access ref values*)
 let push_buffer str =
@@ -55,6 +56,9 @@ let reg_free a =
 let label_create _ =
   created_label_num := !created_label_num + 1;
   !created_label_num
+
+let escape_label s =
+  sprintf "L_label_%s_%s" !fun_name_ref s
 
 
 let resolve_var name =
@@ -148,10 +152,10 @@ let stack_pop stack =
 
 (*emit main*)
 let rec main oc defs =
-  let _ = List.map (fun x -> emit oc x) defs in
-  ()
+  List.iter (fun x -> emit oc x) defs
 and emit oc = function
   | DefFun(ty, Name name, args, b, _) ->
+     fun_name_ref := name;
      using_reg_num := List.length args;
      push_args args;
      bl b;
@@ -277,6 +281,13 @@ and st = function
      let sp_d = (List.hd !sp_move_stack) in
      push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_d);
      push_buffer (sprintf "\tbr L%d\n" lbl)
+  | SLabel (label, s) ->
+     let lbl = escape_label label in
+     push_buffer (sprintf "%s:\n" lbl);
+     st s
+  | SGoto label ->
+     let lbl = escape_label label in
+     push_buffer (sprintf "\tbr %s\n" lbl)
   | SExpr exp ->
      let temp = ex exp in
      reg_free temp

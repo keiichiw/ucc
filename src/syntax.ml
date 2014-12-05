@@ -30,6 +30,8 @@ and stmt =
   | SReturn of expr
   | SContinue
   | SBreak
+  | SLabel of string * stmt
+  | SGoto of string
   | SExpr of expr
 and expr =
   | EConst of value

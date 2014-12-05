@@ -13,7 +13,7 @@
 %token <string> ID
 %token TINT
 %token IF ELSE WHILE DO FOR
-%token RETURN CONTINUE BREAK
+%token RETURN CONTINUE BREAK GOTO
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
@@ -40,11 +40,9 @@
 main:
 | top_decl* EOF { $1 }
 
-
 top_decl:
 | fun_definition  { $1 }
 
-// int f (int x, int y) {...}
 fun_definition:
 | ty=decl_specifier; f=declarator; LPAREN; dlist=separated_list(COMMA, arg_declaration);  RPAREN; b=compound_stmt
   {
@@ -135,6 +133,8 @@ stmt:
   { $1 }
 | jump_stmt
   { $1 }
+| labeled_stmt
+  { $1 }
 
 expr_stmt:
 | SEMICOLON
@@ -161,12 +161,18 @@ iteration_stmt:
   { SFor(e1, e2, e3, $9) }
 
 jump_stmt:
+| GOTO ID SEMICOLON
+  { SGoto $2 }
 | BREAK SEMICOLON
   { SBreak }
 | CONTINUE SEMICOLON
   { SContinue }
 | RETURN expr SEMICOLON
   { SReturn $2 }
+
+labeled_stmt:
+| ID COLON stmt
+  { SLabel($1, $3) }
 
 expr:
 | assign_expr
