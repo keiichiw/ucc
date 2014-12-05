@@ -17,6 +17,7 @@ let brk_stack : int list ref = ref [];;
 let sp_move_stack : int list ref = ref [];;
 let for_continue_flg_ref = ref 0;;
 let env_ref : (ctype * string * storageplace) list ref = ref [];;
+let fun_name_ref = ref "";;
 
 (* Access ref values*)
 let push_buffer str =
@@ -55,6 +56,9 @@ let reg_free a =
 let label_create _ =
   created_label_num := !created_label_num + 1;
   !created_label_num
+
+let escape_label s =
+  sprintf "L_label_%s_%s" !fun_name_ref s
 
 
 let resolve_var name =
@@ -148,10 +152,10 @@ let stack_pop stack =
 
 (*emit main*)
 let rec main oc defs =
-  let _ = List.map (fun x -> emit oc x) defs in
-  ()
+  List.iter (fun x -> emit oc x) defs
 and emit oc = function
   | DefFun(ty, Name name, args, b, _) ->
+     fun_name_ref := name;
      using_reg_num := List.length args;
      push_args args;
      bl b;
@@ -164,16 +168,15 @@ and bl = function
      if sp_move != 0 then
        push_buffer (sprintf "\tsub $sp, $sp, %d\n" sp_move);
      push_local_vars vars ex;
-     st stmts;
+     List.iter st stmts;
      pop_local_vars (List.length vars);
      stack_pop sp_move_stack;
      if sp_move != 0 then
        push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_move)
 and st = function
-  | [] -> ()
-  | x::xs -> st' x; st xs
-and st' = function
   | SNil -> ()
+  | SBlock (x,y) ->
+     bl (Block (x,y))
   | SWhile (cond, b) ->
      let beginlabel = label_create () in
      let endlabel = label_create () in
@@ -185,7 +188,7 @@ and st' = function
                           cond_reg
                           endlabel);
      reg_free cond_reg;
-     bl b;
+     st b;
      push_buffer (sprintf "\tbr L%d\n" beginlabel);
      push_buffer (sprintf "L%d:\n" endlabel);
      stack_pop con_stack;
@@ -199,7 +202,7 @@ and st' = function
      push_buffer (sprintf "L%d:\n" beginlabel);
      let continue_flg = !for_continue_flg_ref in
      for_continue_flg_ref := 0;
-     bl b;
+     st b;
      if !for_continue_flg_ref = 1 then
        push_buffer (sprintf "L%d:\n" condlabel);
      for_continue_flg_ref := continue_flg;
@@ -231,7 +234,7 @@ and st' = function
       | _ -> ());
      let continue_flg = !for_continue_flg_ref in
      for_continue_flg_ref := 0;
-     bl b;
+     st b;
      if !for_continue_flg_ref = 1 then
        push_buffer (sprintf "L%d:\n" iterlnum);
      for_continue_flg_ref := continue_flg;
@@ -252,10 +255,10 @@ and st' = function
                           cond_reg
                           lnum);
      reg_free cond_reg;
-     bl b1;
+     st b1;
      push_buffer (sprintf "\tbr L%d\n" endlnum);
      push_buffer (sprintf "L%d:\n" lnum);
-     bl b2;
+     st b2;
      push_buffer (sprintf "L%d:\n" endlnum)
   | SReturn exp ->
      let reg = ex exp in
@@ -278,6 +281,13 @@ and st' = function
      let sp_d = (List.hd !sp_move_stack) in
      push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_d);
      push_buffer (sprintf "\tbr L%d\n" lbl)
+  | SLabel (label, s) ->
+     let lbl = escape_label label in
+     push_buffer (sprintf "%s:\n" lbl);
+     st s
+  | SGoto label ->
+     let lbl = escape_label label in
+     push_buffer (sprintf "\tbr %s\n" lbl)
   | SExpr exp ->
      let temp = ex exp in
      reg_free temp

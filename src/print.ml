@@ -46,13 +46,13 @@ and pp_stmt fmt = function
   | SNil ->
      fprintf fmt ";"
   | SWhile (e, b) ->
-     fprintf fmt "SWhile(%a, %a)" pp_expr e pp_block b
+     fprintf fmt "SWhile(%a, %a)" pp_expr e pp_stmt b
   | SDoWhile (b, e) ->
-     fprintf fmt "SDoWhile(%a, %a)" pp_block b pp_expr e
+     fprintf fmt "SDoWhile(%a, %a)" pp_stmt b pp_expr e
   | SFor (op1, op2, op3, s) ->
-     fprintf fmt "SFor((%a; %a; %a), %a)" pp_op op1 pp_op op2 pp_op op3 pp_block s
+     fprintf fmt "SFor((%a; %a; %a), %a)" pp_op op1 pp_op op2 pp_op op3 pp_stmt s
   | SIfElse (e, b1, b2) ->
-     fprintf fmt "SIfElse(%a, %a, %a)" pp_expr e pp_block b1 pp_block b2
+     fprintf fmt "SIfElse(%a, %a, %a)" pp_expr e pp_stmt b1 pp_stmt b2
   | SReturn e ->
      fprintf fmt "SReturn(%a)" pp_expr e
   | SContinue ->

@@ -22,13 +22,16 @@ and dvar =
   | DArray of ctype * name * size
 and stmt =
   | SNil
-  | SWhile of expr * block
-  | SDoWhile of block * expr
-  | SFor of (expr option) * (expr option) * (expr option) * block
-  | SIfElse of expr * block * block
+  | SBlock of dvar list * stmt list
+  | SWhile of expr * stmt
+  | SDoWhile of stmt * expr
+  | SFor of (expr option) * (expr option) * (expr option) * stmt
+  | SIfElse of expr * stmt * stmt
   | SReturn of expr
   | SContinue
   | SBreak
+  | SLabel of string * stmt
+  | SGoto of string
   | SExpr of expr
 and expr =
   | EConst of value

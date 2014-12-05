@@ -13,7 +13,7 @@
 %token <string> ID
 %token TINT
 %token IF ELSE WHILE DO FOR
-%token RETURN CONTINUE BREAK
+%token RETURN CONTINUE BREAK GOTO
 %token LPAREN RPAREN
 %token LBRACE RBRACE
 %token LBRACKET RBRACKET
@@ -29,6 +29,9 @@
 %token AMPSUBST HATSUBST BARSUBST
 %token EOF
 
+(* avoid dangling-else problem *)
+%nonassoc RPAREN
+%nonassoc ELSE
 
 %start <Syntax.def list> main
 
@@ -37,18 +40,20 @@
 main:
 | top_decl* EOF { $1 }
 
-
 top_decl:
 | fun_definition  { $1 }
 
-// int f (int x, int y) {...}
 fun_definition:
-| ty=decl_specifier; f=declarator; LPAREN; dlist=separated_list(COMMA, arg_declaration);  RPAREN; b=block
+| ty=decl_specifier; f=declarator; LPAREN; dlist=separated_list(COMMA, arg_declaration);  RPAREN; b=compound_stmt
   {
     let (starNum, decl) = f in
     let nm = getNameFromDecl decl in
     let typ = nestPtr ty starNum in
-    DefFun (typ, nm, dlist, b,  ($startpos, $endpos))
+    match b with
+    | SBlock (ds,ss) ->
+       DefFun (typ, nm, dlist, Block(ds,ss),  ($startpos, $endpos))
+    | _ ->
+       assert false
   }
 
 decl_specifier:
@@ -84,15 +89,6 @@ init_declarator:
        raise (ParserError "array initializer is unsupported")
   }
 
-block:
-| LBRACE; l=declaration_stmt*; s=stmt*; RBRACE
-  { Block (List.concat l, s) }
-
-declaration_stmt:
-| declaration SEMICOLON
-  { $1 }
-
-
 arg_declaration:
 | ty=decl_specifier; d=declarator
   {
@@ -111,7 +107,7 @@ arg_declaration:
   }
 
 declaration: // local variables
-| ty=decl_specifier; dlist=separated_list(COMMA, init_declarator)
+| ty=decl_specifier; dlist=separated_list(COMMA, init_declarator); SEMICOLON
   {
     let rec f (starNum,decl) =
       let typ = nestPtr ty starNum in
@@ -126,27 +122,57 @@ declaration: // local variables
     List.map f dlist
   }
 
-stmt: // statement
+stmt:
+| expr_stmt
+  { $1 }
+| compound_stmt
+  { $1 }
+| selection_stmt
+  { $1 }
+| iteration_stmt
+  { $1 }
+| jump_stmt
+  { $1 }
+| labeled_stmt
+  { $1 }
+
+expr_stmt:
 | SEMICOLON
   { SNil }
 | expr SEMICOLON
   { SExpr($1) }
-| WHILE LPAREN expr RPAREN block
-  { SWhile($3, $5) }
-| DO b=block WHILE LPAREN e=expr RPAREN SEMICOLON
-  { SDoWhile( b, e) }
-| FOR LPAREN e1= expr?; SEMICOLON e2= expr?; SEMICOLON e3=expr?; RPAREN; b=block
-  { SFor(e1, e2, e3, b) }
-| IF LPAREN expr RPAREN block
-  { SIfElse($3, $5, (Block ([],[]))) }
-| IF LPAREN expr RPAREN block ELSE block
+
+compound_stmt:
+| LBRACE declaration* stmt* RBRACE
+  { SBlock(List.concat $2, $3) }
+
+selection_stmt:
+| IF LPAREN expr RPAREN stmt
+  { SIfElse($3, $5, SNil) }
+| IF LPAREN expr RPAREN stmt ELSE stmt
   { SIfElse($3, $5, $7) }
-| CONTINUE SEMICOLON
-  { SContinue }
+
+iteration_stmt:
+| WHILE LPAREN expr RPAREN stmt
+  { SWhile($3, $5) }
+| DO stmt WHILE LPAREN expr RPAREN SEMICOLON
+  { SDoWhile($2, $5) }
+| FOR LPAREN e1=expr?; SEMICOLON e2=expr?; SEMICOLON e3=expr?; RPAREN stmt
+  { SFor(e1, e2, e3, $9) }
+
+jump_stmt:
+| GOTO ID SEMICOLON
+  { SGoto $2 }
 | BREAK SEMICOLON
   { SBreak }
+| CONTINUE SEMICOLON
+  { SContinue }
 | RETURN expr SEMICOLON
   { SReturn $2 }
+
+labeled_stmt:
+| ID COLON stmt
+  { SLabel($1, $3) }
 
 expr:
 | assign_expr
@@ -267,52 +293,55 @@ cast_expr:
   { $1 }
 
 unary_expr:
+| postfix_expr
+  { $1 }
+| INC unary_expr
+  { ESubst($2, EAdd($2, EConst(VInt(1)))) }
+| DEC unary_expr
+  { ESubst($2, ESub($2, EConst(VInt(1)))) }
 | NOT unary_expr
   { EEq(EConst(VInt 0), $2) }
 | PLUS unary_expr
   { $2 }
 | MINUS unary_expr
   { ESub(EConst(VInt 0), $2) }
-| INC unary_expr
-  { ESubst($2, EAdd($2, EConst(VInt(1)))) }
-| DEC unary_expr
-  { ESubst($2, ESub($2, EConst(VInt(1)))) }
 | STAR unary_expr
   { EPtr $2 }
 | AMP unary_expr
   { EAddr $2 }
 | TILDE unary_expr
   { EApp(Name "__not", [$2]) }
-| postfix_expr
-  { $1 }
 
 postfix_expr:
-| primary
+| primary_expr
   { $1 }
-| p=postfix_expr LPAREN args=separated_list(COMMA, assign_expr);RPAREN
+| postfix_expr LBRACKET expr RBRACKET
+  { EPtr(EAdd($1, $3)) }
+| postfix_expr INC
+  (* i++ -> (++i,i-1) *)
+  { EComma(ESubst($1, EAdd($1, EConst(VInt(1)))), ESub($1, EConst(VInt(1)))) }
+| postfix_expr DEC
+  (* i-- -> (--i,i+1) *)
+  { EComma(ESubst($1, ESub($1, EConst(VInt(1)))), EAdd($1, EConst(VInt(1)))) }
+| postfix_expr LPAREN arg_expr_list RPAREN
   {
-    match p with
-    | EVar name -> EApp(name, args)
+    match $1 with
+    | EVar name -> EApp(name, $3)
     | _ -> raise (ParserError "postfix: function application")
   }
-| p=postfix_expr INC
-  {
-    (* i++ -> (++i,i-1) *)
-    EComma( ESubst(p, EAdd(p, EConst(VInt(1)))),
-            ESub(p, EConst(VInt(1))))
-  }
-| p=postfix_expr DEC
-  {
-    (* i-- -> (--i,i+1) *)
-    EComma( ESubst(p, ESub(p, EConst(VInt(1)))),
-            EAdd(p, EConst(VInt(1))))
-  }
-| p=postfix_expr LBRACKET e=expr;RBRACKET
-  { EPtr(EAdd(p, e)) }
-primary:
-| INT
-  { EConst(VInt $1) }
+
+primary_expr:
+| constant_expr
+  { $1 }
 | ID
   { EVar (Name $1)}
 | LPAREN expr RPAREN
   { $2 }
+
+arg_expr_list:
+| args=separated_list(COMMA, assign_expr)
+  { args }
+
+constant_expr:
+| INT
+  { EConst(VInt $1) }
