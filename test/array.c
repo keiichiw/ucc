@@ -1,7 +1,12 @@
 /*
-  Test for Array Expression
-  output: 0 1 2 3 4 5 6
- */
+0
+1
+2
+3
+4
+5
+6
+*/
 
 int main () {
   int a[3],b[4];

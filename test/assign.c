@@ -1,3 +1,26 @@
+/*
+9
+9
+4
+4
+1
+1
+5
+5
+4
+4
+16
+16
+8
+8
+8
+8
+14
+14
+4
+4
+*/
+
 #define TEST(op, op2, arg)                      \
   print_int(a op arg);                          \
   a op2 arg;                                    \
