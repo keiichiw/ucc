@@ -1,6 +1,10 @@
 /*
-  Test for break statement
-  output: 0 0 1 10 2 20
+0
+0
+1
+10
+2
+20
 */
 
 
