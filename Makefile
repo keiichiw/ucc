@@ -13,9 +13,12 @@ bin/sim:
 	cp extlib/sim/Yebi/ysim bin/sim
 	$(MAKE) -C extlib/sim/Yebi clean
 
+test: all test/*.c
+	prove --exec test/_test.pl test/*.c
+
 clean:
 	ocamlbuild -clean
 	rm -f *~ test/*~ test/*.out bin/cc bin/sim lib/libucc.s
 
 FORCE:
-.PHONY: FORCE clean all
+.PHONY: FORCE clean all test
