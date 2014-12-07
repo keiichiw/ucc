@@ -90,7 +90,16 @@ let resolve_var name =
          addr
        else
          go var xs in
-  go name !env_ref;;
+  go name !env_ref
+
+let resolve_var_type name =
+  let rec go var = function
+    | [] -> raise (EmitError "variable found")
+    | (ty, v, addr)::_  when v=var ->
+       (ty, addr)
+    | _::xs -> go var xs in
+  go name !env_ref
+
 let resolve_struct_size name =
   let rec go var = function
     | [] -> raise (EmitError "struct not found")
@@ -99,6 +108,29 @@ let resolve_struct_size name =
     | _::xs -> go var xs in
   go name !struct_env_ref
 
+let resolve_member typ mem =
+  let rec go var = function
+    | [] ->
+       raise (EmitError "struct not found")
+    | Struct(v, sz, vs)::xs when v = var ->
+       go2 0 vs
+    | Struct(v, sz, _)::xs ->
+       go var xs
+  and go2 i = function
+    | [] ->
+       raise (EmitError
+                (sprintf "Member \'%s\' not found" mem))
+    | (x, sz)::_ when x=mem ->
+       i
+    | (x, sz)::xs ->
+       go2 (i+sz) xs in
+  match typ with
+  | TStruct (Some _, Some dvars) ->
+     raise (TODO "resolve member from dvars")
+  | TStruct (Some (Name typename), _) ->
+     let x = go typename !struct_env_ref in
+     x
+  | _ -> raise (EmitError "this is not sturcture")
 let rec range a b =
   if a > b then []
   else a :: range (a+1) b;;
@@ -215,6 +247,16 @@ let pop_local_vars num =
   env_ref := drop (!env_ref) num;
   sp_diff_ref := !sp_diff_ref - num
 
+let push_global_var = function (* add global variable in env *)
+  | DStruct (Name name, dvars) ->
+     let f = (fun dv -> (get_dvar_name dv, size_of_var dv)) in
+     let vars = List.map f dvars in
+     let sz = List.fold_left
+                (fun num d -> num + size_of_var d)
+                0 dvars in
+     stack_push struct_env_ref (Struct(name, sz, vars));
+     ()
+  | _ -> raise (TODO "global variables isn\'t supported yet")
 
 (*emit main*)
 let rec main oc defs =
@@ -227,6 +269,8 @@ and emit oc = function
      bl b;
      pop_args (List.length args);
      print_buffer oc name
+  | DefVar v ->
+     push_global_var v
 and bl = function
   | Block (vars, stmts) ->
      let old_sp = !sp_diff_ref in
@@ -581,6 +625,19 @@ and ex arg =
          push_buffer (sprintf "\tmov [$%d], $%d\n" r ret_reg);
          reg_free r;
          ret_reg
+      | EDot (e, Name member) ->
+         (match e with
+          | EVar (Name nm) ->
+             let (typ, Mem p) = resolve_var_type nm in
+             let mem_diff = resolve_member typ member in
+             let r = reg_alloc () in
+             push_buffer (sprintf "\tmov $%d, [$bp-%d]\n"  r p);
+             push_buffer (sprintf "\tmov [$%d+%d], $%d\n" r mem_diff ret_reg);
+             reg_free r;
+             ret_reg
+          | _ ->
+             raise (EmitError "can't apply \'.\' to this expression")
+         )
       | _ -> raise (EmitError "emit:substitution error")
       )
 
@@ -591,6 +648,18 @@ and ex arg =
       push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg addr_reg);
       reg_free addr_reg;
       ret_reg
+   | EDot (e, Name member) ->
+      (match e with
+       | EVar (Name nm) ->
+          let (typ, Mem p) = resolve_var_type nm in
+          let mem_diff = resolve_member typ member in
+          let ret_reg = reg_alloc () in
+          push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" ret_reg p);
+          push_buffer (sprintf "\tmov $%d, [$%d+%d]\n" ret_reg ret_reg mem_diff);
+          ret_reg
+       | _ ->
+          raise (EmitError "can't apply \'.\' to this expression")
+      )
    | x ->
       fprintf stderr "In emit.ml\n";
       Print.pp_expr stderr x;
