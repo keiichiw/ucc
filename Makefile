@@ -14,7 +14,7 @@ bin/sim:
 	$(MAKE) -C extlib/sim/Yebi clean
 
 test: all test/*.c
-	prove --exec test/_test.pl test/*.c
+	prove test/*.c
 
 clean:
 	ocamlbuild -clean
