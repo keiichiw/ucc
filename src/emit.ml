@@ -96,7 +96,10 @@ let resolve_var_type name =
   let rec go var = function
     | [] -> raise (EmitError "variable found")
     | (ty, v, addr)::_  when v=var ->
-       (ty, addr)
+       (match addr with
+        | Mem i ->
+           (ty, i)
+        | _ -> raise (TODO "resolve var type"))
     | _::xs -> go var xs in
   go name !env_ref
 
@@ -628,7 +631,7 @@ and ex arg =
       | EDot (e, Name member) ->
          (match e with
           | EVar (Name nm) ->
-             let (typ, Mem p) = resolve_var_type nm in
+             let (typ, p) = resolve_var_type nm in
              let mem_diff = resolve_member typ member in
              let r = reg_alloc () in
              push_buffer (sprintf "\tmov $%d, [$bp-%d]\n"  r p);
@@ -651,7 +654,7 @@ and ex arg =
    | EDot (e, Name member) ->
       (match e with
        | EVar (Name nm) ->
-          let (typ, Mem p) = resolve_var_type nm in
+          let (typ, p) = resolve_var_type nm in
           let mem_diff = resolve_member typ member in
           let ret_reg = reg_alloc () in
           push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" ret_reg p);
