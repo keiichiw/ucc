@@ -113,14 +113,13 @@ let push_local_vars vars ex = (* add local vars in env *)
   let go2 = function
     | (Mem i, sz) ->
        let reg = reg_alloc () in
-       push_buffer (sprintf "\tsub $%d, $bp, %d\n" reg (!sp_diff_ref+1));
+       push_buffer (sprintf "\tsub $%d, $bp, %d\n" reg (!sp_diff_ref+sz));
        push_buffer (sprintf "\tmov [$bp-%d], $%d\n" i reg);
        reg_free reg;
        sp_diff_ref := !sp_diff_ref + sz
     | _ -> raise Unreachable in
   let arrVars = List.fold_left go [] vars in
-  let _ = List.map go2 (List.rev arrVars) in
-  ()
+  List.iter go2 (List.rev arrVars)
 
 let pop_args num =
   let rec drop xs n =
