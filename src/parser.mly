@@ -1,6 +1,7 @@
 %{
   open Syntax
   exception ParserError of string
+  exception Unreachable
   let rec getNameFromDecl = function
     | DeclIdent (n, _) -> n
     | DeclArray (x, _) -> getNameFromDecl x
@@ -12,6 +13,7 @@
 %token <int> INT
 %token <string> ID
 %token TINT
+%token STRUCT
 %token IF ELSE WHILE DO FOR
 %token RETURN CONTINUE BREAK GOTO
 %token SWITCH CASE DEFAULT
@@ -23,6 +25,7 @@
 %token NOT COND COLON
 %token AMP HAT BAR TILDE
 %token PLUS MINUS MOD STAR LSHIFT RSHIFT SLASH
+%token DOT
 %token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
 %token SUBST PLUSSUBST MINUSSUBST
@@ -39,10 +42,11 @@
 %%
 
 main:
-| top_decl* EOF { $1 }
+| top_decl* EOF { List.concat $1 }
 
 top_decl:
-| fun_definition  { $1 }
+| fun_definition  { [$1] }
+| declaration { List.map (fun x -> DefVar x) $1 }
 
 fun_definition:
 | ty=decl_specifier; f=declarator; LPAREN; dlist=separated_list(COMMA, arg_declaration);  RPAREN; b=compound_stmt
@@ -58,9 +62,26 @@ fun_definition:
   }
 
 decl_specifier:
+| type_specifier
+  { $1 }
+
+type_specifier:
 | TINT
   { TInt }
+| struct_specifier
+  { $1 }
 
+struct_specifier:
+| STRUCT id=ID LBRACE l=separated_nonempty_list(SEMICOLON, struct_declaration) RBRACE
+  { TStruct (Some (Name id), Some (List.concat l))}
+| STRUCT LBRACE l=separated_nonempty_list(SEMICOLON, struct_declaration) RBRACE
+  { TStruct (None, Some (List.concat l))}
+| STRUCT id=ID
+  { TStruct (Some (Name id), None)}
+
+struct_declaration:
+| declaration+
+  { List.concat $1 }
 
 declarator:
 | direct_declarator
@@ -108,7 +129,7 @@ arg_declaration:
   }
 
 declaration: // local variables
-| ty=decl_specifier; dlist=separated_list(COMMA, init_declarator); SEMICOLON
+| ty=decl_specifier; dlist=separated_nonempty_list(COMMA, init_declarator); SEMICOLON
   {
     let rec f (starNum,decl) =
       let typ = nestPtr ty starNum in
@@ -122,7 +143,14 @@ declaration: // local variables
          DArray(typ, getNameFromDecl d, sizeOf decl) in
     List.map f dlist
   }
-
+| ty=decl_specifier SEMICOLON
+  {
+    match ty with
+    | TStruct (Some name, Some dvars) ->
+       [DStruct(name, dvars)]
+    | _ ->
+       raise (ParserError "declaration: struct declaration")
+  }
 stmt:
 | expr_stmt
   { $1 }
@@ -336,6 +364,8 @@ postfix_expr:
     | EVar name -> EApp(name, $3)
     | _ -> raise (ParserError "postfix: function application")
   }
+| postfix_expr DOT ID
+  { EDot($1, Name $3) }
 
 primary_expr:
 | constant_expr

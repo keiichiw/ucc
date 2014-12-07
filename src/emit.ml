@@ -6,7 +6,7 @@ type storageplace =
   | Reg of int (*register*)
   | Mem of int (*memory*)
   | Ptr of storageplace (*pointer*)
-
+type size = int
 let created_label_num = ref 0;;
 let using_reg_num = ref 0;;
 let max_reg_num = ref 0;;
@@ -20,12 +20,24 @@ let switch_cases = ref [];;
 let switch_defaults = ref [];;
 let sp_move_stack : int list ref = ref [];;
 let for_continue_flg_ref = ref 0;;
-let env_ref : (ctype * string * storageplace) list ref = ref [];;
 let fun_name_ref = ref "";;
+let env_ref : (ctype * string * storageplace) list ref = ref [];;
+type struct_decl = (*第２引数のsizeは自身のポインタを含まない*)
+  | Struct of string * size * ((string * size) list)
+let struct_env_ref : struct_decl list ref = ref [];;
 
 (* Access ref values*)
+let stack_push stack i =
+  stack := (i::!stack)
+let stack_append stack l =
+  stack := (l@(!stack))
+let stack_pop stack =
+  stack := (List.tl !stack)
+
 let push_buffer str =
-  buffer_ref := str::!buffer_ref
+  stack_push buffer_ref str
+let append_buffer sl =
+  stack_append buffer_ref sl
 
 let print_buffer oc name =
   fprintf oc ".global %s\n%s:\n" name name;
@@ -72,17 +84,66 @@ let escape_default () =
 
 let resolve_var name =
   let rec go var = function
-    | [] -> raise (TODO "variable not found")
+    | [] -> raise (EmitError "variable not found")
     | (_, v, addr)::xs ->
        if v=var then
          addr
        else
          go var xs in
-  go name !env_ref;;
+  go name !env_ref
 
+let resolve_var_type name =
+  let rec go var = function
+    | [] -> raise (EmitError "variable found")
+    | (ty, v, addr)::_  when v=var ->
+       (match addr with
+        | Mem i ->
+           (ty, i)
+        | _ -> raise (TODO "resolve var type"))
+    | _::xs -> go var xs in
+  go name !env_ref
+
+let resolve_struct_size name =
+  let rec go var = function
+    | [] -> raise (EmitError "struct not found")
+    | Struct (v, sz, _)::xs when v = var ->
+       sz
+    | _::xs -> go var xs in
+  go name !struct_env_ref
+
+let resolve_member typ mem =
+  let rec go var = function
+    | [] ->
+       raise (EmitError "struct not found")
+    | Struct(v, sz, vs)::xs when v = var ->
+       go2 0 vs
+    | Struct(v, sz, _)::xs ->
+       go var xs
+  and go2 i = function
+    | [] ->
+       raise (EmitError
+                (sprintf "Member \'%s\' not found" mem))
+    | (x, sz)::_ when x=mem ->
+       i
+    | (x, sz)::xs ->
+       go2 (i+sz) xs in
+  match typ with
+  | TStruct (Some _, Some dvars) ->
+     raise (TODO "resolve member from dvars")
+  | TStruct (Some (Name typename), _) ->
+     let x = go typename !struct_env_ref in
+     x
+  | _ -> raise (EmitError "this is not sturcture")
 let rec range a b =
   if a > b then []
   else a :: range (a+1) b;;
+let rec head_list lst = function
+  | 0 -> []
+  | num ->
+     (match lst with
+      | [] -> raise Unreachable
+      | x::xs -> x::(head_list xs (num-1))
+     )
 
 let push_args args = (* add args in env *)
   let rec go i = function
@@ -92,34 +153,78 @@ let push_args args = (* add args in env *)
        go (i+1) xs
     | _ -> raise (EmitError "array can't be an argument of function.") in
   go 1 args
-
+let rec size_of_type = function
+  | TInt
+  | TPtr _ -> 1
+  | TStruct (_, Some dvars) ->
+     List.fold_left
+       (fun num dv -> num + (size_of_var dv))
+       1 dvars
+  | TStruct (Some (Name name), _) ->
+     raise (TODO "size of struct")
+  | _ -> raise Unreachable
+and size_of_var = function
+  | DVar (ty, _, _) ->
+     size_of_type ty
+  | DArray (ty, _, sz) ->
+     1 + (size_of_type ty) * sz
+  | DStruct (_, dvars) ->
+     List.fold_left
+       (fun num dv -> num + (size_of_var dv))
+       1 dvars
+let get_dvar_name = function
+  | DVar   (_, Name nm, _) -> nm
+  | DArray (_, Name nm, _) -> nm
+  | DStruct(Name nm, _)    -> nm
 let push_local_vars vars ex = (* add local vars in env *)
+  let temp_buffer = ref [] in
+  let varnum = ref 0 in
   let go arrList = function
     | DVar (ty, Name name, x) ->
        sp_diff_ref := !sp_diff_ref + 1;
+       varnum := !varnum + 1;
        env_ref := (ty, name, Mem !sp_diff_ref)::!env_ref;
        (match x with
         | None ->
            ()
         | Some exp ->
-           (let reg = ex exp in
-            push_buffer (sprintf "\tmov [$bp-%d], $%d\n" !sp_diff_ref reg);
+           (let saved_buf = !buffer_ref in
+            let reg = ex exp in
+            let diff_len = (List.length !buffer_ref - List.length saved_buf) in
+            let head = head_list !buffer_ref diff_len in
+            buffer_ref := saved_buf;
+            stack_append temp_buffer head;
+            stack_push temp_buffer (sprintf "\tmov [$bp-%d], $%d\n" !sp_diff_ref reg);
             reg_free reg));
-       arrList
+       (match ty with
+        | TStruct(Some (Name name), None) ->
+           let sz = resolve_struct_size name in
+           (Mem !sp_diff_ref, sz)::arrList
+        | _ -> arrList)
     | DArray (ty, Name name, sz) ->
        sp_diff_ref := !sp_diff_ref + 1;
+       varnum := !varnum + 1;
        env_ref := (TPtr ty, name, Mem !sp_diff_ref)::!env_ref;
-       (Mem !sp_diff_ref, sz)::arrList in
-  let go2 = function
+       (Mem !sp_diff_ref, sz)::arrList
+    | DStruct (Name name, dvars) ->
+       let f = (fun dv -> (get_dvar_name dv, size_of_var dv)) in
+       let vars = List.map f dvars in
+       let sz = List.fold_left
+                  (fun num d -> num + size_of_var d)
+                  0 dvars in
+       stack_push struct_env_ref (Struct(name, sz, vars));
+       arrList
+  in let go2 = function
     | (Mem i, sz) ->
        let reg = reg_alloc () in
-       push_buffer (sprintf "\tsub $%d, $bp, %d\n" reg (!sp_diff_ref+sz));
-       push_buffer (sprintf "\tmov [$bp-%d], $%d\n" i reg);
+       stack_push temp_buffer (sprintf "\tsub $%d, $bp, %d\n" reg (!sp_diff_ref+sz));
+       stack_push temp_buffer (sprintf "\tmov [$bp-%d], $%d\n" i reg);
        reg_free reg;
        sp_diff_ref := !sp_diff_ref + sz
     | _ -> raise Unreachable in
   let arrVars = List.fold_left go [] vars in
-  List.iter go2 (List.rev arrVars)
+  List.iter go2 (List.rev arrVars);
+  (!varnum, !temp_buffer)
 
 let pop_args num =
   let rec drop xs n =
@@ -145,19 +250,16 @@ let pop_local_vars num =
   env_ref := drop (!env_ref) num;
   sp_diff_ref := !sp_diff_ref - num
 
-
-let count_sp_move vars =
-  let go i = function
-    | DVar _ -> i+1
-    | DArray (_, _, sz) -> i+1+sz in
-  List.fold_left go 0 vars
-
-
-let stack_push stack i =
-  stack := (i::!stack)
-let stack_pop stack =
-  stack := (List.tl !stack)
-
+let push_global_var = function (* add global variable in env *)
+  | DStruct (Name name, dvars) ->
+     let f = (fun dv -> (get_dvar_name dv, size_of_var dv)) in
+     let vars = List.map f dvars in
+     let sz = List.fold_left
+                (fun num d -> num + size_of_var d)
+                0 dvars in
+     stack_push struct_env_ref (Struct(name, sz, vars));
+     ()
+  | _ -> raise (TODO "global variables isn\'t supported yet")
 
 (*emit main*)
 let rec main oc defs =
@@ -170,15 +272,19 @@ and emit oc = function
      bl b;
      pop_args (List.length args);
      print_buffer oc name
+  | DefVar v ->
+     push_global_var v
 and bl = function
   | Block (vars, stmts) ->
-     let sp_move = count_sp_move vars in
+     let old_sp = !sp_diff_ref in
+     let (varnum, temp_buffer) = push_local_vars vars ex in
+     let sp_move = !sp_diff_ref - old_sp in
      stack_push sp_move_stack sp_move;
      if sp_move != 0 then
        push_buffer (sprintf "\tsub $sp, $sp, %d\n" sp_move);
-     push_local_vars vars ex;
+     append_buffer temp_buffer;
      List.iter st stmts;
-     pop_local_vars (List.length vars);
+     pop_local_vars varnum;
      stack_pop sp_move_stack;
      if sp_move != 0 then
        push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_move)
@@ -522,6 +628,19 @@ and ex arg =
          push_buffer (sprintf "\tmov [$%d], $%d\n" r ret_reg);
          reg_free r;
          ret_reg
+      | EDot (e, Name member) ->
+         (match e with
+          | EVar (Name nm) ->
+             let (typ, p) = resolve_var_type nm in
+             let mem_diff = resolve_member typ member in
+             let r = reg_alloc () in
+             push_buffer (sprintf "\tmov $%d, [$bp-%d]\n"  r p);
+             push_buffer (sprintf "\tmov [$%d+%d], $%d\n" r mem_diff ret_reg);
+             reg_free r;
+             ret_reg
+          | _ ->
+             raise (EmitError "can't apply \'.\' to this expression")
+         )
       | _ -> raise (EmitError "emit:substitution error")
       )
 
@@ -532,6 +651,18 @@ and ex arg =
       push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg addr_reg);
       reg_free addr_reg;
       ret_reg
+   | EDot (e, Name member) ->
+      (match e with
+       | EVar (Name nm) ->
+          let (typ, p) = resolve_var_type nm in
+          let mem_diff = resolve_member typ member in
+          let ret_reg = reg_alloc () in
+          push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" ret_reg p);
+          push_buffer (sprintf "\tmov $%d, [$%d+%d]\n" ret_reg ret_reg mem_diff);
+          ret_reg
+       | _ ->
+          raise (EmitError "can't apply \'.\' to this expression")
+      )
    | x ->
       fprintf stderr "In emit.ml\n";
       Print.pp_expr stderr x;

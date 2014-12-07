@@ -20,6 +20,8 @@ rule token = parse
     { COMMA}
 | "int"
     { TINT }
+| "struct"
+    { STRUCT }
 | "if"
     { IF }
 | "else"
@@ -68,6 +70,8 @@ rule token = parse
     { LSHIFT }
 | ">>"
     { RSHIFT }
+| '.'
+    { DOT }
 | '&'
     { AMP }
 | '^'
