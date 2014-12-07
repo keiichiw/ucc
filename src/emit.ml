@@ -6,7 +6,7 @@ type storageplace =
   | Reg of int (*register*)
   | Mem of int (*memory*)
   | Ptr of storageplace (*pointer*)
-
+type size = int
 let created_label_num = ref 0;;
 let using_reg_num = ref 0;;
 let max_reg_num = ref 0;;
@@ -20,12 +20,24 @@ let switch_cases = ref [];;
 let switch_defaults = ref [];;
 let sp_move_stack : int list ref = ref [];;
 let for_continue_flg_ref = ref 0;;
-let env_ref : (ctype * string * storageplace) list ref = ref [];;
 let fun_name_ref = ref "";;
+let env_ref : (ctype * string * storageplace) list ref = ref [];;
+type struct_decl = (*第２引数のsizeは自身のポインタを含まない*)
+  | Struct of string * size * ((string * size) list)
+let struct_env_ref : struct_decl list ref = ref [];;
 
 (* Access ref values*)
+let stack_push stack i =
+  stack := (i::!stack)
+let stack_append stack l =
+  stack := (l@(!stack))
+let stack_pop stack =
+  stack := (List.tl !stack)
+
 let push_buffer str =
-  buffer_ref := str::!buffer_ref
+  stack_push buffer_ref str
+let append_buffer sl =
+  stack_append buffer_ref sl
 
 let print_buffer oc name =
   fprintf oc ".global %s\n%s:\n" name name;
@@ -72,17 +84,31 @@ let escape_default () =
 
 let resolve_var name =
   let rec go var = function
-    | [] -> raise (TODO "variable not found")
+    | [] -> raise (EmitError "variable not found")
     | (_, v, addr)::xs ->
        if v=var then
          addr
        else
          go var xs in
   go name !env_ref;;
+let resolve_struct_size name =
+  let rec go var = function
+    | [] -> raise (EmitError "struct not found")
+    | Struct (v, sz, _)::xs when v = var ->
+       sz
+    | _::xs -> go var xs in
+  go name !struct_env_ref
 
 let rec range a b =
   if a > b then []
   else a :: range (a+1) b;;
+let rec head_list lst = function
+  | 0 -> []
+  | num ->
+     (match lst with
+      | [] -> raise Unreachable
+      | x::xs -> x::(head_list xs (num-1))
+     )
 
 let push_args args = (* add args in env *)
   let rec go i = function
@@ -92,34 +118,78 @@ let push_args args = (* add args in env *)
        go (i+1) xs
     | _ -> raise (EmitError "array can't be an argument of function.") in
   go 1 args
-
+let rec size_of_type = function
+  | TInt
+  | TPtr _ -> 1
+  | TStruct (_, Some dvars) ->
+     List.fold_left
+       (fun num dv -> num + (size_of_var dv))
+       1 dvars
+  | TStruct (Some (Name name), _) ->
+     raise (TODO "size of struct")
+  | _ -> raise Unreachable
+and size_of_var = function
+  | DVar (ty, _, _) ->
+     size_of_type ty
+  | DArray (ty, _, sz) ->
+     1 + (size_of_type ty) * sz
+  | DStruct (_, dvars) ->
+     List.fold_left
+       (fun num dv -> num + (size_of_var dv))
+       1 dvars
+let get_dvar_name = function
+  | DVar   (_, Name nm, _) -> nm
+  | DArray (_, Name nm, _) -> nm
+  | DStruct(Name nm, _)    -> nm
 let push_local_vars vars ex = (* add local vars in env *)
+  let temp_buffer = ref [] in
+  let varnum = ref 0 in
   let go arrList = function
     | DVar (ty, Name name, x) ->
        sp_diff_ref := !sp_diff_ref + 1;
+       varnum := !varnum + 1;
        env_ref := (ty, name, Mem !sp_diff_ref)::!env_ref;
        (match x with
         | None ->
            ()
         | Some exp ->
-           (let reg = ex exp in
-            push_buffer (sprintf "\tmov [$bp-%d], $%d\n" !sp_diff_ref reg);
+           (let saved_buf = !buffer_ref in
+            let reg = ex exp in
+            let diff_len = (List.length !buffer_ref - List.length saved_buf) in
+            let head = head_list !buffer_ref diff_len in
+            buffer_ref := saved_buf;
+            stack_append temp_buffer head;
+            stack_push temp_buffer (sprintf "\tmov [$bp-%d], $%d\n" !sp_diff_ref reg);
             reg_free reg));
-       arrList
+       (match ty with
+        | TStruct(Some (Name name), None) ->
+           let sz = resolve_struct_size name in
+           (Mem !sp_diff_ref, sz)::arrList
+        | _ -> arrList)
     | DArray (ty, Name name, sz) ->
        sp_diff_ref := !sp_diff_ref + 1;
+       varnum := !varnum + 1;
        env_ref := (TPtr ty, name, Mem !sp_diff_ref)::!env_ref;
-       (Mem !sp_diff_ref, sz)::arrList in
-  let go2 = function
+       (Mem !sp_diff_ref, sz)::arrList
+    | DStruct (Name name, dvars) ->
+       let f = (fun dv -> (get_dvar_name dv, size_of_var dv)) in
+       let vars = List.map f dvars in
+       let sz = List.fold_left
+                  (fun num d -> num + size_of_var d)
+                  0 dvars in
+       stack_push struct_env_ref (Struct(name, sz, vars));
+       arrList
+  in let go2 = function
     | (Mem i, sz) ->
        let reg = reg_alloc () in
-       push_buffer (sprintf "\tsub $%d, $bp, %d\n" reg (!sp_diff_ref+sz));
-       push_buffer (sprintf "\tmov [$bp-%d], $%d\n" i reg);
+       stack_push temp_buffer (sprintf "\tsub $%d, $bp, %d\n" reg (!sp_diff_ref+sz));
+       stack_push temp_buffer (sprintf "\tmov [$bp-%d], $%d\n" i reg);
        reg_free reg;
        sp_diff_ref := !sp_diff_ref + sz
     | _ -> raise Unreachable in
   let arrVars = List.fold_left go [] vars in
-  List.iter go2 (List.rev arrVars)
+  List.iter go2 (List.rev arrVars);
+  (!varnum, !temp_buffer)
 
 let pop_args num =
   let rec drop xs n =
@@ -146,19 +216,6 @@ let pop_local_vars num =
   sp_diff_ref := !sp_diff_ref - num
 
 
-let count_sp_move vars =
-  let go i = function
-    | DVar _ -> i+1
-    | DArray (_, _, sz) -> i+1+sz in
-  List.fold_left go 0 vars
-
-
-let stack_push stack i =
-  stack := (i::!stack)
-let stack_pop stack =
-  stack := (List.tl !stack)
-
-
 (*emit main*)
 let rec main oc defs =
   List.iter (fun x -> emit oc x) defs
@@ -172,13 +229,15 @@ and emit oc = function
      print_buffer oc name
 and bl = function
   | Block (vars, stmts) ->
-     let sp_move = count_sp_move vars in
+     let old_sp = !sp_diff_ref in
+     let (varnum, temp_buffer) = push_local_vars vars ex in
+     let sp_move = !sp_diff_ref - old_sp in
      stack_push sp_move_stack sp_move;
      if sp_move != 0 then
        push_buffer (sprintf "\tsub $sp, $sp, %d\n" sp_move);
-     push_local_vars vars ex;
+     append_buffer temp_buffer;
      List.iter st stmts;
-     pop_local_vars (List.length vars);
+     pop_local_vars varnum;
      stack_pop sp_move_stack;
      if sp_move != 0 then
        push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_move)
