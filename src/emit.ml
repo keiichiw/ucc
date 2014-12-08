@@ -607,6 +607,19 @@ and ex = function
          push_buffer (sprintf "\tmov [$%d], $%d\n" r ret_reg);
          reg_free r;
          ret_reg
+      | EArray (Name name, idx) ->
+         (match resolve_var name with
+          | (ty, Mem offset) ->
+             let ireg = ex idx in
+             let temp_reg = reg_alloc () in
+             push_buffer (sprintf "\tsub $%d, $bp, %d\n" temp_reg offset);
+             push_buffer (sprintf "\tadd $%d, $%d, $%d\n" temp_reg temp_reg ireg);
+             push_buffer (sprintf "\tmov [$%d], $%d\n" temp_reg ret_reg);
+             reg_free ireg;
+             reg_free temp_reg;
+             ret_reg
+          | _ -> raise Unreachable
+         )
       | EDot (e, Name member) ->
          (match e with
           | EVar (Name nm) ->
@@ -625,6 +638,16 @@ and ex = function
      push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg addr_reg);
      reg_free addr_reg;
      ret_reg
+  | EArray (Name name, idx) ->
+     (match resolve_var name with
+      | (_, Mem offset) ->
+         let ireg = ex idx in
+         let ret_reg = reg_alloc () in
+         push_buffer (sprintf "\tsub $%d, $bp, %d\n" ret_reg offset);
+         push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg ireg);
+         push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg);
+         reg_free ireg;
+         ret_reg)
   | EDot (e, Name member) ->
      (match e with
       | EVar (Name nm) ->

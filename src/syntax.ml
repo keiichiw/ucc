@@ -54,6 +54,7 @@ and expr =
   | ENeq   of expr * expr
   | EPtr   of expr
   | EAddr  of expr
+  | EArray of name * expr
   | ECond  of expr * expr * expr
   | EAnd   of expr * expr
   | EOr    of expr * expr
