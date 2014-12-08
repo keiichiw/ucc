@@ -1,4 +1,3 @@
-open Format
 exception NotMatch
 exception TODO of string
 
@@ -11,7 +10,7 @@ type ctype =
   | TInt
   | TStruct of (name option) * ((dvar list) option)
   | TPtr of ctype (* pointer *)
-  | TArr of ctype (* array *)
+  | TArray of ctype (* array *)
 and def =
   | DefFun of ctype * name * (dvar list) * block * loc
   | DefVar of dvar
@@ -54,7 +53,7 @@ and expr =
   | ENeq   of expr * expr
   | EPtr   of expr
   | EAddr  of expr
-  | EArray of name * expr
+  | EArray of expr * expr
   | ECond  of expr * expr * expr
   | EAnd   of expr * expr
   | EOr    of expr * expr

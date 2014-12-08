@@ -1,4 +1,3 @@
-open Print
 
 (* the name of the file which contains the expressions *)
 
@@ -21,7 +20,8 @@ let main () =
     try
       let parse = Parser.main Lexer.token filebuf in
       (*Print.print_program stderr parse;*)
-      Emit.main outchan parse;
+      (*Emit.main outchan parse;*)
+      let _ = Typing.main parse in ();
     with
     | Lexer.Error msg ->
        Printf.eprintf "%s%!" msg

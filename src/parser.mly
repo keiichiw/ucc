@@ -351,11 +351,7 @@ postfix_expr:
 | primary_expr
   { $1 }
 | v=postfix_expr LBRACKET e=expr RBRACKET
-  {
-    match v with
-    | EVar(x) -> EArray (x, e)
-    | _ -> raise Unreachable
-  }
+  { EArray(v, e) }
 | postfix_expr INC
   (* i++ -> (++i,i-1) *)
   { EComma(ESubst($1, EAdd($1, EConst(VInt(1)))), ESub($1, EConst(VInt(1)))) }
