@@ -92,16 +92,6 @@ let resolve_var name =
          go var xs in
   go name !env_ref
 
-let resolve_var_type name =
-  let rec go var = function
-    | [] -> raise (EmitError "variable found")
-    | (ty, v, addr)::_  when v=var ->
-       (match addr with
-        | Mem i ->
-           (ty, i)
-        | _ -> raise (TODO "resolve var type"))
-    | _::xs -> go var xs in
-  go name !env_ref
 
 let resolve_struct_size name =
   let rec go var = function
@@ -161,7 +151,7 @@ let rec size_of_type = function
        (fun num dv -> num + (size_of_var dv))
        1 dvars
   | TStruct (Some (Name name), _) ->
-     raise (TODO "size of struct")
+     resolve_struct_size name
   | _ -> raise Unreachable
 and size_of_var = function
   | DVar (ty, _, _) ->
@@ -359,11 +349,7 @@ and st = function
   | SReturn exp ->
      let reg = ex exp in
      if !sp_diff_ref != 0 then
-       (let temp = reg_alloc () in
-        push_buffer (sprintf "\tmov $%d, %d\n" temp !sp_diff_ref);
-        push_buffer (sprintf "\tadd $sp, $sp, $%d\n" temp);
-        reg_free temp
-       );
+       push_buffer (sprintf "\tadd $sp, $sp, %d\n" !sp_diff_ref);
      if reg != 1 then
        push_buffer (sprintf "\tmov $1, $%d\n" reg);
      push_buffer (sprintf "\tret\n");
@@ -624,12 +610,9 @@ and ex = function
       | EDot (e, Name member) ->
          (match e with
           | EVar (Name nm) ->
-             let (typ, p) = resolve_var_type nm in
+             let (typ, Mem p) = resolve_var nm in
              let mem_diff = resolve_member typ member in
-             let r = reg_alloc () in
-             push_buffer (sprintf "\tmov $%d, [$bp-%d]\n"  r p);
-             push_buffer (sprintf "\tmov [$%d+%d], $%d\n" r mem_diff ret_reg);
-             reg_free r;
+             push_buffer (sprintf "\tmov [$bp-%d], $%d\n" (p-mem_diff) ret_reg);
              ret_reg
           | _ ->
              raise (EmitError "can't apply \'.\' to this expression")
@@ -645,11 +628,10 @@ and ex = function
   | EDot (e, Name member) ->
      (match e with
       | EVar (Name nm) ->
-         let (typ, p) = resolve_var_type nm in
+         let (typ, Mem p) = resolve_var nm in
          let mem_diff = resolve_member typ member in
          let ret_reg = reg_alloc () in
-         push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" ret_reg p);
-         push_buffer (sprintf "\tmov $%d, [$%d+%d]\n" ret_reg ret_reg mem_diff);
+         push_buffer (sprintf "\tmov $%d, [$bp-%d]\n" ret_reg (p-mem_diff));
          ret_reg
       | _ ->
          raise (EmitError "can't apply \'.\' to this expression")
