@@ -1,1 +1,1 @@
---exec test/_test.pl
+--exec "timeout 10 test/_test.pl"
