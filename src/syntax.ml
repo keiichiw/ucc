@@ -10,7 +10,8 @@ type size = int
 type ctype =
   | TInt
   | TStruct of (name option) * ((dvar list) option)
-  | TPtr of ctype (* pointer of type *)
+  | TPtr of ctype (* pointer *)
+  | TArr of ctype (* array *)
 and def =
   | DefFun of ctype * name * (dvar list) * block * loc
   | DefVar of dvar
