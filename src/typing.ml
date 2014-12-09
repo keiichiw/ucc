@@ -13,13 +13,16 @@ let rec assoc nm  = function
 let push_stack x env =
   env := x::!env
 let resolve_var_type nm =
-  assoc nm (List.rev !venv_ref)
+  assoc nm !venv_ref
 let resolve_fun_type nm =
-  assoc nm (List.rev !fenv_ref)
+  let rec go nm  = function
+    | [] -> Type.TInt
+    | (s, ty)::_ when s=nm -> ty
+    | _ :: xs -> go nm xs in
+  go nm !fenv_ref
 let resolve_member_type stct mem_name =
   let go1 = function
     | Type.DVar (ty, Type.Name n, _) -> (ty, n)
-    | Type.DArray (ty, Type.Name n, _) -> (ty, n)
     | _ -> raise Unreachable in
   let rec go2 mem = function
     | [] ->
@@ -30,10 +33,8 @@ let resolve_member_type stct mem_name =
         | _ -> go2 mem xs) in
   match stct with
   | Type.TStruct (Some (Type.Name struct_name), _) ->
-     (match assoc struct_name (List.rev !senv_ref) with
-      | dvs ->
-         go2 mem_name dvs
-      |_ -> raise (TypingError "resolve member"))
+     let dvs = assoc struct_name !senv_ref in
+     go2 mem_name dvs
   | _ -> raise Unreachable
 
 let rec main defs =
@@ -41,7 +42,16 @@ let rec main defs =
 and def = function
   | Syntax.DefFun (ty, Syntax.Name n, args, b, loc) ->
      push_stack (n, typ ty) fenv_ref;
-     Type.DefFun (typ ty, Type.Name n, List.map dv args, bl b, loc)
+     let old_venv = !venv_ref in
+     let old_fenv = !fenv_ref in
+     let old_senv = !senv_ref in
+     let a1 = List.map dv args in
+     let b1 = bl b in
+     let ret = Type.DefFun (typ ty, Type.Name n, a1, b1, loc) in
+     venv_ref := old_venv;
+     fenv_ref := old_fenv;
+     senv_ref := old_senv;
+     ret
   | Syntax.DefVar dvar ->
      Type.DefVar (dv dvar)
 and bl = function
@@ -49,7 +59,9 @@ and bl = function
      let old_venv = !venv_ref in
      let old_fenv = !fenv_ref in
      let old_senv = !senv_ref in
-     let t = Type.Block(List.map dv dvar, List.map st stmts) in
+     let v = List.map dv dvar in
+     let s = List.map st stmts in
+     let t = Type.Block(v, s) in
      venv_ref := old_venv;
      fenv_ref := old_fenv;
      senv_ref := old_senv;
@@ -59,50 +71,72 @@ and dv = function
      push_stack (n, typ ty) venv_ref;
      Type.DVar(typ ty, Type.Name n, opex x)
   | Syntax.DArray(ty, Syntax.Name n, x) ->
-     push_stack (n, Type.TArray (typ ty)) venv_ref;
-     Type.DArray(typ ty, Type.Name n,x)
-  | Syntax.DStruct(Name n, dvars) ->
+     let ntype = Type.TArray (typ ty, x) in
+     push_stack (n, ntype) venv_ref;
+     Type.DVar(ntype, Type.Name n, None)
+  | Syntax.DStruct(Syntax.Name n, dvars) ->
      let dvlist = List.map dv dvars in
      push_stack (n, dvlist) senv_ref;
-     Type.DStruct(Name n, dvlist)
+     Type.DStruct(Type.Name n, dvlist)
 and st = function
   | Syntax.SNil -> Type.SNil
   | Syntax.SBlock(x, y) ->
-     Type.SBlock(List.map dv x, List.map st y)
+     let x1 = List.map dv x in
+     let y1 = List.map st y in
+     Type.SBlock(x1, y1)
   | Syntax.SWhile (e, stmt) ->
-     Type.SWhile (ex e, st stmt)
+     let e1 = ex e in
+     let s1 = st stmt in
+     Type.SWhile (e1, s1)
   | Syntax.SDoWhile (stmt, e) ->
-     Type.SDoWhile (st stmt, ex e)
+     let s1 = st stmt in
+     let e1 = ex e in
+     Type.SDoWhile (s1, e1)
   | Syntax.SFor (e1, e2, e3, stmt) ->
-     Type.SFor (opex e1, opex e2, opex e3, st stmt)
+     let oe1 = opex e1 in
+     let oe2 = opex e2 in
+     let oe3 = opex e3 in
+     let s1 = st stmt in
+     Type.SFor (oe1, oe2, oe3, s1)
   | Syntax.SIfElse (e, s1, s2) ->
-     Type.SIfElse (ex e, st s1, st s2)
+     let ex1 = ex e in
+     let st1 = st s1 in
+     let st2 = st s2 in
+     Type.SIfElse (ex1, st1, st2)
   | Syntax.SReturn e ->
-     Type.SReturn (ex e)
+     let ex1 = ex e in
+     Type.SReturn (ex1)
   | Syntax.SContinue ->
      Type.SContinue
   | Syntax.SBreak ->
      Type.SBreak
   | Syntax.SLabel (str, stmt) ->
-     Type.SLabel (str, st stmt)
+     let st1 = st stmt in
+     Type.SLabel (str, st1)
   | Syntax.SGoto str ->
      Type.SGoto str
   | Syntax.SSwitch (e, stmt) ->
-     Type.SSwitch (ex e, st stmt)
+     let ex1 = ex e in
+     let st1 = st stmt in
+     Type.SSwitch (ex1, st1)
   | Syntax.SCase e ->
-     Type.SCase (ex e)
+     let ex1 = ex e in
+     Type.SCase (ex1)
   | Syntax.SDefault ->
      Type.SDefault
   | Syntax.SExpr e ->
-     Type.SExpr (ex e)
+     let ex1 = ex e in
+     Type.SExpr ex1
 and opex = function
-  | Some x -> Some (ex x)
+  | Some x ->
+     let ex1 = ex x in
+     Some ex1
   | None -> None
 and ex = function
   | Syntax.EConst v ->
      Type.EConst (Type.TInt, vl v)
-  | Syntax.EVar (Name n)->
-     Type.EVar (resolve_var_type n, Name n)
+  | Syntax.EVar (Syntax.Name n)->
+     Type.EVar (resolve_var_type n, Type.Name n)
   | Syntax.EComma (e1, e2) ->
      let e = ex e2 in
      Type.EComma(typeof e, ex e1, e)
@@ -143,28 +177,28 @@ and ex = function
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      Type.ESubst (typeof ex2, ex1, ex2)
-  | Syntax.EApp (Name name, elist) ->
+  | Syntax.EApp (Syntax.Name name, elist) ->
      let ftype = resolve_fun_type name in
-     Type.EApp (ftype, Name name, List.map ex elist)
+     Type.EApp (ftype, Type.Name name, List.map ex elist)
   | Syntax.ELe (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      if (typeof ex1) = (typeof ex2) then
-       Type.ELe (TInt, ex1, ex2)
+       Type.ELe (Type.TInt, ex1, ex2)
      else
        raise (TypingError "le")
   | Syntax.EEq (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      if (typeof ex1) = (typeof ex2) then
-       Type.EEq (TInt, ex1, ex2)
+       Type.EEq (Type.TInt, ex1, ex2)
      else
        raise (TypingError "eq")
   | Syntax.ENeq (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      if (typeof ex1) = (typeof ex2) then
-       Type.ENeq (TInt, ex1, ex2)
+       Type.ENeq (Type.TInt, ex1, ex2)
      else
        raise (TypingError "neq")
   | Syntax.EAddr e ->
@@ -173,13 +207,13 @@ and ex = function
   | Syntax.EPtr e ->
      let ex1 = ex e in
      (match typeof ex1 with
-      | TPtr ty -> Type.EPtr (ty, ex1)
+      | Type.TPtr ty -> Type.EPtr (ty, ex1)
       | _ -> raise (TypingError "ptr"))
   | Syntax.EArray (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
-      | (Type.TArray ty1, Type.TInt) ->
+      | (Type.TArray (ty1, _), Type.TInt) ->
          Type.EArray (ty1, ex1, ex2)
       | (Type.TPtr ty1, Type.TInt) ->
          Type.EArray (ty1, ex1, ex2)
@@ -209,12 +243,10 @@ and ex = function
   | Syntax.EDot (e1, Syntax.Name nm) ->
      let ex1 = ex e1 in
      let typ =  resolve_member_type (typeof ex1) nm in
-     Type.EDot(typ, ex1, Name nm)
-  | _ -> raise (TypingError "error")
+     Type.EDot(typ, ex1, Type.Name nm)
 and typ = function
   | Syntax.TInt -> Type.TInt
   | Syntax.TPtr x   -> Type.TPtr (typ x)
-  | Syntax.TArray x -> Type.TArray (typ x)
   | Syntax.TStruct (Some (Syntax.Name name), Some dvars) ->
      Type.TStruct (Some (Type.Name name), Some (List.map dv dvars))
   | _ -> raise (TypingError "typ")

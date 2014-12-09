@@ -10,7 +10,6 @@ type ctype =
   | TInt
   | TStruct of (name option) * ((dvar list) option)
   | TPtr of ctype (* pointer *)
-  | TArray of ctype (* array *)
 and def =
   | DefFun of ctype * name * (dvar list) * block * loc
   | DefVar of dvar
