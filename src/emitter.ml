@@ -418,7 +418,8 @@ and ex ret_reg = function
      push_buffer (sprintf "\tble $%d, $%d, L%d\n" lreg rreg lnum);
      push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
      push_buffer (sprintf "L%d:\n" lnum);
-     reg_free lreg
+     reg_free lreg;
+     reg_free rreg
   | EEq (_, e1, e2) ->
      let lnum = label_create () in
      let lreg = reg_alloc () in
@@ -429,7 +430,8 @@ and ex ret_reg = function
      push_buffer (sprintf "\tbeq $%d, $%d, L%d\n" lreg rreg lnum);
      push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
      push_buffer (sprintf "L%d:\n" lnum);
-     reg_free lreg
+     reg_free lreg;
+     reg_free rreg
   | ENeq (_, e1, e2) ->
      let lelse = label_create () in
      let lend = label_create () in
@@ -443,7 +445,8 @@ and ex ret_reg = function
      push_buffer (sprintf "L%d:\n" lelse);
      push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
      push_buffer (sprintf "L%d:\n" lend);
-     reg_free lreg
+     reg_free lreg;
+     reg_free rreg
   | EApp (_, Name fname, exlst) ->
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
      List.iter (fun i -> push_buffer (sprintf "\tpush $%d\n" i))
