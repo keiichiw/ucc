@@ -64,13 +64,13 @@ let reg_use i =
   if List.mem i !free_reg_stack then
     free_reg_stack := List.filter (fun x->x!=i) !free_reg_stack
   else
-    raise (EmitError "This register is not free!!")
+    raise (EmitError (sprintf "Register $%d is not free!!" i))
 
-let reg_free a =
-  if List.mem a !free_reg_stack then
-    raise (EmitError "register is already free!")
+let reg_free i =
+  if List.mem i !free_reg_stack then
+    raise (EmitError (sprintf "Register $%d is already free!!" i))
   else
-    free_reg_stack := a::!free_reg_stack
+    free_reg_stack := i::!free_reg_stack
 
 let reg_free_all _ =
   free_reg_stack := register_list
@@ -449,16 +449,16 @@ and ex ret_reg = function
      List.iter (fun i -> push_buffer (sprintf "\tpush $%d\n" i))
                used_reg;
      reg_free_all ();
-     let _ = List.fold_left (fun i e -> ex i e; i+1) 1 exlst in
+     let _ = List.fold_left (fun i e -> reg_use i;ex i e; i+1) 1 exlst in
+     reg_free_all ();
      push_buffer (sprintf "\tcall %s\n" fname);
+     reg_use ret_reg;
      if ret_reg != 1 then
-       reg_use ret_reg;
-       (push_buffer (sprintf "\tmov $%d, $1\n" ret_reg);
-        reg_free 1);
+       push_buffer (sprintf "\tmov $%d, $1\n" ret_reg);
      List.iter (fun i ->
                 reg_use i;
                 push_buffer (sprintf "\tpop $%d\n" i))
-               used_reg
+               (List.rev used_reg)
   | EArray (_, e1, idx) ->
      lv_addr ret_reg e1;
      let ireg = reg_alloc () in

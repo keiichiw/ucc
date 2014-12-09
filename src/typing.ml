@@ -238,8 +238,8 @@ and ex = function
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
       | (Type.TInt, Type.TInt) ->
-         Type.EAnd (Type.TInt, ex1, ex2)
-      | _ -> raise (TypingError "and"))
+         Type.EOr (Type.TInt, ex1, ex2)
+      | _ -> raise (TypingError "or"))
   | Syntax.EDot (e1, Syntax.Name nm) ->
      let ex1 = ex e1 in
      let typ =  resolve_member_type (typeof ex1) nm in
@@ -249,6 +249,8 @@ and typ = function
   | Syntax.TPtr x   -> Type.TPtr (typ x)
   | Syntax.TStruct (Some (Syntax.Name name), Some dvars) ->
      Type.TStruct (Some (Type.Name name), Some (List.map dv dvars))
+  | Syntax.TStruct (Some (Syntax.Name name), None) ->
+     Type.TStruct (Some (Type.Name name), None)
   | _ -> raise (TypingError "typ")
 and vl = function
   | Syntax.VInt i -> Type.VInt i
