@@ -20,7 +20,12 @@ my $content = <FH>;
 my ($expected) = $content =~ m{/\*\n(|.*?\n)\*/}s
     or die "expected output not given in '$file'";
 
-system "$bin/ucc $file";
+system "$bin/ucc $file 2> /dev/null";
+
+if ($? != 0) {
+    ok $expected eq "DEAD\n", "ok";
+    exit;
+}
 
 (my $outfile = $file) =~ s/^(.*)\.c$/$1.out/;
 
