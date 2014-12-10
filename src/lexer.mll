@@ -72,6 +72,8 @@ rule token = parse
     { RSHIFT }
 | '.'
     { DOT }
+| "->"
+    { ARROW }
 | '&'
     { AMP }
 | '^'

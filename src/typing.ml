@@ -148,11 +148,11 @@ and ex = function
      (match (ty1, ty2) with
       | (Type.TInt, Type.TInt) ->
          Type.EAdd (Type.TInt, ex1, ex2)
-      | (Type.TPtr Type.TInt, Type.TInt)
-      | (Type.TInt, Type.TPtr Type.TInt)
-      | (Type.TInt, Type.TArray (Type.TInt, _))
-      | (Type.TArray (Type.TInt, _), Type.TInt) ->
-         Type.EAdd (Type.TPtr Type.TInt, ex1, ex2)
+      | (Type.TPtr ty, Type.TInt)
+      | (Type.TInt, Type.TPtr ty)
+      | (Type.TInt, Type.TArray (ty, _))
+      | (Type.TArray (ty, _), Type.TInt) ->
+         Type.EAdd (Type.TPtr ty, ex1, ex2)
       | _ ->
        raise (TypingError "add"))
   | Syntax.ESub (e1, e2) ->
@@ -163,11 +163,11 @@ and ex = function
      (match (ty1, ty2) with
       | (Type.TInt, Type.TInt) ->
          Type.ESub (Type.TInt, ex1, ex2)
-      | (Type.TPtr Type.TInt, Type.TInt)
-      | (Type.TInt, Type.TPtr Type.TInt)
-      | (Type.TInt, Type.TArray (Type.TInt, _))
-      | (Type.TArray (Type.TInt, _), Type.TInt) ->
-         Type.ESub (Type.TPtr Type.TInt, ex1, ex2)
+      | (Type.TPtr ty, Type.TInt)
+      | (Type.TInt, Type.TPtr ty)
+      | (Type.TInt, Type.TArray (ty, _))
+      | (Type.TArray (ty, _), Type.TInt) ->
+         Type.ESub (Type.TPtr ty, ex1, ex2)
       | _ ->
        raise (TypingError "sub"))
   | Syntax.EShift (e1, e2) ->
@@ -214,14 +214,7 @@ and ex = function
       | Type.TPtr ty -> Type.EPtr (ty, ex1)
       | _ -> raise (TypingError "ptr"))
   | Syntax.EArray (e1, e2) ->
-     let ex1 = ex e1 in
-     let ex2 = ex e2 in
-     (match (typeof ex1, typeof ex2) with
-      | (Type.TArray (ty1, _), Type.TInt) ->
-         Type.EArray (ty1, ex1, ex2)
-      | (Type.TPtr ty1, Type.TInt) ->
-         Type.EArray (ty1, ex1, ex2)
-      | _ -> raise (TypingError "array"))
+     ex (Syntax.EPtr (Syntax.EAdd (e1, e2)))
   | Syntax.ECond (e1, e2, e3) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
@@ -272,7 +265,6 @@ and typeof = function
   | Type.ENeq   (t, _, _) ->t
   | Type.EAddr  (t, _) ->t
   | Type.EPtr   (t, _) ->t
-  | Type.EArray (t, _, _) ->t
   | Type.ECond  (t, _, _, _) ->t
   | Type.EAnd   (t, _, _) ->t
   | Type.EOr    (t, _, _) ->t

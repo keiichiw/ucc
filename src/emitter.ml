@@ -103,9 +103,8 @@ let rec size_of = function
   | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (size_of ty)
   | TStruct (Some (Name name),_) ->
-     let (sz, _) = resolve_struct name in
-     sz
-  | _ -> raise (TODO "size of struct")
+     fst (resolve_struct name)
+  | _ -> raise (TODO "unnameed struct size")
 let size_of_dvar = function
   | DVar (ty,_,_) -> size_of ty
   | DStruct _ -> 0
@@ -390,12 +389,28 @@ and ex ret_reg = function
      push_buffer (sprintf "L%d:\n" l1);
      ex ret_reg e2;
      push_buffer (sprintf "L%d:\n" l2)
-  | EAdd (_, e1, e2) ->
-     ex ret_reg e1;
-     let rreg = reg_alloc () in
-     ex rreg e2;
-     push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg rreg);
-     reg_free rreg
+  | EAdd (t1, e1, e2) ->
+     (match (Typing.typeof e1, Typing.typeof e2) with
+      | (TInt, TInt) ->
+         ex ret_reg e1;
+         let rreg = reg_alloc () in
+         ex rreg e2;
+         push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg rreg);
+         reg_free rreg
+      | (TPtr ty, TInt)
+      | (TArray (ty, _), TInt) ->
+         let ty_size = size_of ty in
+         ex ret_reg e1;
+         let reg = reg_alloc () in
+         if ty_size = 1 then
+           ex reg e2
+         else
+           ex reg (EApp (TInt, Name "__mul", [e2; EConst(TInt, VInt (size_of ty))]));
+         push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg reg);
+         reg_free reg
+      | (TInt, TPtr _)
+      | (TInt, TArray _) -> ex ret_reg (EAdd (t1, e2, e1))
+      | _ -> raise (EmitError "hoge"))
   | ESub (_, e1, e2) ->
      ex ret_reg e1;
      let rreg = reg_alloc () in
@@ -462,18 +477,12 @@ and ex ret_reg = function
                 reg_use i;
                 push_buffer (sprintf "\tpop $%d\n" i))
                (List.rev used_reg)
-  | EArray (_, e1, idx) ->
-     lv_addr ret_reg e1;
-     let ireg = reg_alloc () in
-     ex ireg idx;
-     push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg ireg);
-     push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg);
-     reg_free ireg
   | EVar (t, Name name) ->
      (match resolve_var name with
       | (_, Reg i) ->
          push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg i)
-      | (TArray _, _) ->
+      | (TArray _, _)
+      | (TStruct _, _) ->
          lv_addr ret_reg (EVar (t, Name name));
       | _ ->
          lv_addr ret_reg (EVar (t, Name name));
@@ -491,7 +500,10 @@ and ex ret_reg = function
      push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg)
   | EDot (t, e, Name name) ->
      lv_addr ret_reg (EDot (t, e, Name name));
-     push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg)
+     (match t with
+      | TArray _ | TStruct _ -> ()
+      | _ ->
+         push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg))
 and lv_addr ret_reg = function
   | EVar (_, Name name) ->
      (match resolve_var name with
@@ -499,22 +511,6 @@ and lv_addr ret_reg = function
          push_buffer (sprintf "\tsub $%d, $bp, %d\n" ret_reg offset)
       | _ ->
          raise (EmitError "args \'s address"))
-  | EArray (_, lv, idx) ->
-     (match (lv, idx) with
-      | (EVar(_, Name nm), EConst(TInt, VInt(i))) ->
-         (match resolve_var nm with
-          | (_, Mem offset) ->
-             push_buffer
-               (sprintf"\tsub $%d, $bp, %d\n" ret_reg (offset-i))
-          | _ -> raise Unreachable)
-      | _ ->
-         let lv_reg = reg_alloc () in
-         lv_addr lv_reg lv;
-         let idx_reg = reg_alloc () in
-         ex idx_reg idx;
-         push_buffer (sprintf"\tadd $%d, $%d, $%d\n" ret_reg lv_reg idx_reg);
-         reg_free lv_reg;
-         reg_free idx_reg)
   | EDot (_, expr, Name mem) ->
      (match Typing.typeof expr with
       | TStruct (Some (Name sname), _) ->

@@ -45,7 +45,6 @@ and expr =
   | ENeq   of ctype * expr * expr
   | EAddr  of ctype * expr
   | EPtr   of ctype * expr
-  | EArray of ctype * expr * expr
   | ECond  of ctype * expr * expr * expr
   | EAnd   of ctype * expr * expr
   | EOr    of ctype * expr * expr

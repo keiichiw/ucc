@@ -25,7 +25,7 @@
 %token NOT COND COLON
 %token AMP HAT BAR TILDE
 %token PLUS MINUS MOD STAR LSHIFT RSHIFT SLASH
-%token DOT
+%token DOT ARROW
 %token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
 %token SUBST PLUSSUBST MINUSSUBST
@@ -366,6 +366,8 @@ postfix_expr:
   }
 | postfix_expr DOT ID
   { EDot($1, Name $3) }
+| postfix_expr ARROW ID
+  { EDot(EPtr $1, Name $3) }
 
 primary_expr:
 | constant_expr
