@@ -5,7 +5,7 @@
 struct point {
   int x, y;
 };
-struct square {
+struct rect {
   struct point a, b;
 };
 
@@ -14,7 +14,7 @@ int abs (int a) {
 }
 
 int main () {
-  struct square sq;
+  struct rect sq;
   int p;
   sq.a.x = 0;
   sq.a.y = 2;

@@ -149,7 +149,9 @@ and ex = function
       | (Type.TInt, Type.TInt) ->
          Type.EAdd (Type.TInt, ex1, ex2)
       | (Type.TPtr Type.TInt, Type.TInt)
-      | (Type.TInt, Type.TPtr Type.TInt) ->
+      | (Type.TInt, Type.TPtr Type.TInt)
+      | (Type.TInt, Type.TArray (Type.TInt, _))
+      | (Type.TArray (Type.TInt, _), Type.TInt) ->
          Type.EAdd (Type.TPtr Type.TInt, ex1, ex2)
       | _ ->
        raise (TypingError "add"))
@@ -162,7 +164,9 @@ and ex = function
       | (Type.TInt, Type.TInt) ->
          Type.ESub (Type.TInt, ex1, ex2)
       | (Type.TPtr Type.TInt, Type.TInt)
-      | (Type.TInt, Type.TPtr Type.TInt) ->
+      | (Type.TInt, Type.TPtr Type.TInt)
+      | (Type.TInt, Type.TArray (Type.TInt, _))
+      | (Type.TArray (Type.TInt, _), Type.TInt) ->
          Type.ESub (Type.TPtr Type.TInt, ex1, ex2)
       | _ ->
        raise (TypingError "sub"))

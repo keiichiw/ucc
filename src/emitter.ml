@@ -473,8 +473,9 @@ and ex ret_reg = function
      (match resolve_var name with
       | (_, Reg i) ->
          push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg i)
+      | (TArray _, _) ->
+         lv_addr ret_reg (EVar (t, Name name));
       | _ ->
-         (*型で場合分けする？*)
          lv_addr ret_reg (EVar (t, Name name));
          push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg))
   | ESubst (_, e1, e2) -> (*引数に代入できない*)
@@ -529,7 +530,6 @@ and lv_addr ret_reg = function
   | EPtr (_, e) -> ex ret_reg e
   | e ->
      (match Typing.typeof e with
-      | TPtr _
-      | TArray _ -> ex ret_reg e
+      | TPtr _ -> ex ret_reg e
       | TStruct _ -> raise (TODO "lv struct")
       | _ -> raise (EmitError "this expr is not lvalue"))
