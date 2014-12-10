@@ -2,10 +2,11 @@ open Type
 open Printf
 exception EmitError of string
 exception TODO of string
-exception Unreachable
+exception Unreachable of string
 type storageplace =
   | Reg of int (*register*)
   | Mem of int (*memory*)
+  | Global of string
 let register_list = [1;2;3;4;5;6;7;8;9;10;11];;
 let created_label_num = ref 0;;
 let free_reg_stack = ref [1;2;3;4;5;6;7;8;9;10;11];;
@@ -110,10 +111,10 @@ let size_of_dvar = function
   | DStruct _ -> 0
 let get_dvar_name = function
   | DVar (_,Name n, _) -> n
-  | _ -> raise Unreachable
+  | _ -> raise (Unreachable "get_dvar_name")
 let get_dvar_type = function
   | DVar (t,_, _) -> t
-  | _ -> raise Unreachable
+  | _ -> raise (Unreachable "get_dvar_type")
 let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
@@ -123,7 +124,17 @@ let push_args args = (* add args in env *)
        go (i+1) xs
     | _ -> raise (EmitError "array can't be an argument of function.") in
   go 1 args
-let push_global_var = function (* add global var in env *)
+let push_global_var oc = function (* add global var in env *)
+  | DVar (ty, Name name, None) ->
+     let label = sprintf "global_%s" name in
+     stack_push env_ref (name, (ty, Global label));
+     fprintf oc "%s:\n" label;
+     fprintf oc "\t.int 0, %d\n" (size_of ty)
+  | DVar (ty, Name name, Some (EConst (TInt, (VInt x)))) ->
+     let label = sprintf "global_%s" name in
+     stack_push env_ref (name, (ty, Global label));
+     fprintf oc "%s:\n" label;
+     fprintf oc "\t.int %d\n" x
   | DStruct (Name name, dvars) ->
      let f = (fun dv -> (get_dvar_name dv, get_dvar_type dv)) in
      let vars = List.map f dvars in
@@ -131,6 +142,7 @@ let push_global_var = function (* add global var in env *)
      stack_push struct_env_ref (name, (sz, vars));
      ()
   | _ -> raise (TODO "global variables isn\'t supported yet")
+
 
 let push_local_vars vars =
   let go = function
@@ -160,7 +172,7 @@ and emitter oc = function
      struct_env_ref := old_senv;
      print_buffer oc name
   | DefVar v ->
-     push_global_var v
+     push_global_var oc v
 and bl = function
   | Block (vars, stmts) ->
      let old_sp = !sp_offset_ref in
@@ -188,7 +200,7 @@ and init_local_vars vars =
            ex reg x;
            push_buffer (sprintf "\tmov [$bp-%d], $%d\n" offset reg);
            reg_free reg
-        |_ -> raise Unreachable)
+        |_ -> raise (Unreachable "init_local_var"))
     | _ -> () in
   List.iter go vars
 and st = function
@@ -509,13 +521,15 @@ and lv_addr ret_reg = function
      (match resolve_var name with
       | (_, Mem offset) ->
          push_buffer (sprintf "\tsub $%d, $bp, %d\n" ret_reg offset)
+      | (_, Global label) ->
+         push_buffer (sprintf "\tmov $%d, %s\n" ret_reg label)
       | _ ->
          raise (EmitError "args \'s address"))
   | EDot (_, expr, Name mem) ->
      (match Typing.typeof expr with
       | TStruct (Some (Name sname), _) ->
          let rec go i s = function
-           | [] -> raise Unreachable
+           | [] -> raise (Unreachable "edot")
            | (v, _)::_ when v=s -> i
            | (_, ty)::xs -> go (i+(size_of ty)) s xs in
          let (_, memlist) = resolve_struct sname in

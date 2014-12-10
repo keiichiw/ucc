@@ -1,3 +1,4 @@
+open Syntax
 open Printf
 exception Unreachable
 let rec print_program fmt p =
