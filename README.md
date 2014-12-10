@@ -1,4 +1,4 @@
-# UCC - Udon C Compiler #
+# UCC - Udon C Compiler  [![Build Status](https://travis-ci.org/kw-udon/ucc.svg?branch=master)](https://travis-ci.org/kw-udon/ucc)
 
 C compiler for [Yebi](https://github.com/wasabiz/Yebi) CPU written in OCaml.
 
