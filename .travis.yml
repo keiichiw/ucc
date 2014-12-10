@@ -1,3 +1,2 @@
 language: c
-before_install: git submodule update --init extlib/
 script: bash -ex travis-ci.sh
