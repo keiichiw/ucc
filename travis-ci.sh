@@ -2,7 +2,7 @@
 export OPAM_PACKAGES='ocamlfind'
 
 # install ocaml from apt
-echo "yes" | sudo add-apt-repository ppa:avsm/ocaml41+opam11
+yes yes | sudo add-apt-repository ppa:avsm/ppa
 sudo apt-get update -qq
 sudo apt-get install -qq ocaml ocaml-native-compilers opam menhir
 
