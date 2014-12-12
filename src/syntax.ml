@@ -38,23 +38,23 @@ and stmt =
   | SDefault
   | SExpr of expr
 and expr =
-  | EConst of value
-  | EVar   of name
-  | EComma of expr * expr
-  | EAdd   of expr * expr
-  | EShift of expr * expr
-  | ESub   of expr * expr
-  | ESubst of expr * expr
-  | EApp   of expr * (expr list)
-  | ELe    of expr * expr
-  | EEq    of expr * expr
-  | ENeq   of expr * expr
-  | EPtr   of expr
-  | EAddr  of expr
-  | EArray of expr * expr
-  | ECond  of expr * expr * expr
-  | EAnd   of expr * expr
-  | EOr    of expr * expr
-  | EDot   of expr * name
+  | EConst  of value
+  | EVar    of name
+  | EComma  of expr * expr
+  | EAdd    of expr * expr
+  | EShift  of expr * expr
+  | ESub    of expr * expr
+  | EAssign of expr * expr
+  | EApp    of expr * (expr list)
+  | ELe     of expr * expr
+  | EEq     of expr * expr
+  | ENeq    of expr * expr
+  | EPtr    of expr
+  | EAddr   of expr
+  | EArray  of expr * expr
+  | ECond   of expr * expr * expr
+  | EAnd    of expr * expr
+  | EOr     of expr * expr
+  | EDot    of expr * name
 and value =
   | VInt of int

@@ -178,10 +178,10 @@ and ex = function
        Type.EShift (Type.TInt, ex1, ex2)
      else
        raise (TypingError "shift")
-  | Syntax.ESubst (e1, e2) ->
+  | Syntax.EAssign (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     Type.ESubst (typeof ex2, ex1, ex2)
+     Type.EAssign (typeof ex2, ex1, ex2)
   | Syntax.EApp (e1, elist) ->
      let ex1 = ex e1 in
      Type.EApp (typeof ex1, ex1, List.map ex elist)
@@ -260,7 +260,7 @@ and typeof = function
   | Type.EAdd   (t, _, _) ->t
   | Type.EShift (t, _, _) ->t
   | Type.ESub   (t, _, _) ->t
-  | Type.ESubst (t, _, _) ->t
+  | Type.EAssign(t, _, _) ->t
   | Type.EApp   (t, _, _) ->t
   | Type.ELe    (t, _, _) ->t
   | Type.EEq    (t, _, _) ->t

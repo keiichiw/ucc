@@ -42,9 +42,9 @@
 %token DOT ARROW
 %token EQ NEQ LT LE GT GE
 %token SEMICOLON COMMA
-%token SUBST PLUSSUBST MINUSSUBST
-%token STARSUBST SLASHSUBST MODSUBST LSHIFTSUBST RSHIFTSUBST
-%token AMPSUBST HATSUBST BARSUBST
+%token ASSIGN PLUS_ASSIGN MINUS_ASSIGN
+%token STAR_ASSIGN SLASH_ASSIGN MOD_ASSIGN LSHIFT_ASSIGN RSHIFT_ASSIGN
+%token AMP_ASSIGN HAT_ASSIGN BAR_ASSIGN
 %token EOF
 
 (* avoid dangling-else problem *)
@@ -70,6 +70,7 @@ function_definition:
        DefFun (make_dvar typ d, Block(ds, ss))
     | None ->
        raise (ParserError "fun_definition: proto")
+    | _ -> raise (Unreachable "fun_definition")
   }
 
 decl: // local variables
@@ -136,7 +137,7 @@ param_decl:
 init_declarator:
 | declarator
   { $1 }
-| declarator SUBST assign_expr
+| declarator ASSIGN assign_expr
   {
     match $1 with
     | DeclIdent(name, _) ->
@@ -212,28 +213,28 @@ expr:
 assign_expr:
 | cond_expr
   { $1 }
-| unary_expr SUBST assign_expr
-  { ESubst($1, $3) }
-| unary_expr PLUSSUBST assign_expr
-  { ESubst($1, EAdd($1, $3)) }
-| unary_expr MINUSSUBST assign_expr
-  { ESubst($1, ESub($1, $3)) }
-| unary_expr STARSUBST assign_expr
-  { ESubst($1, EApp(EVar(Name "__mul"), [$1;$3])) }
-| unary_expr SLASHSUBST assign_expr
-  { ESubst($1, EApp(EVar(Name "__div"), [$1;$3])) }
-| unary_expr MODSUBST assign_expr
-  { ESubst($1, EApp(EVar(Name "__mod"), [$1;$3])) }
-| unary_expr LSHIFTSUBST assign_expr
-  { ESubst($1, EShift($1, $3)) }
-| unary_expr RSHIFTSUBST assign_expr
-  { ESubst($1, EShift($1, ESub(EConst(VInt 0), $3))) }
-| unary_expr AMPSUBST assign_expr
-  { ESubst($1, EApp(EVar(Name "__and"), [$1;$3])) }
-| unary_expr HATSUBST assign_expr
-  { ESubst($1, EApp(EVar(Name "__xor"), [$1;$3])) }
-| unary_expr BARSUBST assign_expr
-  { ESubst($1, EApp(EVar(Name "__or"), [$1;$3])) }
+| unary_expr ASSIGN assign_expr
+  { EAssign($1, $3) }
+| unary_expr PLUS_ASSIGN assign_expr
+  { EAssign($1, EAdd($1, $3)) }
+| unary_expr MINUS_ASSIGN assign_expr
+  { EAssign($1, ESub($1, $3)) }
+| unary_expr STAR_ASSIGN assign_expr
+  { EAssign($1, EApp(EVar(Name "__mul"), [$1;$3])) }
+| unary_expr SLASH_ASSIGN assign_expr
+  { EAssign($1, EApp(EVar(Name "__div"), [$1;$3])) }
+| unary_expr MOD_ASSIGN assign_expr
+  { EAssign($1, EApp(EVar(Name "__mod"), [$1;$3])) }
+| unary_expr LSHIFT_ASSIGN assign_expr
+  { EAssign($1, EShift($1, $3)) }
+| unary_expr RSHIFT_ASSIGN assign_expr
+  { EAssign($1, EShift($1, ESub(EConst(VInt 0), $3))) }
+| unary_expr AMP_ASSIGN assign_expr
+  { EAssign($1, EApp(EVar(Name "__and"), [$1;$3])) }
+| unary_expr HAT_ASSIGN assign_expr
+  { EAssign($1, EApp(EVar(Name "__xor"), [$1;$3])) }
+| unary_expr BAR_ASSIGN assign_expr
+  { EAssign($1, EApp(EVar(Name "__or"), [$1;$3])) }
 
 cond_expr:
 | logor_expr
@@ -325,9 +326,9 @@ unary_expr:
 | postfix_expr
   { $1 }
 | INC unary_expr
-  { ESubst($2, EAdd($2, EConst(VInt(1)))) }
+  { EAssign($2, EAdd($2, EConst(VInt(1)))) }
 | DEC unary_expr
-  { ESubst($2, ESub($2, EConst(VInt(1)))) }
+  { EAssign($2, ESub($2, EConst(VInt(1)))) }
 | NOT unary_expr
   { EEq(EConst(VInt 0), $2) }
 | PLUS unary_expr
@@ -348,10 +349,10 @@ postfix_expr:
   { EArray(v, e) }
 | postfix_expr INC
   (* i++ -> (++i,i-1) *)
-  { EComma(ESubst($1, EAdd($1, EConst(VInt(1)))), ESub($1, EConst(VInt(1)))) }
+  { EComma(EAssign($1, EAdd($1, EConst(VInt(1)))), ESub($1, EConst(VInt(1)))) }
 | postfix_expr DEC
   (* i-- -> (--i,i+1) *)
-  { EComma(ESubst($1, ESub($1, EConst(VInt(1)))), EAdd($1, EConst(VInt(1)))) }
+  { EComma(EAssign($1, ESub($1, EConst(VInt(1)))), EAdd($1, EConst(VInt(1)))) }
 | postfix_expr LPAREN arg_expr_list RPAREN
   { EApp($1, $3) }
 | postfix_expr DOT ID

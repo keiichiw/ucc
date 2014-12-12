@@ -32,22 +32,22 @@ and stmt =
   | SDefault
   | SExpr of expr
 and expr =
-  | EConst of ctype * value
-  | EVar   of ctype * name
-  | EComma of ctype * expr * expr
-  | EAdd   of ctype * expr * expr
-  | EShift of ctype * expr * expr
-  | ESub   of ctype * expr * expr
-  | ESubst of ctype * expr * expr
-  | EApp   of ctype * expr * (expr list)
-  | ELe    of ctype * expr * expr
-  | EEq    of ctype * expr * expr
-  | ENeq   of ctype * expr * expr
-  | EAddr  of ctype * expr
-  | EPtr   of ctype * expr
-  | ECond  of ctype * expr * expr * expr
-  | EAnd   of ctype * expr * expr
-  | EOr    of ctype * expr * expr
-  | EDot   of ctype * expr * name
+  | EConst  of ctype * value
+  | EVar    of ctype * name
+  | EComma  of ctype * expr * expr
+  | EAdd    of ctype * expr * expr
+  | EShift  of ctype * expr * expr
+  | ESub    of ctype * expr * expr
+  | EAssign of ctype * expr * expr
+  | EApp    of ctype * expr * (expr list)
+  | ELe     of ctype * expr * expr
+  | EEq     of ctype * expr * expr
+  | ENeq    of ctype * expr * expr
+  | EAddr   of ctype * expr
+  | EPtr    of ctype * expr
+  | ECond   of ctype * expr * expr * expr
+  | EAnd    of ctype * expr * expr
+  | EOr     of ctype * expr * expr
+  | EDot    of ctype * expr * name
 and value =
   | VInt of int

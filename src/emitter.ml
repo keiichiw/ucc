@@ -504,7 +504,7 @@ and ex ret_reg = function
       | _ ->
          lv_addr ret_reg (EVar (t, Name name));
          push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg))
-  | ESubst (_, e1, e2) -> (*引数に代入できない*)
+  | EAssign (_, e1, e2) -> (*引数に代入できない*)
      let reg = reg_alloc () in
      lv_addr reg e1;
      ex ret_reg e2;

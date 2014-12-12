@@ -91,27 +91,27 @@ rule token = parse
 | "!="
     { NEQ}
 | "="
-    { SUBST }
+    { ASSIGN }
 | "+="
-    { PLUSSUBST }
+    { PLUS_ASSIGN }
 | "-="
-    { MINUSSUBST }
+    { MINUS_ASSIGN }
 | "*="
-    { STARSUBST }
+    { STAR_ASSIGN }
 | "/="
-    { SLASHSUBST }
+    { SLASH_ASSIGN }
 | "%="
-    { MODSUBST }
+    { MOD_ASSIGN }
 | "<<="
-    { LSHIFTSUBST }
+    { LSHIFT_ASSIGN }
 | ">>="
-    { RSHIFTSUBST }
+    { RSHIFT_ASSIGN }
 | "&="
-    { AMPSUBST }
+    { AMP_ASSIGN }
 | "^="
-    { HATSUBST }
+    { HAT_ASSIGN }
 | "|="
-    { BARSUBST }
+    { BAR_ASSIGN }
 | "<"
     { LT }
 | ">"
