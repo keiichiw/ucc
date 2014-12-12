@@ -39,7 +39,7 @@ and expr =
   | EShift of ctype * expr * expr
   | ESub   of ctype * expr * expr
   | ESubst of ctype * expr * expr
-  | EApp   of ctype * name * (expr list)
+  | EApp   of ctype * expr * (expr list)
   | ELe    of ctype * expr * expr
   | EEq    of ctype * expr * expr
   | ENeq   of ctype * expr * expr

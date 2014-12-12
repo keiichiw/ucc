@@ -219,21 +219,21 @@ assign_expr:
 | unary_expr MINUSSUBST assign_expr
   { ESubst($1, ESub($1, $3)) }
 | unary_expr STARSUBST assign_expr
-  { ESubst($1, EApp(Name "__mul", [$1;$3])) }
+  { ESubst($1, EApp(EVar(Name "__mul"), [$1;$3])) }
 | unary_expr SLASHSUBST assign_expr
-  { ESubst($1, EApp(Name "__div", [$1;$3])) }
+  { ESubst($1, EApp(EVar(Name "__div"), [$1;$3])) }
 | unary_expr MODSUBST assign_expr
-  { ESubst($1, EApp(Name "__mod", [$1;$3])) }
+  { ESubst($1, EApp(EVar(Name "__mod"), [$1;$3])) }
 | unary_expr LSHIFTSUBST assign_expr
   { ESubst($1, EShift($1, $3)) }
 | unary_expr RSHIFTSUBST assign_expr
   { ESubst($1, EShift($1, ESub(EConst(VInt 0), $3))) }
 | unary_expr AMPSUBST assign_expr
-  { ESubst($1, EApp(Name "__and", [$1;$3])) }
+  { ESubst($1, EApp(EVar(Name "__and"), [$1;$3])) }
 | unary_expr HATSUBST assign_expr
-  { ESubst($1, EApp(Name "__xor", [$1;$3])) }
+  { ESubst($1, EApp(EVar(Name "__xor"), [$1;$3])) }
 | unary_expr BARSUBST assign_expr
-  { ESubst($1, EApp(Name "__or", [$1;$3])) }
+  { ESubst($1, EApp(EVar(Name "__or"), [$1;$3])) }
 
 cond_expr:
 | logor_expr
@@ -257,19 +257,19 @@ bitor_expr:
 | bitxor_expr
   { $1 }
 | bitor_expr BAR bitxor_expr
-  { EApp(Name "__or", [$1;$3]) }
+  { EApp(EVar(Name "__or" ), [$1;$3]) }
 
 bitxor_expr:
 | bitand_expr
   { $1 }
 | bitxor_expr HAT bitand_expr
-  { EApp(Name "__xor", [$1;$3]) }
+  { EApp(EVar(Name "__xor"), [$1;$3]) }
 
 bitand_expr:
 | equal_expr
   { $1 }
 | bitand_expr AMP equal_expr
-  { EApp(Name "__and", [$1;$3]) }
+  { EApp(EVar(Name "__and"), [$1;$3]) }
 
 equal_expr:
 | rel_expr
@@ -311,11 +311,11 @@ multiplicative_expr:
 | cast_expr
   { $1 }
 | multiplicative_expr STAR cast_expr
-  { EApp(Name "__mul", [$1;$3]) }
+  { EApp(EVar(Name "__mul"), [$1;$3]) }
 | multiplicative_expr SLASH cast_expr
-  { EApp(Name "__div", [$1;$3]) }
+  { EApp(EVar(Name "__div"), [$1;$3]) }
 | multiplicative_expr MOD cast_expr
-  { EApp(Name "__mod", [$1;$3]) }
+  { EApp(EVar(Name "__mod"), [$1;$3]) }
 
 cast_expr:
 | unary_expr
@@ -339,7 +339,7 @@ unary_expr:
 | AMP unary_expr
   { EAddr $2 }
 | TILDE unary_expr
-  { EApp(Name "__not", [$2]) }
+  { EApp(EVar(Name "__not"), [$2]) }
 
 postfix_expr:
 | primary_expr
@@ -353,11 +353,7 @@ postfix_expr:
   (* i-- -> (--i,i+1) *)
   { EComma(ESubst($1, ESub($1, EConst(VInt(1)))), EAdd($1, EConst(VInt(1)))) }
 | postfix_expr LPAREN arg_expr_list RPAREN
-  {
-    match $1 with
-    | EVar name -> EApp(name, $3)
-    | _ -> raise (ParserError "postfix: function application")
-  }
+  { EApp($1, $3) }
 | postfix_expr DOT ID
   { EDot($1, Name $3) }
 | postfix_expr ARROW ID

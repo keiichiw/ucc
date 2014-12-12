@@ -417,7 +417,8 @@ and ex ret_reg = function
          if ty_size = 1 then
            ex reg e2
          else
-           ex reg (EApp (TInt, Name "__mul", [e2; EConst(TInt, VInt (size_of ty))]));
+           ex reg (EApp (TInt, EVar(TInt, Name "__mul"),
+                         [e2; EConst(TInt, VInt (size_of ty))]));
          push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg reg);
          reg_free reg
       | (TInt, TPtr _)
@@ -474,7 +475,11 @@ and ex ret_reg = function
      push_buffer (sprintf "L%d:\n" lend);
      reg_free lreg;
      reg_free rreg
-  | EApp (_, Name fname, exlst) ->
+  | EApp (_, f, exlst) ->
+     let fname =
+       (match f with
+        | EVar (_, Name nm) -> nm
+        | _ -> raise (EmitError "EApp: fname")) in
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
      List.iter (fun i -> push_buffer (sprintf "\tpush $%d\n" i))
                used_reg;

@@ -13,7 +13,11 @@ let rec assoc nm  = function
 let push_stack x env =
   env := x::!env
 let resolve_var_type nm =
-  assoc nm !venv_ref
+  let rec go nm  = function
+    | [] -> Type.TInt
+    | (s, ty)::_ when s=nm -> ty
+    | _ :: xs -> go nm xs in
+  go nm !venv_ref
 let resolve_fun_type nm =
   let rec go nm  = function
     | [] -> Type.TInt
@@ -178,9 +182,9 @@ and ex = function
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      Type.ESubst (typeof ex2, ex1, ex2)
-  | Syntax.EApp (Syntax.Name name, elist) ->
-     let ftype = resolve_fun_type name in
-     Type.EApp (ftype, Type.Name name, List.map ex elist)
+  | Syntax.EApp (e1, elist) ->
+     let ex1 = ex e1 in
+     Type.EApp (typeof ex1, ex1, List.map ex elist)
   | Syntax.ELe (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
@@ -251,7 +255,7 @@ and vl = function
   | Syntax.VInt i -> Type.VInt i
 and typeof = function
   | Type.EConst (t, _) -> t
-  | Type.EVar   (t, _) ->t
+  | Type.EVar   (t, _) -> t
   | Type.EComma (t, _, _) ->t
   | Type.EAdd   (t, _, _) ->t
   | Type.EShift (t, _, _) ->t
