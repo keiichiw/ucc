@@ -8,7 +8,7 @@ type ctype =
   | TPtr of ctype (* pointer *)
   | TArray of ctype * int (* array *)
 and def =
-  | DefFun of ctype * name * (dvar list) * block * loc
+  | DefFun of ctype * name * (dvar list) * block
   | DefVar of dvar
 and block =
   | Block of dvar list * stmt list

@@ -160,7 +160,7 @@ let push_local_vars vars =
 let rec main oc defs =
   List.iter (emitter oc) defs
 and emitter oc = function
-  | DefFun(ty, Name name, args, b, _) ->
+  | DefFun(ty, Name name, args, b) ->
      fun_name_ref := name;
      let free_regs = !free_reg_stack in
      let old_env = !env_ref in

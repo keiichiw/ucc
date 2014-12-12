@@ -6,22 +6,21 @@ type loc = Lexing.position * Lexing.position
 
 type name = Name of string
 type size = int
+type star_num = int
 type ctype =
   | TInt
   | TStruct of (name option) * ((dvar list) option)
-  | TPtr of ctype (* pointer *)
+  | TPtr of ctype
+  | TArray of ctype * int
+  | TFun of ctype * (dvar list)
 and def =
-  | DefFun of ctype * name * (dvar list) * block * loc
+  | DefFun of dvar * block
   | DefVar of dvar
-and block =
-  | Block of dvar list * stmt list
-and dectype =
-  | DeclIdent  of name * (expr option)
-  | DeclArray  of dectype * size
 and dvar =
   | DVar of ctype * name * (expr option)
-  | DArray of ctype * name * size
   | DStruct of name * (dvar list)
+and block =
+  | Block of (dvar list) * (stmt list)
 and stmt =
   | SNil
   | SBlock of dvar list * stmt list

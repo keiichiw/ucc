@@ -40,20 +40,21 @@ let resolve_member_type stct mem_name =
 let rec main defs =
   List.map (fun x -> def x) defs
 and def = function
-  | Syntax.DefFun (ty, Syntax.Name n, args, b, loc) ->
+  | Syntax.DefFun (Syntax.DVar (Syntax.TFun(ty, args), Syntax.Name n, None), b) ->
      push_stack (n, typ ty) fenv_ref;
      let old_venv = !venv_ref in
      let old_fenv = !fenv_ref in
      let old_senv = !senv_ref in
      let a1 = List.map dv args in
      let b1 = bl b in
-     let ret = Type.DefFun (typ ty, Type.Name n, a1, b1, loc) in
+     let ret = Type.DefFun (typ ty, Type.Name n, a1, b1) in
      venv_ref := old_venv;
      fenv_ref := old_fenv;
      senv_ref := old_senv;
      ret
   | Syntax.DefVar dvar ->
      Type.DefVar (dv dvar)
+  | _ -> raise (TypingError "def")
 and bl = function
   | Syntax.Block (dvar, stmts) ->
      let old_venv = !venv_ref in
@@ -70,10 +71,6 @@ and dv = function
   | Syntax.DVar(ty, Syntax.Name n, x) ->
      push_stack (n, typ ty) venv_ref;
      Type.DVar(typ ty, Type.Name n, opex x)
-  | Syntax.DArray(ty, Syntax.Name n, x) ->
-     let ntype = Type.TArray (typ ty, x) in
-     push_stack (n, ntype) venv_ref;
-     Type.DVar(ntype, Type.Name n, None)
   | Syntax.DStruct(Syntax.Name n, dvars) ->
      let dvlist = List.map dv dvars in
      push_stack (n, dvlist) senv_ref;
@@ -243,11 +240,12 @@ and ex = function
      Type.EDot(typ, ex1, Type.Name nm)
 and typ = function
   | Syntax.TInt -> Type.TInt
-  | Syntax.TPtr x   -> Type.TPtr (typ x)
   | Syntax.TStruct (Some (Syntax.Name name), Some dvars) ->
      Type.TStruct (Some (Type.Name name), Some (List.map dv dvars))
   | Syntax.TStruct (Some (Syntax.Name name), None) ->
      Type.TStruct (Some (Type.Name name), None)
+  | Syntax.TPtr ty -> Type.TPtr (typ ty)
+  | Syntax.TArray (ty, sz) -> Type.TArray (typ ty,sz)
   | _ -> raise (TypingError "typ")
 and vl = function
   | Syntax.VInt i -> Type.VInt i

@@ -1,7 +1,7 @@
 {
   open Parser
-
   exception Error of string
+
 }
 
 let digit = ['0'-'9']

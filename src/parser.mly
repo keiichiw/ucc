@@ -1,13 +1,27 @@
 %{
   open Syntax
   exception ParserError of string
-  exception Unreachable
-  let rec getNameFromDecl = function
-    | DeclIdent (n, _) -> n
-    | DeclArray (x, _) -> getNameFromDecl x
-  let rec nestPtr t = function
-      | 0 -> t
-      | i -> TPtr (nestPtr t (i-1))
+  exception Unreachable of string
+  type declarator =
+    | DeclPtr of declarator
+    | DeclIdent  of name * (expr option)
+    | DeclArray  of declarator * size
+    | DeclFun of declarator * (dvar list)
+  let rec make_dvar ty = function
+    | DeclPtr d ->
+       make_dvar (TPtr ty) d
+    | DeclIdent (name, exp) ->
+       DVar(ty, name, exp)
+    | DeclArray (d, sz) ->
+       (match make_dvar ty d with
+        | DVar(typ, name, None) ->
+           DVar (TArray(typ, sz), name, None)
+        | _ -> raise (ParserError "make_dvar: array"))
+    | DeclFun (d, dvs) ->
+       (match make_dvar ty d with
+        | DVar(typ, name, None) ->
+           DVar (TFun(typ, dvs), name, None)
+        | _ -> raise (ParserError "make_dvar: fun"))
 %}
 
 %token <int> INT
@@ -42,156 +56,136 @@
 %%
 
 main:
-| top_decl* EOF { List.concat $1 }
+| external_decl* EOF { List.concat $1 }
 
-top_decl:
-| fun_definition  { [$1] }
-| declaration { List.map (fun x -> DefVar x) $1 }
+external_decl:
+| function_definition  { [$1] }
+| decl { List.map (fun x -> DefVar x) $1 }
 
-fun_definition:
-| ty=decl_specifier; f=declarator; LPAREN; dlist=separated_list(COMMA, arg_declaration);  RPAREN; b=compound_stmt
+function_definition:
+| typ=decl_specs d=declarator b=compound_stat?
   {
-    let (starNum, decl) = f in
-    let nm = getNameFromDecl decl in
-    let typ = nestPtr ty starNum in
     match b with
-    | SBlock (ds,ss) ->
-       DefFun (typ, nm, dlist, Block(ds,ss),  ($startpos, $endpos))
-    | _ ->
-       assert false
+    | Some(SBlock (ds, ss)) ->
+       DefFun (make_dvar typ d, Block(ds, ss))
+    | None ->
+       raise (ParserError "fun_definition: proto")
   }
 
-decl_specifier:
-| type_specifier
-  { $1 }
-
-type_specifier:
-| TINT
-  { TInt }
-| struct_specifier
-  { $1 }
-
-struct_specifier:
-| STRUCT id=ID LBRACE l=separated_nonempty_list(SEMICOLON, struct_declaration) RBRACE
-  { TStruct (Some (Name id), Some (List.concat l))}
-| STRUCT LBRACE l=separated_nonempty_list(SEMICOLON, struct_declaration) RBRACE
-  { TStruct (None, Some (List.concat l))}
-| STRUCT id=ID
-  { TStruct (Some (Name id), None)}
-
-struct_declaration:
-| declaration+
-  { List.concat $1 }
-
-declarator:
-| direct_declarator
-  { (0, $1) }
-| STAR d=declarator
-  {
-    let (x, y) = d in
-    (x+1, y)
-  }
-
-direct_declarator:
-| ID
-  { DeclIdent(Name $1, None) }
-| d=direct_declarator LBRACKET i=INT RBRACKET
-  { DeclArray(d, i) }
-
-init_declarator:
-| declarator
-  { $1 }
-| declarator SUBST assign_expr
-  {
-    let (num, decl) = $1 in
-    match decl with
-    | DeclIdent(name, _) ->
-       (num, DeclIdent(name, Some $3))
-    | DeclArray(d, i) ->
-       raise (ParserError "array initializer is unsupported")
-  }
-
-arg_declaration:
-| ty=decl_specifier; d=declarator
-  {
-    let rec f (starNum,decl) =
-      let typ = nestPtr ty starNum in
-      let rec sizeOf = function
-        | DeclIdent(_) -> 1
-        | DeclArray(d,i) ->
-           (sizeOf d) * i in
-      match decl with
-      | DeclIdent(name, exp) ->
-         DVar(typ, name, exp)
-      | DeclArray(d, i) ->
-         DArray(typ, getNameFromDecl d, sizeOf decl) in
-    f d
-  }
-
-declaration: // local variables
-| ty=decl_specifier; dlist=separated_nonempty_list(COMMA, init_declarator); SEMICOLON
-  {
-    let rec f (starNum,decl) =
-      let typ = nestPtr ty starNum in
-      let rec sizeOf = function
-        | DeclIdent(_) -> 1
-        | DeclArray(d,i) -> (sizeOf d) * i in
-      match decl with
-      | DeclIdent(name, exp) ->
-         DVar(typ, name, exp)
-      | DeclArray(d, i) ->
-         DArray(typ, getNameFromDecl d, sizeOf decl) in
-    List.map f dlist
-  }
-| ty=decl_specifier SEMICOLON
+decl: // local variables
+| typ=decl_specs; dlist=separated_nonempty_list(COMMA, init_declarator); SEMICOLON
+  { List.map (make_dvar typ) dlist }
+| ty=decl_specs SEMICOLON
   {
     match ty with
     | TStruct (Some name, Some dvars) ->
        [DStruct(name, dvars)]
     | _ ->
-       raise (ParserError "declaration: struct declaration")
+       raise (ParserError "decl: struct decl")
   }
-stmt:
-| expr_stmt
-  { $1 }
-| compound_stmt
-  { $1 }
-| selection_stmt
-  { $1 }
-| iteration_stmt
-  { $1 }
-| jump_stmt
-  { $1 }
-| labeled_stmt
+
+
+decl_specs:
+| type_spec
   { $1 }
 
-expr_stmt:
+type_spec:
+| TINT
+  { TInt }
+| struct_spec
+  { $1 } (*hoge*)
+
+
+struct_spec:
+| STRUCT id=ID LBRACE l=separated_nonempty_list(SEMICOLON, struct_decl) RBRACE
+  { TStruct (Some (Name id), Some (List.concat l))}
+| STRUCT LBRACE l=separated_nonempty_list(SEMICOLON, struct_decl) RBRACE
+  { TStruct (None, Some (List.concat l))}
+| STRUCT id=ID
+  { TStruct (Some (Name id), None)}
+
+struct_decl:
+| decl+
+  { List.concat $1 }
+
+declarator:
+| direct_declarator
+  { $1 }
+| STAR declarator
+  { DeclPtr $2 }
+
+direct_declarator:
+| ID
+  { DeclIdent(Name $1, None) }
+| LPAREN declarator RPAREN
+  { $2 }
+| d=direct_declarator LBRACKET i=INT RBRACKET
+  { DeclArray(d, i) }
+| direct_declarator LPAREN param_decl_list RPAREN
+  { DeclFun ($1, $3)}
+| direct_declarator LPAREN RPAREN
+  { DeclFun ($1, [])}
+param_decl_list:
+| param_decl
+  { [$1] }
+| param_decl COMMA param_decl_list
+  { $1::$3 }
+param_decl:
+| decl_specs declarator
+  { make_dvar $1 $2 }
+init_declarator:
+| declarator
+  { $1 }
+| declarator SUBST assign_expr
+  {
+    match $1 with
+    | DeclIdent(name, _) ->
+       DeclIdent(name, Some $3)
+    | _ ->
+       raise (ParserError "array initializer is unsupported")
+  }
+
+stat:
+| expr_stat
+  { $1 }
+| compound_stat
+  { $1 }
+| selection_stat
+  { $1 }
+| iteration_stat
+  { $1 }
+| jump_stat
+  { $1 }
+| labeled_stat
+  { $1 }
+
+expr_stat:
 | SEMICOLON
   { SNil }
 | expr SEMICOLON
   { SExpr($1) }
 
-compound_stmt:
-| LBRACE declaration* stmt* RBRACE
+compound_stat:
+| LBRACE decl* stat* RBRACE
   { SBlock(List.concat $2, $3) }
 
-selection_stmt:
-| IF LPAREN expr RPAREN stmt
+selection_stat:
+| IF LPAREN expr RPAREN stat
   { SIfElse($3, $5, SNil) }
-| IF LPAREN expr RPAREN stmt ELSE stmt
+| IF LPAREN expr RPAREN stat ELSE stat
   { SIfElse($3, $5, $7) }
-| SWITCH LPAREN expr RPAREN stmt
+| SWITCH LPAREN expr RPAREN stat
   { SSwitch($3, $5) }
 
-iteration_stmt:
-| WHILE LPAREN expr RPAREN stmt
+iteration_stat:
+| WHILE LPAREN expr RPAREN stat
   { SWhile($3, $5) }
-| DO stmt WHILE LPAREN expr RPAREN SEMICOLON
+| DO stat WHILE LPAREN expr RPAREN SEMICOLON
   { SDoWhile($2, $5) }
-| FOR LPAREN e1=expr?; SEMICOLON e2=expr?; SEMICOLON e3=expr?; RPAREN stmt
+| FOR LPAREN e1=expr?; SEMICOLON e2=expr?; SEMICOLON e3=expr?; RPAREN stat
   { SFor(e1, e2, e3, $9) }
 
-jump_stmt:
+jump_stat:
 | GOTO ID SEMICOLON
   { SGoto $2 }
 | BREAK SEMICOLON
@@ -201,8 +195,8 @@ jump_stmt:
 | RETURN expr SEMICOLON
   { SReturn $2 }
 
-labeled_stmt:
-| ID COLON stmt
+labeled_stat:
+| ID COLON stat
   { SLabel($1, $3) }
 | CASE cond_expr COLON
   { SCase($2) }
