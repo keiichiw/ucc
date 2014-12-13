@@ -1,14 +1,13 @@
 {
   open Parser
+  open Parser_helper
   exception Error of string
-
 }
 
 let digit = ['0'-'9']
 let space = ' ' | '\t'
 let alpha = ['a'-'z' 'A'-'Z' '_' ]
 let ident = alpha (alpha | digit)*
-
 rule token = parse
 | space
     { token lexbuf }
@@ -22,6 +21,8 @@ rule token = parse
     { TINT }
 | "struct"
     { STRUCT }
+| "typedef"
+    { TYPEDEF }
 | "if"
     { IF }
 | "else"
@@ -141,7 +142,12 @@ rule token = parse
 | digit+ as i
     { INT (int_of_string i) }
 | ident  as n
-    { ID n }
+    {
+      if is_typedef_name n then
+        TYPEDEF_NAME n
+      else
+        ID n
+    }
 | eof
     { EOF }
 | _

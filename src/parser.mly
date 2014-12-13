@@ -1,9 +1,9 @@
 %{
   open Syntax
+  open Parser_helper
   exception ParserError of string
   exception Unreachable of string
-  let typedef_env = ref []
-  let struct_num = ref 0
+  let struct_num = ref 0;;
   type declarator =
     | DeclPtr of declarator
     | DeclIdent  of name * (expr option)
@@ -24,14 +24,13 @@
         | DVar(typ, name, None) ->
            DVar (TFun(typ, dvs), name, None)
         | _ -> raise (ParserError "make_dvar: fun"))
-  let real_type name =
-    List.assoc name !typedef_env
 %}
 
 %token <int> INT
 %token <string> ID
+%token <string> TYPEDEF_NAME
 %token TINT
-%token STRUCT
+%token STRUCT TYPEDEF
 %token IF ELSE WHILE DO FOR
 %token RETURN CONTINUE BREAK GOTO
 %token SWITCH CASE DEFAULT
@@ -78,11 +77,14 @@ function_definition:
   }
 
 decl: // local variables
-| typ=decl_specs; dlist=separated_nonempty_list(COMMA, init_declarator); SEMICOLON
+| typ=decl_specs; dlist=separated_list(COMMA, init_declarator); SEMICOLON
   { List.map (make_dvar typ) dlist }
-| ty=decl_specs SEMICOLON
-  { [] }
-
+| TYPEDEF ty=type_spec d=declarator SEMICOLON
+  {
+    let DVar(typ, Name name, _) = make_dvar ty d in
+    typedef_env := (name, typ) :: !typedef_env;
+    []
+  }
 
 decl_specs:
 | type_spec
@@ -91,9 +93,10 @@ decl_specs:
 type_spec:
 | TINT
   { TInt }
+| TYPEDEF_NAME
+  { List.assoc $1 !typedef_env }
 | struct_spec
-  { $1 } (*hoge*)
-
+  { $1 }
 
 struct_spec:
 | STRUCT name=ID LBRACE l=separated_nonempty_list(SEMICOLON, struct_decl) RBRACE
