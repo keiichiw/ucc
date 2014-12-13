@@ -2,9 +2,11 @@
 type loc = Lexing.position * Lexing.position
 
 type name = Name of string
+type struct_id = int
+type size = int
 type ctype =
   | TInt
-  | TStruct of (name option) * ((dvar list) option)
+  | TStruct of struct_id
   | TPtr of ctype (* pointer *)
   | TArray of ctype * int (* array *)
 and def =
@@ -14,7 +16,6 @@ and block =
   | Block of dvar list * stmt list
 and dvar =
   | DVar of ctype * name * (expr option)
-  | DStruct of name * (dvar list)
 and stmt =
   | SNil
   | SBlock of dvar list * stmt list

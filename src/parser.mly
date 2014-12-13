@@ -2,6 +2,8 @@
   open Syntax
   exception ParserError of string
   exception Unreachable of string
+  let typedef_env = ref []
+  let struct_num = ref 0
   type declarator =
     | DeclPtr of declarator
     | DeclIdent  of name * (expr option)
@@ -22,6 +24,8 @@
         | DVar(typ, name, None) ->
            DVar (TFun(typ, dvs), name, None)
         | _ -> raise (ParserError "make_dvar: fun"))
+  let real_type name =
+    List.assoc name !typedef_env
 %}
 
 %token <int> INT
@@ -77,13 +81,7 @@ decl: // local variables
 | typ=decl_specs; dlist=separated_nonempty_list(COMMA, init_declarator); SEMICOLON
   { List.map (make_dvar typ) dlist }
 | ty=decl_specs SEMICOLON
-  {
-    match ty with
-    | TStruct (Some name, Some dvars) ->
-       [DStruct(name, dvars)]
-    | _ ->
-       raise (ParserError "decl: struct decl")
-  }
+  { [] }
 
 
 decl_specs:
@@ -98,12 +96,23 @@ type_spec:
 
 
 struct_spec:
-| STRUCT id=ID LBRACE l=separated_nonempty_list(SEMICOLON, struct_decl) RBRACE
-  { TStruct (Some (Name id), Some (List.concat l))}
+| STRUCT name=ID LBRACE l=separated_nonempty_list(SEMICOLON, struct_decl) RBRACE
+  {
+    let snum = !struct_num in
+    struct_num := !struct_num + 1;
+    struct_table := (name, snum)::!struct_table;
+    struct_env := (snum, List.concat l)::!struct_env;
+    TStruct(snum)
+  }
 | STRUCT LBRACE l=separated_nonempty_list(SEMICOLON, struct_decl) RBRACE
-  { TStruct (None, Some (List.concat l))}
+  {
+    let snum = !struct_num in
+    struct_num := !struct_num + 1;
+    struct_env := (snum, List.concat l)::!struct_env;
+    TStruct(snum)
+  }
 | STRUCT id=ID
-  { TStruct (Some (Name id), None)}
+  { TStruct (List.assoc id !struct_table)}
 
 struct_decl:
 | decl+

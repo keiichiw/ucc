@@ -22,7 +22,10 @@ let sp_move_stack : int list ref = ref [];;
 let for_continue_flg_ref = ref 0;;
 let fun_name_ref = ref "";;
 let env_ref : (string * (ctype * storageplace)) list ref = ref [];;
-let struct_env_ref : (string * (int * ((string * ctype) list))) list ref = ref [];;
+
+(* This is initialized in main *)
+let struct_env_ref :
+      (struct_id * (size * ((string * ctype) list))) list ref= ref [];;
 
 (* Access ref values*)
 let stack_push stack i =
@@ -96,33 +99,32 @@ let escape_default () =
 
 let resolve_var name =
   List.assoc name !env_ref
-let resolve_struct name =
-  List.assoc name !struct_env_ref
+let resolve_struct s =
+  let rec go s_id = function
+    | [] -> raise (EmitError (sprintf "struct %d not found" s_id))
+    | (s, x)::_ when s_id = s -> x
+    | _::xs -> go s_id xs in
+  go s !struct_env_ref
 
 let rec size_of = function
   | TInt
   | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (size_of ty)
-  | TStruct (Some (Name name),_) ->
-     fst (resolve_struct name)
-  | _ -> raise (TODO "unnameed struct size")
+  | TStruct s_id ->
+     fst (resolve_struct s_id)
 let size_of_dvar = function
   | DVar (ty,_,_) -> size_of ty
-  | DStruct _ -> 0
 let get_dvar_name = function
   | DVar (_,Name n, _) -> n
-  | _ -> raise (Unreachable "get_dvar_name")
 let get_dvar_type = function
   | DVar (t,_, _) -> t
-  | _ -> raise (Unreachable "get_dvar_type")
 let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
     | (DVar (ty, Name name, _))::xs ->
        reg_use i;
        env_ref := (name, (ty, Reg i))::!env_ref;
-       go (i+1) xs
-    | _ -> raise (EmitError "array can't be an argument of function.") in
+       go (i+1) xs in
   go 1 args
 let push_global_var oc = function (* add global var in env *)
   | DVar (ty, Name name, None) ->
@@ -135,12 +137,6 @@ let push_global_var oc = function (* add global var in env *)
      stack_push env_ref (name, (ty, Global label));
      fprintf oc "%s:\n" label;
      fprintf oc "\t.int %d\n" x
-  | DStruct (Name name, dvars) ->
-     let f = (fun dv -> (get_dvar_name dv, get_dvar_type dv)) in
-     let vars = List.map f dvars in
-     let sz = List.fold_left (fun n (_,x) -> n+(size_of x)) 0 vars in
-     stack_push struct_env_ref (name, (sz, vars));
-     ()
   | _ -> raise (TODO "global variables isn\'t supported yet")
 
 
@@ -149,15 +145,15 @@ let push_local_vars vars =
     | DVar (ty, Name name, _) ->
        let sz = size_of ty in
        sp_offset_ref := !sp_offset_ref + sz;
-       stack_push env_ref (name, (ty, Mem !sp_offset_ref))
-    | DStruct (Name name, dvars) ->
-       let f d = (get_dvar_name d, get_dvar_type d) in
-       let vlist = List.map f dvars in
-       let sz = List.fold_left (fun n (_,t) -> n+(size_of t)) 0 vlist in
-       stack_push struct_env_ref (name, (sz, vlist)) in
+       stack_push env_ref (name, (ty, Mem !sp_offset_ref)) in
   List.iter go vars
 (*emit main*)
 let rec main oc defs =
+  let go (i, l) =
+    let sz = List.fold_left (fun num (_, ty) -> num + (size_of ty)) 0 l in
+    let tuple = (i, (sz, l)) in
+    struct_env_ref := tuple::!struct_env_ref in
+  List.iter go !Typing.senv_ref;
   List.iter (emitter oc) defs
 and emitter oc = function
   | DefFun(ty, Name name, args, b) ->
@@ -498,7 +494,7 @@ and ex ret_reg = function
      (match resolve_var name with
       | (_, Reg i) ->
          push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg i)
-      | (TArray _, _)
+      | (TArray  _, _)
       | (TStruct _, _) ->
          lv_addr ret_reg (EVar (t, Name name));
       | _ ->
@@ -532,12 +528,12 @@ and lv_addr ret_reg = function
          raise (EmitError "args \'s address"))
   | EDot (_, expr, Name mem) ->
      (match Typing.typeof expr with
-      | TStruct (Some (Name sname), _) ->
+      | TStruct s_id ->
          let rec go i s = function
            | [] -> raise (Unreachable "edot")
            | (v, _)::_ when v=s -> i
            | (_, ty)::xs -> go (i+(size_of ty)) s xs in
-         let (_, memlist) = resolve_struct sname in
+         let (_, memlist) = resolve_struct s_id in
          let mem_offset = go 0 mem memlist in
          lv_addr ret_reg expr;
          push_buffer (sprintf "\tadd $%d, $%d, %d\n" ret_reg ret_reg mem_offset)

@@ -7,9 +7,10 @@ type loc = Lexing.position * Lexing.position
 type name = Name of string
 type size = int
 type star_num = int
+type id = int
 type ctype =
   | TInt
-  | TStruct of (name option) * ((dvar list) option)
+  | TStruct of id
   | TPtr of ctype
   | TArray of ctype * int
   | TFun of ctype * (dvar list)
@@ -18,7 +19,6 @@ and def =
   | DefVar of dvar
 and dvar =
   | DVar of ctype * name * (expr option)
-  | DStruct of name * (dvar list)
 and block =
   | Block of (dvar list) * (stmt list)
 and stmt =
@@ -58,3 +58,5 @@ and expr =
   | EDot    of expr * name
 and value =
   | VInt of int
+let struct_table : (string * int) list ref = ref [];;
+let struct_env : (int * (dvar list)) list ref = ref [];;

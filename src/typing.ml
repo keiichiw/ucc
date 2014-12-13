@@ -2,14 +2,13 @@ open Format
 exception TypingError of string
 exception TODO of string
 exception Unreachable
+type name = string
 let venv_ref : (string * Type.ctype) list ref = ref [];;
 let fenv_ref : (string * Type.ctype) list ref = ref [];;
-let senv_ref : (string * (Type.dvar list)) list ref = ref [];;
 
-let rec assoc nm  = function
-  | [] -> raise (TypingError (sprintf "assoc \'%s\' not found" nm))
-  | (s, ty)::_ when s=nm -> ty
-  | _ :: xs -> assoc nm xs
+(* This is initialized in main *)
+let senv_ref : (int * ((name * Type.ctype) list)) list ref = ref [];;
+
 let push_stack x env =
   env := x::!env
 let resolve_var_type nm =
@@ -25,23 +24,19 @@ let resolve_fun_type nm =
     | _ :: xs -> go nm xs in
   go nm !fenv_ref
 let resolve_member_type stct mem_name =
-  let go1 = function
-    | Type.DVar (ty, Type.Name n, _) -> (ty, n)
-    | _ -> raise Unreachable in
-  let rec go2 mem = function
-    | [] ->
-       raise (TypingError (sprintf "member \'%s\' not found" mem))
-    | x::xs ->
-       (match (go1 x) with
-        | (ty, name) when name=mem -> ty
-        | _ -> go2 mem xs) in
   match stct with
-  | Type.TStruct (Some (Type.Name struct_name), _) ->
-     let dvs = assoc struct_name !senv_ref in
-     go2 mem_name dvs
+  | Type.TStruct s_id ->
+     let dvs = List.assoc s_id !senv_ref in
+     List.assoc mem_name dvs
   | _ -> raise Unreachable
 
 let rec main defs =
+  let go x =
+    match dv x with
+    | Type.DVar (ty, Type.Name n, _) -> (n, ty) in
+  senv_ref := List.map
+                (fun (mem,ds) -> (mem, List.map go ds))
+                (List.rev !Syntax.struct_env);
   List.map (fun x -> def x) defs
 and def = function
   | Syntax.DefFun (Syntax.DVar (Syntax.TFun(ty, args), Syntax.Name n, None), b) ->
@@ -75,10 +70,6 @@ and dv = function
   | Syntax.DVar(ty, Syntax.Name n, x) ->
      push_stack (n, typ ty) venv_ref;
      Type.DVar(typ ty, Type.Name n, opex x)
-  | Syntax.DStruct(Syntax.Name n, dvars) ->
-     let dvlist = List.map dv dvars in
-     push_stack (n, dvlist) senv_ref;
-     Type.DStruct(Type.Name n, dvlist)
 and st = function
   | Syntax.SNil -> Type.SNil
   | Syntax.SBlock(x, y) ->
@@ -244,10 +235,8 @@ and ex = function
      Type.EDot(typ, ex1, Type.Name nm)
 and typ = function
   | Syntax.TInt -> Type.TInt
-  | Syntax.TStruct (Some (Syntax.Name name), Some dvars) ->
-     Type.TStruct (Some (Type.Name name), Some (List.map dv dvars))
-  | Syntax.TStruct (Some (Syntax.Name name), None) ->
-     Type.TStruct (Some (Type.Name name), None)
+  | Syntax.TStruct i ->
+     Type.TStruct i
   | Syntax.TPtr ty -> Type.TPtr (typ ty)
   | Syntax.TArray (ty, sz) -> Type.TArray (typ ty,sz)
   | _ -> raise (TypingError "typ")
