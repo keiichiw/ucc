@@ -59,11 +59,14 @@
 %%
 
 main:
-| external_decl* EOF { List.concat $1 }
+| external_decl* EOF
+  { List.concat $1 }
 
 external_decl:
-| function_definition  { [$1] }
-| decl { List.map (fun x -> DefVar x) $1 }
+| function_definition
+  { [$1] }
+| decl
+  { List.map (fun x -> DefVar x) $1 }
 
 function_definition:
 | typ=decl_specs d=declarator b=compound_stat?
@@ -76,7 +79,7 @@ function_definition:
     | _ -> raise (Unreachable "fun_definition")
   }
 
-decl: // local variables
+decl:
 | typ=decl_specs; dlist=separated_list(COMMA, init_declarator); SEMICOLON
   { List.map (make_dvar typ) dlist }
 | TYPEDEF ty=type_spec d=declarator SEMICOLON
@@ -121,31 +124,6 @@ struct_decl:
 | decl+
   { List.concat $1 }
 
-declarator:
-| direct_declarator
-  { $1 }
-| STAR declarator
-  { DeclPtr $2 }
-
-direct_declarator:
-| ID
-  { DeclIdent(Name $1, None) }
-| LPAREN declarator RPAREN
-  { $2 }
-| d=direct_declarator LBRACKET i=INT RBRACKET
-  { DeclArray(d, i) }
-| direct_declarator LPAREN param_decl_list RPAREN
-  { DeclFun ($1, $3)}
-| direct_declarator LPAREN RPAREN
-  { DeclFun ($1, [])}
-param_decl_list:
-| param_decl
-  { [$1] }
-| param_decl COMMA param_decl_list
-  { $1::$3 }
-param_decl:
-| decl_specs declarator
-  { make_dvar $1 $2 }
 init_declarator:
 | declarator
   { $1 }
@@ -157,6 +135,34 @@ init_declarator:
     | _ ->
        raise (ParserError "array initializer is unsupported")
   }
+
+declarator:
+| direct_declarator
+  { $1 }
+| STAR declarator
+  { DeclPtr $2 }
+
+direct_declarator:
+| ID
+  { DeclIdent(Name $1, None) }
+| LPAREN declarator RPAREN
+  { $2 }
+| direct_declarator LBRACKET INT RBRACKET
+  { DeclArray($1, $3) }
+| direct_declarator LPAREN param_decl_list RPAREN
+  { DeclFun ($1, $3)}
+| direct_declarator LPAREN RPAREN
+  { DeclFun ($1, [])}
+
+param_decl_list:
+| param_decl
+  { [$1] }
+| param_decl COMMA param_decl_list
+  { $1::$3 }
+
+param_decl:
+| decl_specs declarator
+  { make_dvar $1 $2 }
 
 stat:
 | expr_stat
