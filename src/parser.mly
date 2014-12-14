@@ -85,11 +85,7 @@ decl:
 | typ=decl_specs; dlist=separated_list(COMMA, init_declarator); SEMICOLON
   { List.map (make_dvar typ) dlist }
 | TYPEDEF ty=type_spec d=declarator SEMICOLON
-  {
-    let DVar(typ, Name name, _) = make_dvar ty d in
-    typedef_env := (name, typ) :: !typedef_env;
-    []
-  }
+  { typedef (make_dvar ty d); [] }
 
 decl_specs:
 | type_spec
