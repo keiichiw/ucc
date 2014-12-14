@@ -10,10 +10,8 @@ type ctype =
   | TPtr of ctype (* pointer *)
   | TArray of ctype * int (* array *)
 and def =
-  | DefFun of ctype * name * (dvar list) * block
+  | DefFun of ctype * name * (dvar list) * stmt
   | DefVar of dvar
-and block =
-  | Block of dvar list * stmt list
 and dvar =
   | DVar of ctype * name * (expr option)
 and stmt =

@@ -45,7 +45,7 @@ and def = function
      let old_fenv = !fenv_ref in
      let old_senv = !senv_ref in
      let a1 = List.map dv args in
-     let b1 = bl b in
+     let b1 = st b in
      let ret = Type.DefFun (typ ty, Type.Name n, a1, b1) in
      venv_ref := old_venv;
      fenv_ref := old_fenv;
@@ -54,18 +54,6 @@ and def = function
   | Syntax.DefVar dvar ->
      Type.DefVar (dv dvar)
   | _ -> raise (TypingError "def")
-and bl = function
-  | Syntax.Block (dvar, stmts) ->
-     let old_venv = !venv_ref in
-     let old_fenv = !fenv_ref in
-     let old_senv = !senv_ref in
-     let v = List.map dv dvar in
-     let s = List.map st stmts in
-     let t = Type.Block(v, s) in
-     venv_ref := old_venv;
-     fenv_ref := old_fenv;
-     senv_ref := old_senv;
-     t
 and dv = function
   | Syntax.DVar(ty, Syntax.Name n, x) ->
      push_stack (n, typ ty) venv_ref;

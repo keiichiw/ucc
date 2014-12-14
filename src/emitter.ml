@@ -162,15 +162,29 @@ and emitter oc = function
      let old_env = !env_ref in
      let old_senv = !struct_env_ref in
      push_args args;
-     bl b;
+     st b;
      free_reg_stack := free_regs;
      env_ref := old_env;
      struct_env_ref := old_senv;
      print_buffer oc name
   | DefVar v ->
      push_global_var oc v
-and bl = function
-  | Block (vars, stmts) ->
+and init_local_vars vars =
+  let go = function
+    | DVar (_, Name nm, Some x) ->
+       (match resolve_var nm with
+        | (_, Mem offset) ->
+           let reg = reg_alloc () in
+           ex reg x;
+           push_buffer (sprintf "\tmov [$bp-%d], $%d\n" offset reg);
+           reg_free reg
+        |_ -> raise (Unreachable "init_local_var"))
+    | _ -> () in
+  List.iter go vars
+and st = function
+  | SNil ->
+     ()
+  | SBlock (vars, stmts) ->
      let old_sp = !sp_offset_ref in
      let old_env = !env_ref in
      let old_senv = !struct_env_ref in
@@ -187,22 +201,6 @@ and bl = function
      stack_pop sp_move_stack;
      if sp_move != 0 then
        push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_move)
-and init_local_vars vars =
-  let go = function
-    | DVar (_, Name nm, Some x) ->
-       (match resolve_var nm with
-        | (_, Mem offset) ->
-           let reg = reg_alloc () in
-           ex reg x;
-           push_buffer (sprintf "\tmov [$bp-%d], $%d\n" offset reg);
-           reg_free reg
-        |_ -> raise (Unreachable "init_local_var"))
-    | _ -> () in
-  List.iter go vars
-and st = function
-  | SNil -> ()
-  | SBlock (x,y) ->
-     bl (Block (x,y))
   | SWhile (cond, b) ->
      let beginlabel = label_create () in
      let endlabel = label_create () in

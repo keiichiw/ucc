@@ -15,12 +15,10 @@ type ctype =
   | TArray of ctype * int
   | TFun of ctype * (dvar list)
 and def =
-  | DefFun of dvar * block
+  | DefFun of dvar * stmt
   | DefVar of dvar
 and dvar =
   | DVar of ctype * name * (expr option)
-and block =
-  | Block of (dvar list) * (stmt list)
 and stmt =
   | SNil
   | SBlock of dvar list * stmt list

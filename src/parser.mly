@@ -79,12 +79,7 @@ external_decl:
 
 function_definition:
 | typ=decl_specs d=declarator b=compound_stat
-  {
-    match b with
-    | SBlock (ds, ss) ->
-       DefFun (make_dvar typ d, Block(ds, ss))
-    | _ -> raise (Unreachable "fun_definition")
-  }
+  { DefFun (make_dvar typ d, b) }
 
 decl:
 | typ=decl_specs; dlist=separated_list(COMMA, init_declarator); SEMICOLON
