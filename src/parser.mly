@@ -6,21 +6,21 @@
   let struct_num = ref 0;;
   type declarator =
     | DeclPtr of declarator
-    | DeclIdent  of name * (expr option)
+    | DeclIdent  of name
     | DeclArray  of declarator * size
     | DeclFun of declarator * (dvar list)
   let rec make_dvar ty = function
-    | DeclPtr d ->
-       make_dvar (TPtr ty) d
-    | DeclIdent (name, exp) ->
+    | (DeclPtr d, exp) ->
+       make_dvar (TPtr ty) (d, exp)
+    | (DeclIdent name, exp) ->
        DVar(ty, name, exp)
-    | DeclArray (d, sz) ->
-       (match make_dvar ty d with
+    | (DeclArray (d, sz), exp) ->
+       (match make_dvar ty (d,exp) with
         | DVar(typ, name, None) ->
            DVar (TArray(typ, sz), name, None)
         | _ -> raise (ParserError "make_dvar: array"))
-    | DeclFun (d, dvs) ->
-       (match make_dvar ty d with
+    | (DeclFun (d, dvs), exp) ->
+       (match make_dvar ty (d,exp) with
         | DVar(typ, name, None) ->
            DVar (TFun(typ, dvs), name, None)
         | _ -> raise (ParserError "make_dvar: fun"))
@@ -79,13 +79,13 @@ external_decl:
 
 function_definition:
 | typ=decl_specs d=declarator b=compound_stat
-  { DefFun (make_dvar typ d, b) }
+  { DefFun (make_dvar typ (d,None), b) }
 
 decl:
 | typ=decl_specs; dlist=separated_list(COMMA, init_declarator); SEMICOLON
   { List.map (make_dvar typ) dlist }
 | TYPEDEF ty=type_spec d=declarator SEMICOLON
-  { typedef (make_dvar ty d); [] }
+  { typedef (make_dvar ty (d, None)); [] }
 
 decl_specs:
 | type_spec
@@ -111,15 +111,9 @@ struct_decl:
 
 init_declarator:
 | declarator
-  { $1 }
+  { ($1, None) }
 | declarator ASSIGN assign_expr
-  {
-    match $1 with
-    | DeclIdent(name, _) ->
-       DeclIdent(name, Some $3)
-    | _ ->
-       raise (ParserError "array initializer is unsupported")
-  }
+  { ($1, Some $3) }
 
 declarator:
 | direct_declarator
@@ -129,7 +123,7 @@ declarator:
 
 direct_declarator:
 | ID
-  { DeclIdent(Name $1, None) }
+  { DeclIdent(Name $1) }
 | LPAREN declarator RPAREN
   { $2 }
 | direct_declarator LBRACKET INT RBRACKET
@@ -147,7 +141,7 @@ param_decl_list:
 
 param_decl:
 | decl_specs declarator
-  { make_dvar $1 $2 }
+  { make_dvar $1 ($2, None) }
 
 stat:
 | expr_stat
