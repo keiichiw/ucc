@@ -24,6 +24,15 @@
         | DVar(typ, name, None) ->
            DVar (TFun(typ, dvs), name, None)
         | _ -> raise (ParserError "make_dvar: fun"))
+  let make_structty name_opt decl =
+    let snum = !struct_num in
+    struct_num := !struct_num + 1;
+    (match name_opt with
+     | Some name ->
+        struct_table := (name, snum)::!struct_table
+     | None -> ());
+    struct_env := (snum, decl)::!struct_env;
+    TStruct(snum)
 %}
 
 %token <int> INT
@@ -102,27 +111,14 @@ type_spec:
   { $1 }
 
 struct_spec:
-| STRUCT name=ID LBRACE l=separated_nonempty_list(SEMICOLON, struct_decl) RBRACE
-  {
-    let snum = !struct_num in
-    struct_num := !struct_num + 1;
-    struct_table := (name, snum)::!struct_table;
-    struct_env := (snum, List.concat l)::!struct_env;
-    TStruct(snum)
-  }
-| STRUCT LBRACE l=separated_nonempty_list(SEMICOLON, struct_decl) RBRACE
-  {
-    let snum = !struct_num in
-    struct_num := !struct_num + 1;
-    struct_env := (snum, List.concat l)::!struct_env;
-    TStruct(snum)
-  }
-| STRUCT id=ID
-  { TStruct (List.assoc id !struct_table)}
+| STRUCT ID? LBRACE struct_decl+ RBRACE
+  { make_structty $2 (List.concat $4) }
+| STRUCT ID
+  { TStruct (List.assoc $2 !struct_table)}
 
 struct_decl:
-| decl+
-  { List.concat $1 }
+| decl
+  { $1 }
 
 init_declarator:
 | declarator
