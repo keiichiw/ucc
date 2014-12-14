@@ -78,13 +78,11 @@ external_decl:
   { List.map (fun x -> DefVar x) $1 }
 
 function_definition:
-| typ=decl_specs d=declarator b=compound_stat?
+| typ=decl_specs d=declarator b=compound_stat
   {
     match b with
-    | Some(SBlock (ds, ss)) ->
+    | SBlock (ds, ss) ->
        DefFun (make_dvar typ d, Block(ds, ss))
-    | None ->
-       raise (ParserError "fun_definition: proto")
     | _ -> raise (Unreachable "fun_definition")
   }
 
