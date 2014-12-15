@@ -11,17 +11,19 @@
     | DeclFun of declarator * (dvar list)
   let rec make_dvar ty (decl, exp) =
     let name = ref (Name "") in
-    let rec go k = function
-      | DeclIdent n ->
-         name := n;
-         k ty
-      | DeclPtr d ->
-         go (fun x -> TPtr (k x)) d
-      | DeclArray (d, sz) ->
-         go (fun x -> TArray (k x, sz)) d
-      | DeclFun (d, dvs) ->
-         go (fun x -> TFun (k x, dvs)) d in
-    DVar (go (fun x -> x) decl, !name, exp)
+    let ty =
+      let rec go k = function
+        | DeclIdent n ->
+           name := n;
+           k ty
+        | DeclPtr d ->
+           go (fun x -> TPtr (k x)) d
+        | DeclArray (d, sz) ->
+           go (fun x -> TArray (k x, sz)) d
+        | DeclFun (d, dvs) ->
+           go (fun x -> TFun (k x, dvs)) d in
+      go (fun x -> x) decl in
+    DVar (ty, !name, exp)
   let make_structty name_opt decl =
     let snum = !struct_num in
     struct_num := !struct_num + 1;
