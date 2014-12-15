@@ -5,6 +5,10 @@
 }
 
 let digit = ['0'-'9']
+let dec = ['1'-'9'] digit*
+let oct = '0' ['0'-'7']*
+let hex = '0' ['x' 'X'] ['0'-'9' 'a'-'f' 'A'-'F']+
+let bin = '0' ['b' 'B'] ['0' '1']+
 let space = ' ' | '\t'
 let alpha = ['a'-'z' 'A'-'Z' '_' ]
 let ident = alpha (alpha | digit)*
@@ -139,7 +143,13 @@ rule token = parse
     { commentbis lexbuf }
 | "/*"
     { comment lexbuf }
-| digit+ as i
+| bin as i
+    { INT (int_of_string i) }
+| dec as i
+    { INT (int_of_string i) }
+| oct as i
+    { INT (int_of_string ("0o"^i)) }
+| hex as i
     { INT (int_of_string i) }
 | ident  as n
     {
