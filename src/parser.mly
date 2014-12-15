@@ -9,21 +9,21 @@
     | DeclIdent  of name
     | DeclArray  of declarator * size
     | DeclFun of declarator * (dvar list)
-  let rec make_dvar ty = function
-    | (DeclPtr d, exp) ->
-       make_dvar (TPtr ty) (d, exp)
-    | (DeclIdent name, exp) ->
-       DVar(ty, name, exp)
-    | (DeclArray (d, sz), exp) ->
-       (match make_dvar ty (d,exp) with
-        | DVar(typ, name, None) ->
-           DVar (TArray(typ, sz), name, None)
-        | _ -> raise (ParserError "make_dvar: array"))
-    | (DeclFun (d, dvs), exp) ->
-       (match make_dvar ty (d,exp) with
-        | DVar(typ, name, None) ->
-           DVar (TFun(typ, dvs), name, None)
-        | _ -> raise (ParserError "make_dvar: fun"))
+  let rec make_dvar ty (decl, exp) =
+    let name = ref (Name "") in
+    let ty =
+      let rec go k = function
+        | DeclIdent n ->
+           name := n;
+           k ty
+        | DeclPtr d ->
+           go (fun x -> TPtr (k x)) d
+        | DeclArray (d, sz) ->
+           go (fun x -> TArray (k x, sz)) d
+        | DeclFun (d, dvs) ->
+           go (fun x -> TFun (k x, dvs)) d in
+      go (fun x -> x) decl in
+    DVar (ty, !name, exp)
   let make_structty name_opt decl =
     let snum = !struct_num in
     struct_num := !struct_num + 1;
