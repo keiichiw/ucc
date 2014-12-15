@@ -2,6 +2,23 @@
   open Parser
   open Parser_helper
   exception Error of string
+
+  let cast_char_to_int s =
+    let table = [
+      ('a', 7); ('b', 8); ('t', 9); ('n', 10);
+      ('v', 11); ('f', 12); ('r', 13); ('"', 34);
+      ('\'', 39); ('?', 63); ('\\', 92);
+    ] in
+    if s.[0] <> '\\' then
+      Char.code(s.[0])
+    else try
+      List.assoc s.[1] table
+    with Not_found ->
+      let len = String.length s in
+      if s.[1] = 'x' then
+        int_of_string ("0x" ^ String.sub s 2 (len - 2))
+      else
+        int_of_string ("0o" ^ String.sub s 1 (len - 1))
 }
 
 let digit = ['0'-'9']
@@ -12,6 +29,9 @@ let bin = '0' ['b' 'B'] ['0' '1']+
 let space = ' ' | '\t'
 let alpha = ['a'-'z' 'A'-'Z' '_' ]
 let ident = alpha (alpha | digit)*
+let escapes = ['a' 'b' 't' 'n' 'v' 'f' 'r' '"' '\'' '?' '\\']
+let char = [^'\\'] | '\\' (escapes | ['0'-'7']+ | 'x' ['0'-'9' 'a'-'f' 'A'-'F']+)
+
 rule token = parse
 | space
     { token lexbuf }
@@ -92,9 +112,9 @@ rule token = parse
 | '~'
     { TILDE }
 | "=="
-    { EQ}
+    { EQ }
 | "!="
-    { NEQ}
+    { NEQ }
 | "="
     { ASSIGN }
 | "+="
@@ -151,6 +171,8 @@ rule token = parse
     { INT (int_of_string ("0o"^i)) }
 | hex as i
     { INT (int_of_string i) }
+| '\'' (char as c) '\''
+    { INT (cast_char_to_int c) }
 | ident  as n
     {
       if is_typedef_name n then
