@@ -474,11 +474,23 @@ and ex ret_reg = function
        (match f with
         | EVar (_, Name nm) -> nm
         | _ -> raise (EmitError "EApp: fname")) in
+     let arg_num = List.length exlst in
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
-     List.iter (fun i -> push_buffer (sprintf "\tpush $%d\n" i))
+     let arg_list = List.rev (List.fold_left
+                      (fun l e ->
+                       let reg = reg_alloc () in
+                       ex reg e;
+                       reg::l) [] exlst )in
+     List.iter (fun reg ->
+                reg_free reg;
+                push_buffer (sprintf "\tpush $%d\n" reg))
                used_reg;
-     reg_free_all ();
-     let _ = List.fold_left (fun i e -> reg_use i;ex i e; i+1) 1 exlst in
+     List.iter (fun reg ->
+                reg_free reg;
+                push_buffer (sprintf "\tpush $%d\n" reg))
+               arg_list;
+     List.iteri (fun i _ -> push_buffer (sprintf "\tpop $%d\n" (arg_num-i)))
+                arg_list;
      reg_free_all ();
      push_buffer (sprintf "\tcall %s\n" fname);
      reg_use ret_reg;

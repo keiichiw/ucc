@@ -4,7 +4,7 @@ if ! gcc -w -fsyntax-only $1;
 then
     exit 1;
 fi
-cpp $1 > $1.x
+cpp -D "__UCC__" $1 > $1.x
 $dir/cc $1.x
 $dir/as $1.x.s -l $dir/../lib/libucc.s
 rm $1.x $1.x.s
