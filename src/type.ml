@@ -1,6 +1,3 @@
-(*location*)
-type loc = Lexing.position * Lexing.position
-
 type name = Name of string
 type struct_id = int
 type size = int
@@ -47,6 +44,7 @@ and expr =
   | ECond   of ctype * expr * expr * expr
   | EAnd    of ctype * expr * expr
   | EOr     of ctype * expr * expr
+  | EArray  of ctype * expr * expr
   | EDot    of ctype * expr * name
 and value =
   | VInt of int

@@ -509,6 +509,12 @@ and ex ret_reg = function
   | EPtr (_, e) ->
      ex ret_reg e;
      push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg)
+  | EArray (t, e1, e2) ->
+     lv_addr ret_reg (EArray (t, e1, e2));
+     (match t with
+      | TArray _ | TStruct _ -> ()
+      | _ ->
+         push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg))
   | EDot (t, e, Name name) ->
      lv_addr ret_reg (EDot (t, e, Name name));
      (match t with
@@ -536,6 +542,8 @@ and lv_addr ret_reg = function
          lv_addr ret_reg expr;
          push_buffer (sprintf "\tadd $%d, $%d, %d\n" ret_reg ret_reg mem_offset)
       | _ -> raise (EmitError "lv_addr dot"))
+  | EArray (ty, e1, e2) ->
+     ex ret_reg (EAdd(Type.TPtr ty, e1, e2))
   | EPtr (_, e) -> ex ret_reg e
   | e ->
      (match Typing.typeof e with

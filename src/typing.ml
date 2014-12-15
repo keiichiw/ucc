@@ -194,7 +194,13 @@ and ex = function
       | Type.TPtr ty -> Type.EPtr (ty, ex1)
       | _ -> raise (TypingError "ptr"))
   | Syntax.EArray (e1, e2) ->
-     ex (Syntax.EPtr (Syntax.EAdd (e1, e2)))
+     let ex1 = ex e1 in
+     let ex2 = ex e2 in
+     (match typeof ex1 with
+      | Type.TPtr ty
+      | Type.TArray (ty,_) ->
+         Type.EArray (ty, ex1, ex2)
+      | _ -> raise (TypingError "typing: earray"))
   | Syntax.ECond (e1, e2, e3) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
@@ -248,3 +254,4 @@ and typeof = function
   | Type.EAnd   (t, _, _) ->t
   | Type.EOr    (t, _, _) ->t
   | Type.EDot   (t, _, _) ->t
+  | Type.EArray (t, _, _) ->t
