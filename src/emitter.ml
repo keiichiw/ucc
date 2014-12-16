@@ -4,7 +4,6 @@ exception EmitError of string
 exception TODO of string
 exception Unreachable of string
 type storageplace =
-  | Reg of int (*register*)
   | Mem of int (*memory*)
   | Global of string
 let register_list = [1;2;3;4;5;6;7;8;9;10;11];;
@@ -120,10 +119,9 @@ let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
     | (DVar (ty, Name name, _))::xs ->
-       reg_use i;
-       env_ref := (name, (ty, Reg i))::!env_ref;
-       go (i+1) xs in
-  go 1 args
+       env_ref := (name, (ty, Mem i))::!env_ref;
+       go (i-1) xs in
+  go (-2) args
 let push_global_var oc = function (* add global var in env *)
   | DVar (ty, Name name, None) ->
      let label = sprintf "global_%s" name in
@@ -483,11 +481,11 @@ and ex ret_reg = function
         | _ -> raise (EmitError "EApp: fname")) in
      let arg_num = List.length exlst in
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
-     let arg_list = List.rev (List.fold_left
+     let arg_list = List.fold_left
                       (fun l e ->
                        let reg = reg_alloc () in
                        ex reg e;
-                       reg::l) [] exlst )in
+                       reg::l) [] exlst in
      List.iter (fun reg ->
                 reg_free reg;
                 push_buffer (sprintf "\tpush $%d\n" reg))
@@ -496,21 +494,22 @@ and ex ret_reg = function
                 reg_free reg;
                 push_buffer (sprintf "\tpush $%d\n" reg))
                arg_list;
-     List.iteri (fun i _ -> push_buffer (sprintf "\tpop $%d\n" (arg_num-i)))
-                arg_list;
      reg_free_all ();
      push_buffer (sprintf "\tcall %s\n" fname);
      reg_use ret_reg;
      if ret_reg != 1 then
        push_buffer (sprintf "\tmov $%d, $1\n" ret_reg);
+     let reg = reg_alloc () in
+     List.iter (fun i ->
+                push_buffer (sprintf "\tpop $%d\n" reg))
+               arg_list;
+     reg_free reg;
      List.iter (fun i ->
                 reg_use i;
                 push_buffer (sprintf "\tpop $%d\n" i))
                (List.rev used_reg)
   | EVar (t, Name name) ->
      (match resolve_var name with
-      | (_, Reg i) ->
-         push_buffer (sprintf "\tmov $%d, $%d\n" ret_reg i)
       | (TArray  _, _)
       | (TStruct _, _) ->
          lv_addr ret_reg (EVar (t, Name name));
