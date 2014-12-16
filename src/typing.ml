@@ -177,17 +177,21 @@ and ex = function
   | Syntax.EAssign (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     Type.EAssign (typeof ex2, ex1, ex2)
+     Type.EAssign (typeof ex1, ex1, ex2)
   | Syntax.EApp (e1, elist) ->
      let ex1 = ex e1 in
      Type.EApp (typeof ex1, ex1, List.map ex elist)
   | Syntax.ELe (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     if (typeof ex1) = (typeof ex2) then
-       Type.ELe (Type.TInt, ex1, ex2)
-     else
-       raise (TypingError "le")
+     (match (typeof ex1, typeof ex2) with
+      | (Type.TInt, Type.TInt) ->
+         Type.ELe (Type.TInt, ex1, ex2)
+      | (Type.TUnsigned, _)
+      | (_, Type.TUnsigned) ->
+         raise (TypingError "le: unsigned")
+      | _ ->
+         raise (TypingError "le"))
   | Syntax.EEq (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
