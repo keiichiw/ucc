@@ -137,9 +137,7 @@ and ex = function
       | (Type.TUnsigned, _) ->
          Type.EAdd (Type.TUnsigned, ex1, ex2)
       | (Type.TInt, Type.TInt) ->
-         Type.EAdd (Type.TInt, ex1, ex2)
-      | _ ->
-         raise (TypingError "add: unreachable"))
+         Type.EAdd (Type.TInt, ex1, ex2))
   | Syntax.ESub (e1, e2) ->
      let ex1 = ex e1 in
      let ty1 = typeof ex1 in
@@ -158,9 +156,7 @@ and ex = function
       | (Type.TUnsigned, _) ->
          Type.ESub (Type.TUnsigned, ex1, ex2)
       | (Type.TInt, Type.TInt) ->
-         Type.ESub (Type.TInt, ex1, ex2)
-      | _ ->
-         raise (TypingError "sub: unreachable"))
+         Type.ESub (Type.TInt, ex1, ex2))
   | Syntax.EShift (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in

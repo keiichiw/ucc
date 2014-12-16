@@ -412,13 +412,33 @@ and ex ret_reg = function
          reg_free reg
       | (TInt, TPtr _)
       | (TInt, TArray _) -> ex ret_reg (EAdd (t1, e2, e1))
-      | _ -> raise (EmitError "hoge"))
-  | ESub (_, e1, e2) ->
-     ex ret_reg e1;
-     let rreg = reg_alloc () in
-     ex rreg e2;
-     push_buffer (sprintf "\tsub $%d, $%d, $%d\n" ret_reg ret_reg rreg);
-     reg_free rreg
+      | _ -> raise (EmitError "add"))
+  | ESub (t1, e1, e2) ->
+     (match (Typing.typeof e1, Typing.typeof e2) with
+      | (TUnsigned, TUnsigned)
+      | (TUnsigned, TInt)
+      | (TInt, TUnsigned)
+      | (TInt, TInt) ->
+         ex ret_reg e1;
+         let rreg = reg_alloc () in
+         ex rreg e2;
+         push_buffer (sprintf "\tsub $%d, $%d, $%d\n" ret_reg ret_reg rreg);
+         reg_free rreg
+      | (TPtr ty, TInt)
+      | (TArray (ty, _), TInt) ->
+         let ty_size = size_of ty in
+         ex ret_reg e1;
+         let reg = reg_alloc () in
+         if ty_size = 1 then
+           ex reg e2
+         else
+           ex reg (EApp (TInt, EVar(TInt, Name "__mul"),
+                         [e2; EConst(TInt, VInt (size_of ty))]));
+         push_buffer (sprintf "\tsub $%d, $%d, $%d\n" ret_reg ret_reg reg);
+         reg_free reg
+      | (TInt, TPtr _)
+      | (TInt, TArray _) -> ex ret_reg (ESub (t1, e2, e1))
+      | _ -> raise (EmitError "sub"))
   | EShift (_, e1, e2) ->
      (match Typing.typeof e1 with
       | TUnsigned ->
@@ -430,6 +450,7 @@ and ex ret_reg = function
       | TInt ->
          ex ret_reg (EApp (TInt, EVar(TInt, Name "__ash"),
                            [e1; e2]));
+      | _ -> raise (EmitError "shift")
      )
   | ELe (_, e1, e2) ->
      let lnum = label_create () in
@@ -475,7 +496,6 @@ and ex ret_reg = function
        (match f with
         | EVar (_, Name nm) -> nm
         | _ -> raise (EmitError "EApp: fname")) in
-     let arg_num = List.length exlst in
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
      let arg_list = List.fold_left
                       (fun l e ->
@@ -512,7 +532,7 @@ and ex ret_reg = function
       | _ ->
          lv_addr ret_reg (EVar (t, Name name));
          push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg))
-  | EAssign (_, e1, e2) -> (*引数に代入できない*)
+  | EAssign (_, e1, e2) ->
      let reg = reg_alloc () in
      lv_addr reg e1;
      ex ret_reg e2;
@@ -550,9 +570,7 @@ and lv_addr ret_reg = function
       | (_, Mem offset) ->
          push_buffer (sprintf "\tsub $%d, $bp, %d\n" ret_reg offset)
       | (_, Global label) ->
-         push_buffer (sprintf "\tmov $%d, %s\n" ret_reg label)
-      | _ ->
-         raise (EmitError "args \'s address"))
+         push_buffer (sprintf "\tmov $%d, %s\n" ret_reg label))
   | EDot (_, expr, Name mem) ->
      (match Typing.typeof expr with
       | TStruct s_id ->
