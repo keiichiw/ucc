@@ -24,21 +24,33 @@ int __bitset (int n, int i, int x) {
 }
 
 int __div_kernel (int n, int d, int *q1, int *r1) {
-  int q, r, i;
+  int q, r, i, nflg;
+  int ntmp, dtmp;
   q = r = 0;
-  if (d == 0) {
+
+  nflg = (n < 0) ^ (d < 0);
+  ntmp = (n < 0) ? -n : n;
+  dtmp = (d < 0) ? -d : d;
+
+  if (dtmp == 0) {
     return 0;
   }
-  for (i=n-1; i>=0; i-=1) {
+  for (i=ntmp-1; i>=0; i-=1) {
     int ni;
     r = r << 1;
-    ni = __bitget(n, i);
+    ni = __bitget(ntmp, i);
     r = __bitset(r, 0, ni);
-    if (r >= d) {
-      r = r - d;
+    if (r >= dtmp) {
+      r = r - dtmp;
       q = __bitset(q, i, 1);
     }
   }
+
+  if (nflg == 1) {
+    q = -q;
+    r = -r;
+  }
+
   *q1 = q;
   *r1 = r;
   return 0;
