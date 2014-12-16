@@ -9,6 +9,7 @@ lib/libucc.s: lib/libucc.c lib/intrinsics.s bin/cc
 	cat lib/intrinsics.s >> lib/libucc.s
 
 bin/sim:
+	git submodule update --init
 	$(MAKE) -C extlib/sim/Yebi
 	cp extlib/sim/Yebi/ysim bin/sim
 	$(MAKE) -C extlib/sim/Yebi clean
