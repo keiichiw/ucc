@@ -24,6 +24,12 @@
            go (fun x -> TFun (k x, dvs)) d in
       go (fun x -> x) decl in
     DVar (ty, !name, exp)
+  let make_type ty decl =
+    (match make_dvar ty (decl, None) with
+     | DVar (ty, Name "", None) ->
+        ty
+     | _ ->
+        raise (ParserError "make_type"))
   let make_structty name_opt decl =
     let snum = !struct_num in
     struct_num := !struct_num + 1;
@@ -33,6 +39,9 @@
      | None -> ());
     struct_env := (snum, decl)::!struct_env;
     TStruct(snum)
+  let rec fold_expr = function
+    | EConst (VInt i) -> i
+    | _ -> raise (ParserError "fold_expr")
 %}
 
 %token <int> INT
@@ -126,7 +135,7 @@ direct_declarator:
   { DeclIdent(Name $1) }
 | LPAREN declarator RPAREN
   { $2 }
-| direct_declarator LBRACKET INT RBRACKET
+| direct_declarator LBRACKET const_expr RBRACKET
   { DeclArray($1, $3) }
 | direct_declarator LPAREN param_decl_list RPAREN
   { DeclFun ($1, $3)}
@@ -142,6 +151,32 @@ param_decl_list:
 param_decl:
 | decl_specs declarator
   { make_dvar $1 ($2, None) }
+
+type_name:
+| type_spec
+  { make_type $1 (DeclIdent (Name "")) }
+| type_spec abstract_declarator
+  { make_type $1 $2 }
+
+abstract_declarator:
+| STAR
+  { DeclPtr (DeclIdent (Name "")) }
+| STAR direct_abstract_declarator
+  { DeclPtr $2 }
+| direct_abstract_declarator
+  { $1 }
+
+direct_abstract_declarator:
+| LPAREN abstract_declarator RPAREN
+  { $2 }
+| LBRACKET const_expr RBRACKET
+  { DeclArray (DeclIdent (Name ""), $2) }
+| LPAREN param_decl_list RPAREN
+  { DeclFun (DeclIdent (Name ""), $2) }
+| direct_abstract_declarator LBRACKET const_expr RBRACKET
+  { DeclArray ($1, $3) }
+| direct_abstract_declarator LPAREN param_decl_list RPAREN
+  { DeclFun ($1, $3) }
 
 stat:
 | expr_stat
@@ -239,6 +274,10 @@ cond_expr:
 | logor_expr COND expr COLON cond_expr
   { ECond($1, $3, $5) }
 
+const_expr:
+| cond_expr
+  { fold_expr $1 }
+
 logor_expr:
 | logand_expr
   { $1 }
@@ -318,6 +357,8 @@ multiplicative_expr:
 cast_expr:
 | unary_expr
   { $1 }
+| LPAREN type_name RPAREN cast_expr
+  { ECast($2, $4) }
 
 unary_expr:
 | postfix_expr
@@ -342,8 +383,8 @@ unary_expr:
 postfix_expr:
 | primary_expr
   { $1 }
-| v=postfix_expr LBRACKET e=expr RBRACKET
-  { EArray(v, e) }
+| postfix_expr LBRACKET expr RBRACKET
+  { EArray($1, $3) }
 | postfix_expr INC
   (* i++ -> (++i,i-1) *)
   { EComma(EAssign($1, EAdd($1, EConst(VInt(1)))), ESub($1, EConst(VInt(1)))) }

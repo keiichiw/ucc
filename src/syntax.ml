@@ -54,6 +54,7 @@ and expr =
   | EAnd    of expr * expr
   | EOr     of expr * expr
   | EDot    of expr * name
+  | ECast   of ctype * expr
 and value =
   | VInt of int
 let struct_table : (string * int) list ref = ref [];;

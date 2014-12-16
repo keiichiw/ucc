@@ -46,5 +46,6 @@ and expr =
   | EOr     of ctype * expr * expr
   | EArray  of ctype * expr * expr
   | EDot    of ctype * expr * name
+  | ECast   of ctype * ctype * expr
 and value =
   | VInt of int
