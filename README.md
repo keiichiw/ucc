@@ -2,11 +2,19 @@
 
 C compiler for [Yebi](https://github.com/wasabiz/Yebi) CPU written in OCaml.
 
-Compile
+Requirement
+==============
+* OCaml 4.0.1
+* ocamlbuild 4.0.1
+* Menhir 20140422
+
+Build
 ==============
 ``make``
 
-You need OCaml and menhir.
+To run the tests, use the following command.
+
+``make test``
 
 Example
 ==========
@@ -14,6 +22,12 @@ Example
 
 Then ``./test/fib-loop.out`` will be created.
 
-You can simulate by running the following command.
+(If you use `./bin/cc` instead of `./bin/ucc`, assembly `./test/fib-loop.s`  will be generated.)
+
+By the following command, you can run this binary on simulator.
 
 ``./bin/sim ./test/fib-loop.out``
+
+You can also run a test.
+
+``prove ./test/fib-loop.c``
