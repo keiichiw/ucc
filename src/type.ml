@@ -25,7 +25,7 @@ and stmt =
   | SLabel of string * stmt
   | SGoto of string
   | SSwitch of expr * stmt
-  | SCase of expr
+  | SCase of int
   | SDefault
   | SExpr of expr
 and expr =

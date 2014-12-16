@@ -39,8 +39,17 @@
      | None -> ());
     struct_env := (snum, decl)::!struct_env;
     TStruct(snum)
+  let to_int b = if b then 1 else 0
   let rec fold_expr = function
     | EConst (VInt i) -> i
+    | EAdd (e1, e2) -> (fold_expr e1) + (fold_expr e2)
+    | ESub (e1, e2) -> (fold_expr e1) - (fold_expr e2)
+    | ELe (e1, e2) -> to_int @@ ((fold_expr e1) < (fold_expr e2))
+    | EEq (e1, e2) -> to_int @@ ((fold_expr e1) = (fold_expr e2))
+    | ENeq (e1, e2) -> to_int @@ ((fold_expr e1) != (fold_expr e2))
+    | ECond (e1, e2, e3) -> if fold_expr e1 != 0 then fold_expr e2 else fold_expr e3
+    | EAnd (e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
+    | EOr (e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
     | _ -> raise (ParserError "fold_expr")
 %}
 
@@ -233,7 +242,7 @@ jump_stat:
 labeled_stat:
 | ID COLON stat
   { SLabel($1, $3) }
-| CASE cond_expr COLON
+| CASE const_expr COLON
   { SCase($2) }
 | DEFAULT COLON
   { SDefault }
