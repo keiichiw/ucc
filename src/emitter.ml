@@ -533,6 +533,15 @@ and ex ret_reg = function
       | TArray _ | TStruct _ -> ()
       | _ ->
          push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg))
+  | ECast (t1, t2, e) ->
+     (match (t1, t2) with
+      | (TStruct _, _)
+      | (_, TStruct _)
+      | (TArray _, _)
+      | (_, TArray _) ->
+         raise (EmitError "ECast")
+      | _ ->
+         ex ret_reg e)
 and lv_addr ret_reg = function
   | EVar (_, Name name) ->
      (match resolve_var name with
