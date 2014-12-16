@@ -1,4 +1,5 @@
-int print_int (int n) {
+int print_int (int a) {
+  unsigned n = a;
   asm_write(n>>24);
   asm_write(n>>16);
   asm_write(n>>8);
@@ -6,7 +7,7 @@ int print_int (int n) {
   return 0;
 }
 
-int __bitget (int n, int i) {
+int __bitget (unsigned n, unsigned i) {
   return (n<<(31-i))>>31;
 }
 
@@ -81,9 +82,8 @@ int __and(int a, int b) {
 }
 
 int __or(int a, int b) {
-  int i, x;
-
-  x = 0;
+  int i;
+  unsigned x = 0;
   for (i = 31; i >= 0; --i) {
     x = x << 1;
     if (__bitget(a, i) + __bitget(b, i) >= 1) {
@@ -95,12 +95,11 @@ int __or(int a, int b) {
 }
 
 int __not(int a) {
-  return a ? 0 : 1;
+  return (-a)-1;
 }
 
 int __xor(int a, int b) {
   int i, x;
-
   x = 0;
   for (i = 31; i >= 0; --i) {
     x = x << 1;
@@ -110,4 +109,33 @@ int __xor(int a, int b) {
   }
 
   return x;
+}
+
+int __ashr(int a, int b) {
+  unsigned ua = a;
+  unsigned ub = b;
+  int r;
+  if (a < 0) {
+    int x1, x2;
+    unsigned x = ~0;
+    x >>= ub;
+    x1 = ~x;
+    x2 = (ua>>ub);
+    r = x1 | x2;
+  } else {
+    r = (ua >> ub);
+  }
+  return r;
+}
+
+int __ash (int a, int b) {
+  int r;
+  if (0>b) {
+    r = __ashr(a, -b);
+  } else {
+    unsigned ua = a;
+    unsigned ub = b;
+    r = (ua << ub);
+  }
+  return r;
 }

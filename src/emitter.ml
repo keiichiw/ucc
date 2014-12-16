@@ -105,6 +105,7 @@ let resolve_struct s =
 
 let rec size_of = function
   | TInt
+  | TUnsigned
   | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (size_of ty)
   | TStruct s_id ->
@@ -394,6 +395,9 @@ and ex ret_reg = function
      push_buffer (sprintf "L%d:\n" l2)
   | EAdd (t1, e1, e2) ->
      (match (Typing.typeof e1, Typing.typeof e2) with
+      | (TUnsigned, TUnsigned)
+      | (TUnsigned, TInt)
+      | (TInt, TUnsigned)
       | (TInt, TInt) ->
          ex ret_reg e1;
          let rreg = reg_alloc () in
@@ -422,11 +426,17 @@ and ex ret_reg = function
      push_buffer (sprintf "\tsub $%d, $%d, $%d\n" ret_reg ret_reg rreg);
      reg_free rreg
   | EShift (_, e1, e2) ->
-     ex ret_reg e1;
-     let rreg = reg_alloc () in
-     ex rreg e2;
-     push_buffer (sprintf "\tshift $%d, $%d, $%d\n" ret_reg ret_reg rreg);
-     reg_free rreg
+     (match Typing.typeof e1 with
+      | TUnsigned ->
+         ex ret_reg e1;
+         let rreg = reg_alloc () in
+         ex rreg e2;
+         push_buffer (sprintf "\tshift $%d, $%d, $%d\n" ret_reg ret_reg rreg);
+         reg_free rreg
+      | TInt ->
+         ex ret_reg (EApp (TInt, EVar(TInt, Name "__ash"),
+                           [e1; e2]));
+     )
   | ELe (_, e1, e2) ->
      let lnum = label_create () in
      let lreg = reg_alloc () in

@@ -3,6 +3,7 @@ type struct_id = int
 type size = int
 type ctype =
   | TInt
+  | TUnsigned
   | TStruct of struct_id
   | TPtr of ctype (* pointer *)
   | TArray of ctype * int (* array *)

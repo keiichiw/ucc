@@ -10,6 +10,7 @@ type star_num = int
 type id = int
 type ctype =
   | TInt
+  | TUnsigned
   | TStruct of id
   | TPtr of ctype
   | TArray of ctype * int

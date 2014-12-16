@@ -43,6 +43,8 @@ rule token = parse
     { COMMA}
 | "int"
     { TINT }
+| "unsigned"
+    { TUNSIGNED }
 | "struct"
     { STRUCT }
 | "typedef"

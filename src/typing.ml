@@ -126,37 +126,54 @@ and ex = function
      let ex2 = ex e2 in
      let ty2 = typeof ex2 in
      (match (ty1, ty2) with
+      | (Type.TStruct ty, _)
+      | (_, Type.TStruct ty) ->
+         raise (TypingError "add: struct")
+      | (Type.TPtr ty, _)
+      | (_, Type.TPtr ty)
+      | (_, Type.TArray (ty, _))
+      | (Type.TArray (ty, _), _) ->
+         Type.EAdd (Type.TPtr ty, ex1, ex2)
+      | (_, Type.TUnsigned)
+      | (Type.TUnsigned, _) ->
+         Type.EAdd (Type.TUnsigned, ex1, ex2)
       | (Type.TInt, Type.TInt) ->
          Type.EAdd (Type.TInt, ex1, ex2)
-      | (Type.TPtr ty, Type.TInt)
-      | (Type.TInt, Type.TPtr ty)
-      | (Type.TInt, Type.TArray (ty, _))
-      | (Type.TArray (ty, _), Type.TInt) ->
-         Type.EAdd (Type.TPtr ty, ex1, ex2)
       | _ ->
-       raise (TypingError "add"))
+         raise (TypingError "add: unreachable"))
   | Syntax.ESub (e1, e2) ->
      let ex1 = ex e1 in
      let ty1 = typeof ex1 in
      let ex2 = ex e2 in
      let ty2 = typeof ex2 in
      (match (ty1, ty2) with
+      | (Type.TStruct ty, _)
+      | (_, Type.TStruct ty) ->
+         raise (TypingError "sub: struct")
+      | (Type.TPtr ty, _)
+      | (_, Type.TPtr ty)
+      | (_, Type.TArray (ty, _))
+      | (Type.TArray (ty, _), _) ->
+         Type.ESub (Type.TPtr ty, ex1, ex2)
+      | (_, Type.TUnsigned)
+      | (Type.TUnsigned, _) ->
+         Type.ESub (Type.TUnsigned, ex1, ex2)
       | (Type.TInt, Type.TInt) ->
          Type.ESub (Type.TInt, ex1, ex2)
-      | (Type.TPtr ty, Type.TInt)
-      | (Type.TInt, Type.TPtr ty)
-      | (Type.TInt, Type.TArray (ty, _))
-      | (Type.TArray (ty, _), Type.TInt) ->
-         Type.ESub (Type.TPtr ty, ex1, ex2)
       | _ ->
-       raise (TypingError "sub"))
+         raise (TypingError "sub: unreachable"))
   | Syntax.EShift (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     if (typeof ex1) = (typeof ex2) && (typeof ex1) = Type.TInt then
-       Type.EShift (Type.TInt, ex1, ex2)
-     else
-       raise (TypingError "shift")
+     (match (typeof ex1, typeof ex2) with
+      | (Type.TInt, Type.TUnsigned)
+      | (Type.TInt, Type.TInt) ->
+         Type.EShift (Type.TInt, ex1, ex2)
+      | (Type.TUnsigned, Type.TInt)
+      | (Type.TUnsigned, Type.TUnsigned) ->
+         Type.EShift (Type.TUnsigned, ex1, ex2)
+      | _ ->
+         raise (TypingError "shift"))
   | Syntax.EAssign (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
@@ -233,6 +250,7 @@ and ex = function
      Type.ECast (typ ty, ty2, e)
 and typ = function
   | Syntax.TInt -> Type.TInt
+  | Syntax.TUnsigned -> Type.TUnsigned
   | Syntax.TStruct i ->
      Type.TStruct i
   | Syntax.TPtr ty -> Type.TPtr (typ ty)
