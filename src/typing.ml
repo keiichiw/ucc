@@ -99,9 +99,8 @@ and st = function
      let ex1 = ex e in
      let st1 = st stmt in
      Type.SSwitch (ex1, st1)
-  | Syntax.SCase e ->
-     let ex1 = ex e in
-     Type.SCase (ex1)
+  | Syntax.SCase i ->
+     Type.SCase i
   | Syntax.SDefault ->
      Type.SDefault
   | Syntax.SExpr e ->

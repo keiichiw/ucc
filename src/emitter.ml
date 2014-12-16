@@ -312,13 +312,9 @@ and st = function
   | SGoto label ->
      let lbl = escape_label label in
      push_buffer (sprintf "\tbr %s\n" lbl)
-  | SCase e ->
-     (match e with
-      | EConst (_, VInt i) ->
-         switch_cases := (i :: List.hd !switch_cases) :: List.tl !switch_cases;
-         push_buffer (sprintf "%s:\n" (escape_case i))
-      | _ ->
-         raise (EmitError "non-constant value at case clause"))
+  | SCase i ->
+     switch_cases := (i :: List.hd !switch_cases) :: List.tl !switch_cases;
+     push_buffer (sprintf "%s:\n" (escape_case i))
   | SDefault ->
      (List.hd !switch_defaults) := true;
      push_buffer (sprintf "%s:\n" (escape_default ()))
