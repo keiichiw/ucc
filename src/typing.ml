@@ -227,6 +227,10 @@ and ex = function
      let ex1 = ex e1 in
      let typ =  resolve_member_type (typeof ex1) nm in
      Type.EDot(typ, ex1, Type.Name nm)
+  | Syntax.ECast (ty, e) ->
+     let e = ex e in
+     let ty2 = typeof e in
+     Type.ECast (typ ty, ty2, e)
 and typ = function
   | Syntax.TInt -> Type.TInt
   | Syntax.TStruct i ->
@@ -255,3 +259,4 @@ and typeof = function
   | Type.EOr    (t, _, _) ->t
   | Type.EDot   (t, _, _) ->t
   | Type.EArray (t, _, _) ->t
+  | Type.ECast  (t, _, _) ->t
