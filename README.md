@@ -1,6 +1,6 @@
 # UCC - Udon C Compiler  [![Build Status](https://travis-ci.org/kw-udon/ucc.svg?branch=master)](https://travis-ci.org/kw-udon/ucc)
 
-C compiler for [Yebi](https://github.com/wasabiz/Yebi) CPU written in OCaml.
+C compiler for [GAIA](https://github.com/wasabiz/GAIA2) CPU written in OCaml.
 
 Requirement
 ==============
@@ -18,15 +18,13 @@ To run the tests, use the following command.
 
 Example
 ==========
-``./bin/ucc ./test/fib-loop.c``
+``./bin/run ./test/fib-loop.c``
 
-Then ``./test/fib-loop.out`` will be created.
+If you want to see an assembly, run the following command.
 
-(If you use `./bin/cc` instead of `./bin/ucc`, assembly `./test/fib-loop.s`  will be generated.)
+``./bin/cc ./test/fib-loop.c``
 
-By the following command, you can run this binary on simulator.
-
-``./bin/sim ./test/fib-loop.out``
+Then, `./test/fib-loop.s` will be generated.
 
 You can also run a test.
 
