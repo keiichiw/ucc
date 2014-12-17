@@ -29,7 +29,7 @@ if ($? != 0) {
 
 (my $outfile = $file) =~ s/^(.*)\.c$/$1.out/;
 
-open PIPE, "$bin/sim -wi $outfile 2> /dev/null |"
+open PIPE, "$bin/sim $outfile 2> /dev/null |"
     or die "could not run simulator with $outfile";
 
 undef $/;
