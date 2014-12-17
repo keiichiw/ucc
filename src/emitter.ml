@@ -6,9 +6,9 @@ exception Unreachable of string
 type storageplace =
   | Mem of int (*memory*)
   | Global of string
-let register_list = [1;2;3;4;5;6;7;8;9;10;11];;
+let register_list = Array.init 27 succ |> Array.to_list;;
 let created_label_num = ref 0;;
-let free_reg_stack = ref [1;2;3;4;5;6;7;8;9;10;11];;
+let free_reg_stack = ref register_list;;
 let buffer_ref : string list ref = ref [];;
 let sp_offset_ref = ref 0;;
 let con_stack : int list ref = ref [];;
@@ -34,16 +34,18 @@ let stack_append stack l =
 let stack_pop stack =
   stack := (List.tl !stack)
 
-let push_buffer str =
-  stack_push buffer_ref str
-let append_buffer sl =
-  stack_append buffer_ref sl
+let emit fmt =
+  ksprintf (fun s -> stack_push buffer_ref ("\t"^s^"\n")) fmt
+let emit_raw fmt =
+  ksprintf (fun s -> stack_push buffer_ref s) fmt
+let emit_label num =
+  stack_push buffer_ref (sprintf "L%d:\n" num)
 
 let print_buffer oc name =
   fprintf oc ".global %s\n%s:\n" name name;
   let buf' = List.rev !buffer_ref in
   (* don't insert halt directly. the way of handling halt can be changed in the future *)
-  let buf = buf' @ [ "\tmov $1, $0\n"; "\tret\n" ] in
+  let buf = buf' @ [ "\tmov r1, r0\n"; "\tleave\n"; "\tret\n" ] in
   let _ = List.map
             (fun s -> if name = "main" && s = "\tret\n" then
                         fprintf oc "\thalt\n"
@@ -51,7 +53,6 @@ let print_buffer oc name =
                         fprintf oc "%s" s)
             buf in
   buffer_ref := []
-
 
 let reg_alloc _ =
   match !free_reg_stack with
@@ -64,11 +65,11 @@ let reg_use i =
   if List.mem i !free_reg_stack then
     free_reg_stack := List.filter (fun x->x!=i) !free_reg_stack
   else
-    raise (EmitError (sprintf "Register $%d is not free!!" i))
+    raise (EmitError (sprintf "Register r%d is not free!!" i))
 
 let reg_free i =
   if List.mem i !free_reg_stack then
-    raise (EmitError (sprintf "Register $%d is already free!!" i))
+    raise (EmitError (sprintf "Register r%d is already free!!" i))
   else
     free_reg_stack := i::!free_reg_stack
 
@@ -120,8 +121,8 @@ let push_args args = (* add args in env *)
     | [] -> ()
     | (DVar (ty, Name name, _))::xs ->
        env_ref := (name, (ty, Mem i))::!env_ref;
-       go (i-1) xs in
-  go (-2) args
+       go (i-4) xs in
+  go (-4) args
 let push_global_var oc = function (* add global var in env *)
   | DVar (ty, Name name, None) ->
      let label = sprintf "global_%s" name in
@@ -140,8 +141,8 @@ let push_local_vars vars =
   let go = function
     | DVar (ty, Name name, _) ->
        let sz = size_of ty in
-       sp_offset_ref := !sp_offset_ref + sz;
-       stack_push env_ref (name, (ty, Mem !sp_offset_ref)) in
+       sp_offset_ref := !sp_offset_ref + sz*4;
+       stack_push env_ref (name, (ty, Mem (!sp_offset_ref+4))) in
   List.iter go vars
 (*emit main*)
 let rec main oc defs =
@@ -158,6 +159,7 @@ and emitter oc = function
      let old_env = !env_ref in
      let old_senv = !struct_env_ref in
      push_args args;
+     emit "enter 0";
      st b;
      free_reg_stack := free_regs;
      env_ref := old_env;
@@ -172,7 +174,7 @@ and init_local_vars vars =
         | (_, Mem offset) ->
            let reg = reg_alloc () in
            ex reg x;
-           push_buffer (sprintf "\tmov [$bp-%d], $%d\n" offset reg);
+           emit "mov [rbp-%d], r%d" offset reg;
            reg_free reg
         |_ -> raise (Unreachable "init_local_var"))
     | _ -> () in
@@ -188,7 +190,7 @@ and st = function
      let sp_move = !sp_offset_ref - old_sp in
      stack_push sp_move_stack sp_move;
      if sp_move != 0 then
-       push_buffer (sprintf "\tsub $sp, $sp, %d\n" sp_move);
+       emit "sub rsp, rsp, %d" sp_move;
      init_local_vars vars;
      List.iter st stmts;
      sp_offset_ref := old_sp;
@@ -196,22 +198,20 @@ and st = function
      struct_env_ref := old_senv;
      stack_pop sp_move_stack;
      if sp_move != 0 then
-       push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_move)
+       emit "add rsp, rsp, %d" sp_move
   | SWhile (cond, b) ->
      let beginlabel = label_create () in
      let endlabel = label_create () in
      stack_push con_stack beginlabel;
      stack_push brk_stack endlabel;
-     push_buffer (sprintf "L%d:\n" beginlabel);
+     emit_label beginlabel;
      let cond_reg = reg_alloc () in
      ex cond_reg cond;
-     push_buffer (sprintf "\tbeq $0, $%d, L%d\n"
-                          cond_reg
-                          endlabel);
+     emit "bz r%d, L%d" cond_reg endlabel;
      reg_free cond_reg;
      st b;
-     push_buffer (sprintf "\tbr L%d\n" beginlabel);
-     push_buffer (sprintf "L%d:\n" endlabel);
+     emit "br L%d" beginlabel;
+     emit_label endlabel;
      stack_pop con_stack;
      stack_pop brk_stack
   | SDoWhile (b, cond) ->
@@ -220,20 +220,18 @@ and st = function
      let endlabel = label_create () in
      stack_push con_stack condlabel;
      stack_push brk_stack endlabel;
-     push_buffer (sprintf "L%d:\n" beginlabel);
+     emit_label beginlabel;
      let continue_flg = !for_continue_flg_ref in
      for_continue_flg_ref := 0;
      st b;
      if !for_continue_flg_ref = 1 then
-       push_buffer (sprintf "L%d:\n" condlabel);
+       emit_label condlabel;
      for_continue_flg_ref := continue_flg;
      let cond_reg = reg_alloc () in
      ex cond_reg cond;
-     push_buffer (sprintf "\tbeq $0, $%d, L%d\n"
-                          cond_reg
-                          endlabel);
-     push_buffer (sprintf "\tbr L%d\n" beginlabel);
-     push_buffer (sprintf "L%d:\n" endlabel);
+     emit "bz r%d, L%d" cond_reg endlabel;
+     emit "br L%d" beginlabel;
+     emit_label endlabel;
      reg_free cond_reg;
      stack_pop con_stack;
      stack_pop brk_stack
@@ -249,19 +247,19 @@ and st = function
          ex temp iex;
          reg_free temp
       | _ -> ());
-     push_buffer (sprintf "L%d:\n" startlnum);
+     emit_label startlnum;
      (match cond with
       | Some cex ->
          let cond_reg = reg_alloc () in
          ex cond_reg cex;
-         push_buffer (sprintf "\tbeq $0, $%d, L%d\n" cond_reg endlnum);
+         emit "bz r%d, L%d" cond_reg endlnum;
          reg_free cond_reg
       | _ -> ());
      let continue_flg = !for_continue_flg_ref in
      for_continue_flg_ref := 0;
      st b;
      if !for_continue_flg_ref = 1 then
-       push_buffer (sprintf "L%d:\n" iterlnum);
+       emit_label iterlnum;
      for_continue_flg_ref := continue_flg;
      (match iter with
       | Some itex ->
@@ -269,8 +267,8 @@ and st = function
          ex temp itex;
          reg_free temp
       |  _ -> ());
-     push_buffer (sprintf "\tbr L%d\n" startlnum);
-     push_buffer (sprintf "L%d:\n" endlnum);
+     emit "br L%d" startlnum;
+     emit_label endlnum;
      stack_pop con_stack;
      stack_pop brk_stack
   | SIfElse (cond, b1, b2) ->
@@ -278,46 +276,43 @@ and st = function
      ex cond_reg cond;
      let lnum = label_create () in
      let endlnum = label_create () in
-     push_buffer (sprintf "\tbeq $0, $%d, L%d\n"
-                          cond_reg
-                          lnum);
+     emit "bz r%d, L%d" cond_reg lnum;
      reg_free cond_reg;
      st b1;
-     push_buffer (sprintf "\tbr L%d\n" endlnum);
-     push_buffer (sprintf "L%d:\n" lnum);
+     emit "br L%d" endlnum;
+     emit_label lnum;
      st b2;
-     push_buffer (sprintf "L%d:\n" endlnum)
+     emit_label endlnum
   | SReturn exp ->
      let reg = reg_alloc () in
      ex reg exp;
      if !sp_offset_ref != 0 then
-       push_buffer (sprintf "\tadd $sp, $sp, %d\n" !sp_offset_ref);
+       emit "add rsp, rsp, %d" !sp_offset_ref;
      if reg != 1 then
-       push_buffer (sprintf "\tmov $1, $%d\n" reg);
-     push_buffer (sprintf "\tret\n");
+       emit "mov r1, r%d" reg;
+     emit "leave";
+     emit "ret";
      reg_free reg
   | SContinue ->
      let lbl = (List.hd !con_stack) in
-     push_buffer (sprintf "\tbr L%d\n" lbl);
+     emit "br L%d" lbl;
      for_continue_flg_ref := 1
   | SBreak ->
      let lbl = (List.hd !brk_stack) in
      let sp_d = (List.hd !sp_move_stack) in
-     push_buffer (sprintf "\tadd $sp, $sp, %d\n" sp_d);
-     push_buffer (sprintf "\tbr L%d\n" lbl)
+     emit "add rsp, rsp, %d" sp_d;
+     emit "br L%d" lbl
   | SLabel (label, s) ->
-     let lbl = escape_label label in
-     push_buffer (sprintf "%s:\n" lbl);
+     emit_raw "%s:\n" (escape_label label);
      st s
   | SGoto label ->
-     let lbl = escape_label label in
-     push_buffer (sprintf "\tbr %s\n" lbl)
+     emit "br %s" (escape_label label)
   | SCase i ->
      switch_cases := (i :: List.hd !switch_cases) :: List.tl !switch_cases;
-     push_buffer (sprintf "%s:\n" (escape_case i))
+     emit_raw "%s:\n" (escape_case i)
   | SDefault ->
      (List.hd !switch_defaults) := true;
-     push_buffer (sprintf "%s:\n" (escape_default ()))
+     emit_raw "%s:\n" (escape_default ())
   | SSwitch (e,s) ->
      switch_counter := !switch_counter + 1;
      switch_stack := !switch_counter :: !switch_stack;
@@ -325,26 +320,26 @@ and st = function
      switch_defaults := ref false :: !switch_defaults;
      let l1 = label_create () in
      let l2 = label_create () in
-     push_buffer (sprintf "\tbr L%d\n" l1);
+     emit "br L%d" l1;
      stack_push brk_stack l2;
      st s;
      stack_pop brk_stack;
-     push_buffer (sprintf "\tbr L%d\n" l2);
+     emit "br L%d" l2;
      (* dispatcher *)
-     push_buffer (sprintf "L%d:\n" l1);
+     emit_label l1;
      let lreg = reg_alloc () in
      ex lreg e;
      let rreg = reg_alloc () in
      List.iter
        (fun i ->
-        push_buffer (sprintf "\tmov $%d, %d\n" rreg i);
-        push_buffer (sprintf "\tbeq $%d, $%d, %s\n" lreg rreg (escape_case i)))
+        emit "mov r%d, %d" rreg i;
+        emit "beq r%d, r%d, %s" lreg rreg (escape_case i))
        (List.hd !switch_cases);
      reg_free lreg;
      reg_free rreg;
      if !(List.hd !switch_defaults) then
-       push_buffer (sprintf "\tbr %s\n" (escape_default ()));
-     push_buffer (sprintf "L%d:\n" l2);
+       emit "br %s" (escape_default ());
+     emit_label l2;
      switch_defaults := List.tl !switch_defaults;
      switch_cases := List.tl !switch_cases;
      switch_stack := List.tl !switch_stack
@@ -352,56 +347,59 @@ and st = function
      let temp = reg_alloc () in
      ex temp exp;
      reg_free temp
+and emit_bin ret_reg op e1 e2 =
+  ex ret_reg e1;
+  let reg = reg_alloc () in
+  ex reg e2;
+  emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
+  reg_free reg
 and ex ret_reg = function
   | EComma(_, ex1, ex2) ->
      ex ret_reg ex1;
      ex ret_reg ex2
   | EConst (_, VInt i) ->
-     push_buffer (sprintf "\tmov $%d, %d\n" ret_reg i)
+     emit "mov r%d, %d" ret_reg i
   | ECond (_, c, t, e) ->
      let lelse = label_create () in
      let lend = label_create () in
      ex ret_reg c;
-     push_buffer (sprintf "\tbeq $%d, $0, L%d\n" ret_reg lelse);
+     emit "bz r%d, L%d" ret_reg lelse;
      ex ret_reg t;
-     push_buffer (sprintf "\tbr L%d\n" lend);
-     push_buffer (sprintf "L%d:\n" lelse);
+     emit "br L%d" lend;
+     emit_label lelse;
      ex ret_reg e;
-     push_buffer (sprintf "L%d:\n" lend)
+     emit_label lend
   | EArith (ty, op, e1, e2) ->
      (match op with
-      | Add
-      | Sub ->
-         ex ret_reg e1;
-         let rreg = reg_alloc () in
-         ex rreg e2;
-         if op = Add then
-           push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg rreg)
-         else
-           push_buffer (sprintf "\tsub $%d, $%d, $%d\n" ret_reg ret_reg rreg)
-      | LShift
-      | RShift ->
-         ex ret_reg e1;
-         let rreg = reg_alloc () in
-         ex rreg e2;
-         if op = LShift then
-           push_buffer (sprintf "\tshift $%d, $%d, $%d\n" ret_reg ret_reg rreg)
-         else
-           (push_buffer (sprintf "\tneg $%d, $%d\n" rreg rreg);
-            push_buffer (sprintf "\tshift $%d, $%d, $%d\n" ret_reg ret_reg rreg));
-         reg_free rreg
       | Mul ->
          ex ret_reg (ECall (ty, EVar(TInt, Name "__mul"),[e1;e2]))
       | Div ->
          ex ret_reg (ECall (ty, EVar(TInt, Name "__div"),[e1;e2]))
       | Mod ->
          ex ret_reg (ECall (ty, EVar(TInt, Name "__mod"),[e1;e2]))
-      | BitAnd ->
-         ex ret_reg (ECall (ty, EVar(TInt, Name "__and"),[e1;e2]))
-      | BitXor ->
-         ex ret_reg (ECall (ty, EVar(TInt, Name "__xor"),[e1;e2]))
-      | BitOr ->
-         ex ret_reg (ECall (ty, EVar(TInt, Name "__or"),[e1;e2])))
+      | _ ->
+         let op = match op with
+           | Add    -> "add"
+           | Sub    -> "sub"
+           | LShift -> "shl"
+           | RShift -> "shr"
+           | BitAnd -> "and"
+           | BitOr  -> "or"
+           | BitXor -> "xor"
+           | _ -> assert false in
+         emit_bin ret_reg op e1 e2)
+  | ERel (ty, op, e1, e2) ->
+     let op = match op with
+       | Le -> "cmple"
+       | Lt -> "cmplt"
+       | Ge -> "cmpge"
+       | Gt -> "cmpgt" in
+     emit_bin ret_reg op e1 e2
+  | EEq (ty, op, e1, e2) ->
+     let op = match op with
+       | Eq -> "cmpeq"
+       | Ne -> "cmpne" in
+     emit_bin ret_reg op e1 e2
   | EPAdd (t1, e1, e2) ->
      (match (Typing.typeof e1, Typing.typeof e2) with
       | (TPtr ty, i) when Typing.is_integral i ->
@@ -413,109 +411,62 @@ and ex ret_reg = function
          else
            let sz = EConst(TInt, VInt ty_size) in
            ex reg (ECall (ty, EVar(TInt, Name "__mul"), [e2;sz])));
-         push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg reg);
+         emit "shl r%d, r%d, 2" reg reg;
+         emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
          reg_free reg
       | _ ->
          raise (Unreachable "EPAdd"))
   | EPDiff (t1, e1, e2) ->
      raise (TODO "EPDiff")
-  | ERel (ty, op, e1, e2) ->
-     (match op with
-      | Le ->
-         let lnum = label_create () in
-         let lreg = reg_alloc () in
-         ex lreg e1;
-         let rreg = reg_alloc () in
-         ex rreg e2;
-         push_buffer (sprintf "\tmov $%d, 1\n" ret_reg);
-         push_buffer (sprintf "\tble $%d, $%d, L%d\n" lreg rreg lnum);
-         push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
-         push_buffer (sprintf "L%d:\n" lnum);
-         reg_free lreg;
-         reg_free rreg
-      | Lt ->
-         ex ret_reg (EUnary(TInt, LogNot, ERel (ty, Le, e2, e1)))
-      | Ge ->
-         ex ret_reg (ERel (ty, Le, e2, e1))
-      | Gt ->
-         ex ret_reg (ERel (ty, Lt, e2, e1)))
-  | EEq (_, op, e1, e2) ->
-     (match op with
-      | Eq ->
-         let lnum = label_create () in
-         let lreg = reg_alloc () in
-         ex lreg e1;
-         let rreg = reg_alloc () in
-         ex rreg e2;
-         push_buffer (sprintf "\tmov $%d, 1\n" ret_reg);
-         push_buffer (sprintf "\tbeq $%d, $%d, L%d\n" lreg rreg lnum);
-         push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
-         push_buffer (sprintf "L%d:\n" lnum);
-         reg_free lreg;
-         reg_free rreg
-      | Ne->
-         let lelse = label_create () in
-         let lend = label_create () in
-         let lreg = reg_alloc () in
-         ex lreg e1;
-         let rreg = reg_alloc () in
-         ex rreg e2;
-         push_buffer (sprintf "\tbeq $%d, $%d, L%d\n" lreg rreg lelse);
-         push_buffer (sprintf "\tmov $%d, 1\n" ret_reg);
-         push_buffer (sprintf "\tbr L%d\n" lend);
-         push_buffer (sprintf "L%d:\n" lelse);
-         push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
-         push_buffer (sprintf "L%d:\n" lend);
-         reg_free lreg;
-         reg_free rreg)
   | ELog (_, op, e1, e2) ->
      (match op with
       | And ->
          let l1 = label_create () in
          let l2 = label_create () in
          ex ret_reg e1;
-         push_buffer (sprintf "\tbeq $%d, $0, L%d\n" ret_reg l1);
+         emit "bz r%d, L%d" ret_reg l1;
          ex ret_reg e2;
-         push_buffer (sprintf "\tbr L%d\n" l2);
-         push_buffer (sprintf "L%d:\n" l1);
-         push_buffer (sprintf "\tmov $%d, $0\n" ret_reg);
-         push_buffer (sprintf "L%d:\n" l2)
+         emit "bz r%d, L%d" ret_reg l1;
+         emit "mov r%d, 1" ret_reg;
+         emit "br L%d" l2;
+         emit_label l1;
+         emit "mov r%d, 0" ret_reg;
+         emit_label l2
       | Or ->
          let l1 = label_create () in
          let l2 = label_create () in
          ex ret_reg e1;
-         push_buffer (sprintf "\tbeq $%d, $0, L%d\n" ret_reg l1);
-         push_buffer (sprintf "\tbr L%d\n" l2);
-         push_buffer (sprintf "L%d:\n" l1);
+         emit "bnz r%d, L%d" ret_reg l1;
          ex ret_reg e2;
-         push_buffer (sprintf "L%d:\n" l2))
+         emit "bnz r%d, L%d" ret_reg l1;
+         emit "br L%d" l2;
+         emit_label l1;
+         emit "mov r%d, 1" ret_reg;
+         emit_label l2)
   | EUnary (ty, op, e) ->
      (match op with
-      | Plus -> ex ret_reg e
+      | Plus ->
+         ex ret_reg e
       | Minus ->
          ex ret_reg e;
-         push_buffer (sprintf "\tneg $%d, $%d\n" ret_reg ret_reg)
+         emit "neg r%d, r%d" ret_reg ret_reg
       | BitNot ->
-         ex ret_reg (ECall (ty, EVar(TInt, Name "__bit_not"),[e]))
+         ex ret_reg e;
+         emit "not r%d, r%d" ret_reg ret_reg
       | LogNot ->
-         let zero = EConst(TInt, VInt 0) in
-         ex ret_reg (EEq (ty, Eq, e, zero))
-      | PostInc ->
-         let areg = reg_alloc () in
-         lv_addr areg e;
-         let reg = reg_alloc () in
-         push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg areg);
-         push_buffer (sprintf "\tadd $%d, $%d, 1\n" reg ret_reg);
-         push_buffer (sprintf "\tmov [$%d], $%d\n" areg reg);
-         reg_free areg;
-         reg_free reg
+         ex ret_reg e;
+         emit "cmpeq r%d, r%d, 0" ret_reg ret_reg
+      | PostInc
       | PostDec ->
          let areg = reg_alloc () in
          lv_addr areg e;
          let reg = reg_alloc () in
-         push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg areg);
-         push_buffer (sprintf "\tsub $%d, $%d, 1\n" reg ret_reg);
-         push_buffer (sprintf "\tmov [$%d], $%d\n" areg reg);
+         emit "mov r%d, [r%d]" ret_reg areg;
+         if op = PostInc then
+           emit "add r%d, r%d, 1" reg ret_reg
+         else
+           emit "sub r%d, r%d, 1" reg ret_reg;
+         emit "mov [r%d], r%d" areg reg;
          reg_free areg;
          reg_free reg)
   | ECall (_, f, exlst) ->
@@ -524,32 +475,32 @@ and ex ret_reg = function
         | EVar (_, Name nm) -> nm
         | _ -> raise (EmitError "ECall: fname")) in
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
-     let arg_list = List.fold_left
-                      (fun l e ->
+     let arg_list = List.map
+                      (fun e ->
                        let reg = reg_alloc () in
                        ex reg e;
-                       reg::l) [] exlst in
+                       reg) exlst in
+     (* save registers *)
      List.iter (fun reg ->
                 reg_free reg;
-                push_buffer (sprintf "\tpush $%d\n" reg))
+                emit "push r%d" reg)
                used_reg;
+     (* push arguments *)
      List.iter (fun reg ->
                 reg_free reg;
-                push_buffer (sprintf "\tpush $%d\n" reg))
-               arg_list;
+                emit "push r%d" reg)
+               (List.rev arg_list);
      reg_free_all ();
-     push_buffer (sprintf "\tcall %s\n" fname);
+     emit "call %s" fname;
      reg_use ret_reg;
      if ret_reg != 1 then
-       push_buffer (sprintf "\tmov $%d, $1\n" ret_reg);
-     let reg = reg_alloc () in
-     List.iter (fun i ->
-                push_buffer (sprintf "\tpop $%d\n" reg))
-               arg_list;
-     reg_free reg;
+       emit "mov r%d, r1" ret_reg;
+     (* clean arguments *)
+     emit "add rsp, rsp, %d" (List.length arg_list*4);
+     (* restore registers *)
      List.iter (fun i ->
                 reg_use i;
-                push_buffer (sprintf "\tpop $%d\n" i))
+                emit "pop r%d" i)
                (List.rev used_reg)
   | EVar (t, Name name) ->
      (match resolve_var name with
@@ -558,30 +509,30 @@ and ex ret_reg = function
          lv_addr ret_reg (EVar (t, Name name));
       | _ ->
          lv_addr ret_reg (EVar (t, Name name));
-         push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg))
+         emit "mov r%d, [r%d]" ret_reg ret_reg)
   | EAssign (_, e1, e2) ->
      let reg = reg_alloc () in
      lv_addr reg e1;
      ex ret_reg e2;
-     push_buffer (sprintf "\tmov [$%d], $%d\n" reg ret_reg);
+     emit "mov [r%d], r%d" reg ret_reg;
      reg_free reg
   | EAddr (_, e) ->
      lv_addr ret_reg e
   | EPtr (_, e) ->
      ex ret_reg e;
-     push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg)
+     emit "mov r%d, [r%d]" ret_reg ret_reg
   | EDot (t, e, Name name) ->
      lv_addr ret_reg (EDot (t, e, Name name));
      (match t with
       | TArray _ | TStruct _ -> ()
       | _ ->
-         push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg))
+         emit "mov r%d, [r%d]" ret_reg ret_reg)
   | EArray (t, e1, e2) ->
      lv_addr ret_reg (EArray (t, e1, e2));
      (match t with
       | TArray _ | TStruct _ -> ()
       | _ ->
-         push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg))
+         emit "mov r%d, [r%d]" ret_reg ret_reg)
   | ECast (t1, t2, e) ->
      (match (t1, t2) with
       | (TStruct _, _)
@@ -595,9 +546,9 @@ and lv_addr ret_reg = function
   | EVar (_, Name name) ->
      (match resolve_var name with
       | (_, Mem offset) ->
-         push_buffer (sprintf "\tsub $%d, $bp, %d\n" ret_reg offset)
+         emit "sub r%d, rbp, %d" ret_reg offset
       | (_, Global label) ->
-         push_buffer (sprintf "\tmov $%d, %s\n" ret_reg label))
+         emit "mov r%d, %s" ret_reg label)
   | EDot (_, expr, Name mem) ->
      (match Typing.typeof expr with
       | TStruct s_id ->
@@ -608,7 +559,7 @@ and lv_addr ret_reg = function
          let (_, memlist) = resolve_struct s_id in
          let mem_offset = go 0 mem memlist in
          lv_addr ret_reg expr;
-         push_buffer (sprintf "\tadd $%d, $%d, %d\n" ret_reg ret_reg mem_offset)
+         emit "add r%d, r%d, %d" ret_reg ret_reg mem_offset
       | _ -> raise (EmitError "lv_addr dot"))
   | EPtr (_, e) -> ex ret_reg e
   | EArray (ty, e1, e2) ->
