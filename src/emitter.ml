@@ -555,7 +555,7 @@ and lv_addr ret_reg = function
          let rec go i s = function
            | [] -> raise (Unreachable "edot")
            | (v, _)::_ when v=s -> i
-           | (_, ty)::xs -> go (i+(size_of ty)) s xs in
+           | (_, ty)::xs -> go (i+(size_of ty)*4) s xs in
          let (_, memlist) = resolve_struct s_id in
          let mem_offset = go 0 mem memlist in
          lv_addr ret_reg expr;
