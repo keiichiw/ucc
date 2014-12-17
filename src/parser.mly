@@ -39,14 +39,13 @@
      | None -> ());
     struct_env := (snum, decl)::!struct_env;
     TStruct(snum)
-  let to_int b = if b then 1 else 0
   let rec fold_expr = function
     | EConst (VInt i) -> i
     | EArith(Add ,e1, e2) -> (fold_expr e1) + (fold_expr e2)
     | EArith(Sub, e1, e2) -> (fold_expr e1) - (fold_expr e2)
-    | ERel (Lt, e1, e2) -> to_int @@ ((fold_expr e1) < (fold_expr e2))
-    | EEq (Eq, e1, e2) -> to_int @@ ((fold_expr e1) = (fold_expr e2))
-    | EEq (Ne, e1, e2) -> to_int @@ ((fold_expr e1) != (fold_expr e2))
+    | ERel (Lt, e1, e2) -> if (fold_expr e1) < (fold_expr e2) then 1 else 0
+    | EEq (Eq, e1, e2) -> if (fold_expr e1) = (fold_expr e2) then 1 else 0
+    | EEq (Ne, e1, e2) -> if (fold_expr e1) != (fold_expr e2) then 1 else 0
     | ECond (e1, e2, e3) -> if fold_expr e1 != 0 then fold_expr e2 else fold_expr e3
     | ELog (And, e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
     | ELog (Or, e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
@@ -75,6 +74,7 @@
 %token ASSIGN PLUS_ASSIGN MINUS_ASSIGN
 %token STAR_ASSIGN SLASH_ASSIGN MOD_ASSIGN LSHIFT_ASSIGN RSHIFT_ASSIGN
 %token AMP_ASSIGN HAT_ASSIGN BAR_ASSIGN
+%token SIZEOF
 %token EOF
 
 (* avoid dangling-else problem *)
@@ -390,6 +390,8 @@ unary_expr:
   { EAddr $2 }
 | TILDE unary_expr
   { EUnary (BitNot, $2) }
+| SIZEOF LPAREN type_name RPAREN
+  { ESizeof $3 }
 
 postfix_expr:
 | primary_expr

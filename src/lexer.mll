@@ -159,6 +159,8 @@ rule token = parse
     { LBRACKET }
 | ']'
     { RBRACKET }
+| "sizeof"
+    { SIZEOF }
 | "//"
     { commentbis lexbuf }
 | "#"

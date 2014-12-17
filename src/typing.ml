@@ -237,6 +237,9 @@ and ex = function
      let e = ex e in
      let ty2 = typeof e in
      Type.ECast (typ ty, ty2, e)
+  | Syntax.ESizeof (ty) ->
+     let i = size_of (typ ty) in
+     Type.EConst (Type.TUnsigned, Type.VInt i)
 and typ = function
   | Syntax.TInt -> Type.TInt
   | Syntax.TUnsigned -> Type.TUnsigned
@@ -310,3 +313,15 @@ and int_conv = function
   | (Type.TInt, Type.TInt) ->
      Type.TInt
   | _ -> raise (TypingError "inv_conv")
+and size_of = function
+  | Type.TInt
+  | Type.TUnsigned
+  | Type.TPtr _ -> 1
+  | Type.TArray (ty, sz) -> sz * (size_of ty)
+  | Type.TStruct sid ->
+     let sz fs = List.fold_left (fun num (_, ty) -> num + (size_of ty)) 0 fs in
+     let rec go = function
+       | [] -> raise (TypingError (sprintf "struct %d not found" sid))
+       | (s, ms)::_ when s = sid -> sz ms
+       | _::zs -> go zs in
+     go !senv_ref
