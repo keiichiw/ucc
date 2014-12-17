@@ -79,6 +79,7 @@ and expr =
   | EDot    of expr * name
   | EArray  of expr * expr
   | ECast   of ctype * expr
+  | ESizeof of ctype
 and value =
   | VInt of int
 let struct_table : (string * int) list ref = ref [];;
