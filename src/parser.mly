@@ -42,14 +42,14 @@
   let to_int b = if b then 1 else 0
   let rec fold_expr = function
     | EConst (VInt i) -> i
-    | EAdd (e1, e2) -> (fold_expr e1) + (fold_expr e2)
-    | ESub (e1, e2) -> (fold_expr e1) - (fold_expr e2)
-    | ELe (e1, e2) -> to_int @@ ((fold_expr e1) < (fold_expr e2))
-    | EEq (e1, e2) -> to_int @@ ((fold_expr e1) = (fold_expr e2))
-    | ENeq (e1, e2) -> to_int @@ ((fold_expr e1) != (fold_expr e2))
+    | EArith(Add ,e1, e2) -> (fold_expr e1) + (fold_expr e2)
+    | EArith(Sub, e1, e2) -> (fold_expr e1) - (fold_expr e2)
+    | ERel (Lt, e1, e2) -> to_int @@ ((fold_expr e1) < (fold_expr e2))
+    | EEq (Eq, e1, e2) -> to_int @@ ((fold_expr e1) = (fold_expr e2))
+    | EEq (Ne, e1, e2) -> to_int @@ ((fold_expr e1) != (fold_expr e2))
     | ECond (e1, e2, e3) -> if fold_expr e1 != 0 then fold_expr e2 else fold_expr e3
-    | EAnd (e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
-    | EOr (e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
+    | ELog (And, e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
+    | ELog (Or, e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
     | _ -> raise (ParserError "fold_expr")
 %}
 
@@ -259,25 +259,25 @@ assign_expr:
 | unary_expr ASSIGN assign_expr
   { EAssign($1, $3) }
 | unary_expr PLUS_ASSIGN assign_expr
-  { EAssign($1, EAdd($1, $3)) }
+  { EAssign($1, EArith(Add, $1, $3)) }
 | unary_expr MINUS_ASSIGN assign_expr
-  { EAssign($1, ESub($1, $3)) }
+  { EAssign($1, EArith(Sub, $1, $3)) }
 | unary_expr STAR_ASSIGN assign_expr
-  { EAssign($1, EApp(EVar(Name "__mul"), [$1;$3])) }
+  { EAssign($1, EArith(Mul, $1, $3)) }
 | unary_expr SLASH_ASSIGN assign_expr
-  { EAssign($1, EApp(EVar(Name "__div"), [$1;$3])) }
+  { EAssign($1, EArith(Div, $1, $3)) }
 | unary_expr MOD_ASSIGN assign_expr
-  { EAssign($1, EApp(EVar(Name "__mod"), [$1;$3])) }
+  { EAssign($1, EArith(Mod, $1, $3)) }
 | unary_expr LSHIFT_ASSIGN assign_expr
-  { EAssign($1, EShift($1, $3)) }
+  { EAssign($1, EArith(LShift, $1, $3)) }
 | unary_expr RSHIFT_ASSIGN assign_expr
-  { EAssign($1, EShift($1, ESub(EConst(VInt 0), $3))) }
+  { EAssign($1, EArith(RShift, $1, $3)) }
 | unary_expr AMP_ASSIGN assign_expr
-  { EAssign($1, EApp(EVar(Name "__and"), [$1;$3])) }
+  { EAssign($1, EArith(BitAnd, $1, $3)) }
 | unary_expr HAT_ASSIGN assign_expr
-  { EAssign($1, EApp(EVar(Name "__xor"), [$1;$3])) }
+  { EAssign($1, EArith(BitXor, $1, $3)) }
 | unary_expr BAR_ASSIGN assign_expr
-  { EAssign($1, EApp(EVar(Name "__or"), [$1;$3])) }
+  { EAssign($1, EArith(BitOr, $1, $3)) }
 
 cond_expr:
 | logor_expr
@@ -293,77 +293,77 @@ logor_expr:
 | logand_expr
   { $1 }
 | logor_expr OR logand_expr
-  { EOr ($1, $3) }
+  { ELog (Or, $1, $3) }
 
 logand_expr:
 | bitor_expr
   { $1 }
 | logand_expr AND bitor_expr
-  { EAnd ($1, $3) }
+  { ELog (And, $1, $3) }
 
 bitor_expr:
 | bitxor_expr
   { $1 }
 | bitor_expr BAR bitxor_expr
-  { EApp(EVar(Name "__or" ), [$1;$3]) }
+  { EArith (BitOr, $1, $3) }
 
 bitxor_expr:
 | bitand_expr
   { $1 }
 | bitxor_expr HAT bitand_expr
-  { EApp(EVar(Name "__xor"), [$1;$3]) }
+  { EArith (BitXor, $1, $3) }
 
 bitand_expr:
 | equal_expr
   { $1 }
 | bitand_expr AMP equal_expr
-  { EApp(EVar(Name "__and"), [$1;$3]) }
+  { EArith (BitAnd, $1, $3) }
 
 equal_expr:
 | rel_expr
   { $1 }
 | equal_expr EQ rel_expr
-  { EEq($1, $3) }
+  { EEq(Eq, $1, $3) }
 | equal_expr NEQ rel_expr
-  { ENeq($1, $3)}
+  { EEq(Ne, $1, $3) }
 
 rel_expr:
 | shift_expr
   { $1 }
 | rel_expr LT shift_expr
-  { ELe(EConst(VInt 1), ESub($3, $1)) }
+  { ERel(Lt, $1, $3)}
 | rel_expr GT shift_expr
-  { ELe(EConst(VInt 1), ESub($1, $3)) }
+  { ERel(Gt, $1, $3)}
 | rel_expr LE shift_expr
-  { ELe($1, $3)}
+  { ERel(Le, $1, $3)}
 | rel_expr GE shift_expr
-  { ELe($3, $1)}
+  { ERel(Ge, $1, $3)}
 
 shift_expr:
 | additive_expr
   { $1 }
 | shift_expr LSHIFT additive_expr
-  { EShift($1, $3)}
+  { EArith(LShift, $1, $3)}
 | shift_expr RSHIFT additive_expr
-  { EShift($1, ESub(EConst(VInt 0), $3))}
+  { EArith(RShift, $1, $3)}
 
 additive_expr:
 | multiplicative_expr
   { $1 }
 | additive_expr PLUS multiplicative_expr
-  { EAdd($1, $3)}
+  { EArith(Add, $1, $3)}
 | additive_expr MINUS multiplicative_expr
-  { ESub($1, $3)}
+  { EArith(Sub, $1, $3)}
 
 multiplicative_expr:
 | cast_expr
   { $1 }
 | multiplicative_expr STAR cast_expr
-  { EApp(EVar(Name "__mul"), [$1;$3]) }
+  { EArith(Mul, $1, $3)}
 | multiplicative_expr SLASH cast_expr
-  { EApp(EVar(Name "__div"), [$1;$3]) }
+  { EArith(Div, $1, $3)}
 | multiplicative_expr MOD cast_expr
-  { EApp(EVar(Name "__mod"), [$1;$3]) }
+  { EArith(Mod, $1, $3)}
 
 cast_expr:
 | unary_expr
@@ -375,21 +375,21 @@ unary_expr:
 | postfix_expr
   { $1 }
 | INC unary_expr
-  { EAssign($2, EAdd($2, EConst(VInt(1)))) }
+  { EAssign($2, EArith(Add, $2, EConst(VInt(1)))) }
 | DEC unary_expr
-  { EAssign($2, ESub($2, EConst(VInt(1)))) }
+  { EAssign($2, EArith(Sub, $2, EConst(VInt(1)))) }
 | NOT unary_expr
-  { EEq(EConst(VInt 0), $2) }
+  { EUnary (LogNot, $2) }
 | PLUS unary_expr
-  { $2 }
+  { EUnary (Plus, $2) }
 | MINUS unary_expr
-  { ESub(EConst(VInt 0), $2) }
+  { EUnary (Minus, $2) }
 | STAR unary_expr
   { EPtr $2 }
 | AMP unary_expr
   { EAddr $2 }
 | TILDE unary_expr
-  { EApp(EVar(Name "__not"), [$2]) }
+  { EUnary (BitNot, $2) }
 
 postfix_expr:
 | primary_expr
@@ -397,13 +397,11 @@ postfix_expr:
 | postfix_expr LBRACKET expr RBRACKET
   { EArray($1, $3) }
 | postfix_expr INC
-  (* i++ -> (++i,i-1) *)
-  { EComma(EAssign($1, EAdd($1, EConst(VInt(1)))), ESub($1, EConst(VInt(1)))) }
+  { EUnary (PostInc, $1) }
 | postfix_expr DEC
-  (* i-- -> (--i,i+1) *)
-  { EComma(EAssign($1, ESub($1, EConst(VInt(1)))), EAdd($1, EConst(VInt(1)))) }
+  { EUnary (PostDec, $1) }
 | postfix_expr LPAREN arg_expr_list RPAREN
-  { EApp($1, $3) }
+  { ECall($1, $3) }
 | postfix_expr DOT ID
   { EDot($1, Name $3) }
 | postfix_expr ARROW ID

@@ -28,25 +28,53 @@ and stmt =
   | SCase of int
   | SDefault
   | SExpr of expr
+and arith_bin =
+  | Add
+  | Sub
+  | Mul
+  | Div
+  | Mod
+  | LShift
+  | RShift
+  | BitAnd (* & *)
+  | BitXor (* ^ *)
+  | BitOr  (* | *)
+and logical_bin =
+  | And (* && *)
+  | Or  (* || *)
+and rel_bin =
+  | Lt
+  | Le
+  | Gt
+  | Ge
+and eq_bin =
+  | Eq
+  | Ne
+and unary =
+  | Plus
+  | Minus
+  | BitNot (* ~ *)
+  | LogNot (* ! *)
+  | PostInc
+  | PostDec
 and expr =
+  | EArith  of ctype * arith_bin   * expr * expr
+  | EPAdd   of ctype * expr * expr
+  | EPDiff  of ctype * expr * expr
+  | ERel    of ctype * rel_bin     * expr * expr
+  | EEq     of ctype * eq_bin      * expr * expr
+  | ELog    of ctype * logical_bin * expr * expr
+  | EUnary  of ctype * unary * expr
   | EConst  of ctype * value
   | EVar    of ctype * name
   | EComma  of ctype * expr * expr
-  | EAdd    of ctype * expr * expr
-  | EShift  of ctype * expr * expr
-  | ESub    of ctype * expr * expr
   | EAssign of ctype * expr * expr
-  | EApp    of ctype * expr * (expr list)
-  | ELe     of ctype * expr * expr
-  | EEq     of ctype * expr * expr
-  | ENeq    of ctype * expr * expr
+  | ECall   of ctype * expr * (expr list)
   | EAddr   of ctype * expr
   | EPtr    of ctype * expr
   | ECond   of ctype * expr * expr * expr
-  | EAnd    of ctype * expr * expr
-  | EOr     of ctype * expr * expr
-  | EArray  of ctype * expr * expr
   | EDot    of ctype * expr * name
   | ECast   of ctype * ctype * expr
+  | EArray  of ctype * expr * expr
 and value =
   | VInt of int

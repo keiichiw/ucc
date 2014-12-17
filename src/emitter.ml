@@ -368,134 +368,161 @@ and ex ret_reg = function
      push_buffer (sprintf "L%d:\n" lelse);
      ex ret_reg e;
      push_buffer (sprintf "L%d:\n" lend)
-  | EAnd (_, e1, e2) ->
-     let l1 = label_create () in
-     let l2 = label_create () in
-     ex ret_reg e1;
-     push_buffer (sprintf "\tbeq $%d, $0, L%d\n" ret_reg l1);
-     ex ret_reg e2;
-     push_buffer (sprintf "\tbr L%d\n" l2);
-     push_buffer (sprintf "L%d:\n" l1);
-     push_buffer (sprintf "\tmov $%d, $0\n" ret_reg);
-     push_buffer (sprintf "L%d:\n" l2)
-  | EOr (_, e1, e2) ->
-     let l1 = label_create () in
-     let l2 = label_create () in
-     ex ret_reg e1;
-     push_buffer (sprintf "\tbeq $%d, $0, L%d\n" ret_reg l1);
-     push_buffer (sprintf "\tbr L%d\n" l2);
-     push_buffer (sprintf "L%d:\n" l1);
-     ex ret_reg e2;
-     push_buffer (sprintf "L%d:\n" l2)
-  | EAdd (t1, e1, e2) ->
-     (match (Typing.typeof e1, Typing.typeof e2) with
-      | (TUnsigned, TUnsigned)
-      | (TUnsigned, TInt)
-      | (TInt, TUnsigned)
-      | (TInt, TInt) ->
+  | EArith (ty, op, e1, e2) ->
+     (match op with
+      | Add
+      | Sub ->
          ex ret_reg e1;
          let rreg = reg_alloc () in
          ex rreg e2;
-         push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg rreg);
+         if op = Add then
+           push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg rreg)
+         else
+           push_buffer (sprintf "\tsub $%d, $%d, $%d\n" ret_reg ret_reg rreg)
+      | LShift
+      | RShift ->
+         ex ret_reg e1;
+         let rreg = reg_alloc () in
+         ex rreg e2;
+         if op = LShift then
+           push_buffer (sprintf "\tshift $%d, $%d, $%d\n" ret_reg ret_reg rreg)
+         else
+           (push_buffer (sprintf "\tneg $%d, $%d\n" rreg rreg);
+            push_buffer (sprintf "\tshift $%d, $%d, $%d\n" ret_reg ret_reg rreg));
          reg_free rreg
-      | (TPtr ty, TInt)
-      | (TArray (ty, _), TInt) ->
+      | Mul ->
+         ex ret_reg (ECall (ty, EVar(TInt, Name "__mul"),[e1;e2]))
+      | Div ->
+         ex ret_reg (ECall (ty, EVar(TInt, Name "__div"),[e1;e2]))
+      | Mod ->
+         ex ret_reg (ECall (ty, EVar(TInt, Name "__mod"),[e1;e2]))
+      | BitAnd ->
+         ex ret_reg (ECall (ty, EVar(TInt, Name "__and"),[e1;e2]))
+      | BitXor ->
+         ex ret_reg (ECall (ty, EVar(TInt, Name "__xor"),[e1;e2]))
+      | BitOr ->
+         ex ret_reg (ECall (ty, EVar(TInt, Name "__or"),[e1;e2])))
+  | EPAdd (t1, e1, e2) ->
+     (match (Typing.typeof e1, Typing.typeof e2) with
+      | (TPtr ty, i) when Typing.is_integral i ->
          let ty_size = size_of ty in
          ex ret_reg e1;
          let reg = reg_alloc () in
-         if ty_size = 1 then
+         (if ty_size = 1 then
            ex reg e2
          else
-           ex reg (EApp (TInt, EVar(TInt, Name "__mul"),
-                         [e2; EConst(TInt, VInt (size_of ty))]));
+           let sz = EConst(TInt, VInt ty_size) in
+           ex reg (ECall (ty, EVar(TInt, Name "__mul"), [e2;sz])));
          push_buffer (sprintf "\tadd $%d, $%d, $%d\n" ret_reg ret_reg reg);
          reg_free reg
-      | (TInt, TPtr _)
-      | (TInt, TArray _) -> ex ret_reg (EAdd (t1, e2, e1))
-      | _ -> raise (EmitError "add"))
-  | ESub (t1, e1, e2) ->
-     (match (Typing.typeof e1, Typing.typeof e2) with
-      | (TUnsigned, TUnsigned)
-      | (TUnsigned, TInt)
-      | (TInt, TUnsigned)
-      | (TInt, TInt) ->
-         ex ret_reg e1;
+      | _ ->
+         raise (Unreachable "EPAdd"))
+  | EPDiff (t1, e1, e2) ->
+     raise (TODO "EPDiff")
+  | ERel (ty, op, e1, e2) ->
+     (match op with
+      | Le ->
+         let lnum = label_create () in
+         let lreg = reg_alloc () in
+         ex lreg e1;
          let rreg = reg_alloc () in
          ex rreg e2;
-         push_buffer (sprintf "\tsub $%d, $%d, $%d\n" ret_reg ret_reg rreg);
+         push_buffer (sprintf "\tmov $%d, 1\n" ret_reg);
+         push_buffer (sprintf "\tble $%d, $%d, L%d\n" lreg rreg lnum);
+         push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
+         push_buffer (sprintf "L%d:\n" lnum);
+         reg_free lreg;
          reg_free rreg
-      | (TPtr ty, TInt)
-      | (TArray (ty, _), TInt) ->
-         let ty_size = size_of ty in
+      | Lt ->
+         ex ret_reg (EUnary(TInt, LogNot, ERel (ty, Le, e2, e1)))
+      | Ge ->
+         ex ret_reg (ERel (ty, Le, e2, e1))
+      | Gt ->
+         ex ret_reg (ERel (ty, Lt, e2, e1)))
+  | EEq (_, op, e1, e2) ->
+     (match op with
+      | Eq ->
+         let lnum = label_create () in
+         let lreg = reg_alloc () in
+         ex lreg e1;
+         let rreg = reg_alloc () in
+         ex rreg e2;
+         push_buffer (sprintf "\tmov $%d, 1\n" ret_reg);
+         push_buffer (sprintf "\tbeq $%d, $%d, L%d\n" lreg rreg lnum);
+         push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
+         push_buffer (sprintf "L%d:\n" lnum);
+         reg_free lreg;
+         reg_free rreg
+      | Ne->
+         let lelse = label_create () in
+         let lend = label_create () in
+         let lreg = reg_alloc () in
+         ex lreg e1;
+         let rreg = reg_alloc () in
+         ex rreg e2;
+         push_buffer (sprintf "\tbeq $%d, $%d, L%d\n" lreg rreg lelse);
+         push_buffer (sprintf "\tmov $%d, 1\n" ret_reg);
+         push_buffer (sprintf "\tbr L%d\n" lend);
+         push_buffer (sprintf "L%d:\n" lelse);
+         push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
+         push_buffer (sprintf "L%d:\n" lend);
+         reg_free lreg;
+         reg_free rreg)
+  | ELog (_, op, e1, e2) ->
+     (match op with
+      | And ->
+         let l1 = label_create () in
+         let l2 = label_create () in
          ex ret_reg e1;
+         push_buffer (sprintf "\tbeq $%d, $0, L%d\n" ret_reg l1);
+         ex ret_reg e2;
+         push_buffer (sprintf "\tbr L%d\n" l2);
+         push_buffer (sprintf "L%d:\n" l1);
+         push_buffer (sprintf "\tmov $%d, $0\n" ret_reg);
+         push_buffer (sprintf "L%d:\n" l2)
+      | Or ->
+         let l1 = label_create () in
+         let l2 = label_create () in
+         ex ret_reg e1;
+         push_buffer (sprintf "\tbeq $%d, $0, L%d\n" ret_reg l1);
+         push_buffer (sprintf "\tbr L%d\n" l2);
+         push_buffer (sprintf "L%d:\n" l1);
+         ex ret_reg e2;
+         push_buffer (sprintf "L%d:\n" l2))
+  | EUnary (ty, op, e) ->
+     (match op with
+      | Plus -> ex ret_reg e
+      | Minus ->
+         ex ret_reg e;
+         push_buffer (sprintf "\tneg $%d, $%d\n" ret_reg ret_reg)
+      | BitNot ->
+         ex ret_reg (ECall (ty, EVar(TInt, Name "__bit_not"),[e]))
+      | LogNot ->
+         let zero = EConst(TInt, VInt 0) in
+         ex ret_reg (EEq (ty, Eq, e, zero))
+      | PostInc ->
+         let areg = reg_alloc () in
+         lv_addr areg e;
          let reg = reg_alloc () in
-         if ty_size = 1 then
-           ex reg e2
-         else
-           ex reg (EApp (TInt, EVar(TInt, Name "__mul"),
-                         [e2; EConst(TInt, VInt (size_of ty))]));
-         push_buffer (sprintf "\tsub $%d, $%d, $%d\n" ret_reg ret_reg reg);
+         push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg areg);
+         push_buffer (sprintf "\tadd $%d, $%d, 1\n" reg ret_reg);
+         push_buffer (sprintf "\tmov [$%d], $%d\n" areg reg);
+         reg_free areg;
          reg_free reg
-      | (TInt, TPtr _)
-      | (TInt, TArray _) -> ex ret_reg (ESub (t1, e2, e1))
-      | _ -> raise (EmitError "sub"))
-  | EShift (_, e1, e2) ->
-     (match Typing.typeof e1 with
-      | TUnsigned ->
-         ex ret_reg e1;
-         let rreg = reg_alloc () in
-         ex rreg e2;
-         push_buffer (sprintf "\tshift $%d, $%d, $%d\n" ret_reg ret_reg rreg);
-         reg_free rreg
-      | TInt ->
-         ex ret_reg (EApp (TInt, EVar(TInt, Name "__ash"),
-                           [e1; e2]));
-      | _ -> raise (EmitError "shift")
-     )
-  | ELe (_, e1, e2) ->
-     let lnum = label_create () in
-     let lreg = reg_alloc () in
-     ex lreg e1;
-     let rreg = reg_alloc () in
-     ex rreg e2;
-     push_buffer (sprintf "\tmov $%d, 1\n" ret_reg);
-     push_buffer (sprintf "\tble $%d, $%d, L%d\n" lreg rreg lnum);
-     push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
-     push_buffer (sprintf "L%d:\n" lnum);
-     reg_free lreg;
-     reg_free rreg
-  | EEq (_, e1, e2) ->
-     let lnum = label_create () in
-     let lreg = reg_alloc () in
-     ex lreg e1;
-     let rreg = reg_alloc () in
-     ex rreg e2;
-     push_buffer (sprintf "\tmov $%d, 1\n" ret_reg);
-     push_buffer (sprintf "\tbeq $%d, $%d, L%d\n" lreg rreg lnum);
-     push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
-     push_buffer (sprintf "L%d:\n" lnum);
-     reg_free lreg;
-     reg_free rreg
-  | ENeq (_, e1, e2) ->
-     let lelse = label_create () in
-     let lend = label_create () in
-     let lreg = reg_alloc () in
-     ex lreg e1;
-     let rreg = reg_alloc () in
-     ex rreg e2;
-     push_buffer (sprintf "\tbeq $%d, $%d, L%d\n" lreg rreg lelse);
-     push_buffer (sprintf "\tmov $%d, 1\n" ret_reg);
-     push_buffer (sprintf "\tbr L%d\n" lend);
-     push_buffer (sprintf "L%d:\n" lelse);
-     push_buffer (sprintf "\tmov $%d, 0\n" ret_reg);
-     push_buffer (sprintf "L%d:\n" lend);
-     reg_free lreg;
-     reg_free rreg
-  | EApp (_, f, exlst) ->
+      | PostDec ->
+         let areg = reg_alloc () in
+         lv_addr areg e;
+         let reg = reg_alloc () in
+         push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg areg);
+         push_buffer (sprintf "\tsub $%d, $%d, 1\n" reg ret_reg);
+         push_buffer (sprintf "\tmov [$%d], $%d\n" areg reg);
+         reg_free areg;
+         reg_free reg)
+  | ECall (_, f, exlst) ->
      let fname =
        (match f with
         | EVar (_, Name nm) -> nm
-        | _ -> raise (EmitError "EApp: fname")) in
+        | _ -> raise (EmitError "ECall: fname")) in
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
      let arg_list = List.fold_left
                       (fun l e ->
@@ -543,14 +570,14 @@ and ex ret_reg = function
   | EPtr (_, e) ->
      ex ret_reg e;
      push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg)
-  | EArray (t, e1, e2) ->
-     lv_addr ret_reg (EArray (t, e1, e2));
+  | EDot (t, e, Name name) ->
+     lv_addr ret_reg (EDot (t, e, Name name));
      (match t with
       | TArray _ | TStruct _ -> ()
       | _ ->
          push_buffer (sprintf "\tmov $%d, [$%d]\n" ret_reg ret_reg))
-  | EDot (t, e, Name name) ->
-     lv_addr ret_reg (EDot (t, e, Name name));
+  | EArray (t, e1, e2) ->
+     lv_addr ret_reg (EArray (t, e1, e2));
      (match t with
       | TArray _ | TStruct _ -> ()
       | _ ->
@@ -583,9 +610,9 @@ and lv_addr ret_reg = function
          lv_addr ret_reg expr;
          push_buffer (sprintf "\tadd $%d, $%d, %d\n" ret_reg ret_reg mem_offset)
       | _ -> raise (EmitError "lv_addr dot"))
-  | EArray (ty, e1, e2) ->
-     ex ret_reg (EAdd(Type.TPtr ty, e1, e2))
   | EPtr (_, e) -> ex ret_reg e
+  | EArray (ty, e1, e2) ->
+     ex ret_reg (EPAdd(Type.TPtr ty, e1, e2))
   | e ->
      (match Typing.typeof e with
       | TPtr _ -> ex ret_reg e

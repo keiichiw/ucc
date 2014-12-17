@@ -1,9 +1,6 @@
 exception NotMatch
 exception TODO of string
 
-(*location*)
-type loc = Lexing.position * Lexing.position
-
 type name = Name of string
 type size = int
 type star_num = int
@@ -36,25 +33,51 @@ and stmt =
   | SCase of int
   | SDefault
   | SExpr of expr
+and arith_bin =
+  | Add
+  | Sub
+  | Mul
+  | Div
+  | Mod
+  | LShift
+  | RShift
+  | BitAnd (* & *)
+  | BitXor (* ^ *)
+  | BitOr  (* | *)
+and logical_bin =
+  | And (* && *)
+  | Or  (* || *)
+and rel_bin =
+  | Lt
+  | Le
+  | Gt
+  | Ge
+and eq_bin =
+  | Eq
+  | Ne
+and unary =
+  | Plus
+  | Minus
+  | BitNot (* ~ *)
+  | LogNot (* ! *)
+  | PostInc
+  | PostDec
 and expr =
   | EConst  of value
   | EVar    of name
   | EComma  of expr * expr
-  | EAdd    of expr * expr
-  | EShift  of expr * expr
-  | ESub    of expr * expr
   | EAssign of expr * expr
-  | EApp    of expr * (expr list)
-  | ELe     of expr * expr
-  | EEq     of expr * expr
-  | ENeq    of expr * expr
+  | EUnary  of unary * expr
+  | EArith  of arith_bin * expr * expr
+  | ERel    of rel_bin   * expr * expr
+  | EEq     of eq_bin    * expr * expr
+  | ELog    of logical_bin * expr * expr
+  | ECall   of expr * (expr list)
   | EPtr    of expr
   | EAddr   of expr
-  | EArray  of expr * expr
   | ECond   of expr * expr * expr
-  | EAnd    of expr * expr
-  | EOr     of expr * expr
   | EDot    of expr * name
+  | EArray  of expr * expr
   | ECast   of ctype * expr
 and value =
   | VInt of int

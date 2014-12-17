@@ -106,7 +106,7 @@ int __or(int a, int b) {
   return x;
 }
 
-int __not(int a) {
+int __bit_not(int a) {
   return (-a)-1;
 }
 

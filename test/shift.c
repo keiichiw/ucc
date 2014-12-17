@@ -1,20 +1,19 @@
 /*
--1
--1
--1
-1073741823
+2
+4
+8
+9
+4
+2
 */
 
 
 
 int main () {
-  int a = -1;
-  unsigned b = a;
-  print_int(a);
-  print_int(b);
-  a>>=2;
-  b>>=2;
-  print_int(a);
-  print_int(b);
-  return 0;
+  print_int(1<<1);
+  print_int(1<<2);
+  print_int(1<<3);
+  print_int(18>>1);
+  print_int(18>>2);
+  print_int(18>>3);
 }
