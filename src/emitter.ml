@@ -363,8 +363,18 @@ and ex ret_reg = function
   | EComma(_, ex1, ex2) ->
      ex ret_reg ex1;
      ex ret_reg ex2
-  | EConst (_, VInt i) ->
-     emit "mov r%d, %d" ret_reg i
+  | EConst (_, v) ->
+     (match v with
+      | VInt i ->
+         emit "mov r%d, %d" ret_reg i
+      | VStr s ->
+         let ldata = label_create () in
+         let ltext = label_create () in
+         emit "br L%d" ltext;
+         emit_label ldata;
+         List.iter (fun i -> emit ".int %d" i) s;
+         emit_label ltext;
+         emit "mov r%d, L%d" ret_reg ldata)
   | ECond (_, c, t, e) ->
      let lelse = label_create () in
      let lend = label_create () in

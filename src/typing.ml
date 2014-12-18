@@ -171,7 +171,10 @@ and opex = function
   | None -> None
 and ex = function
   | Syntax.EConst v ->
-     Type.EConst (TInt, vl v)
+     let (ty, v) = match v with
+       | Syntax.VInt i -> TInt, Type.VInt i
+       | Syntax.VStr s -> TArray (TInt, List.length s), Type.VStr s in
+     Type.EConst (ty, v)
   | Syntax.EVar (Syntax.Name n)->
      Type.EVar (resolve_var_type n, Type.Name n)
   | Syntax.EComma (e1, e2) ->
@@ -327,9 +330,6 @@ and unary_op = function
   | Syntax.LogNot -> Type.LogNot
   | Syntax.PostInc -> Type.PostInc
   | Syntax.PostDec -> Type.PostDec
-and vl = function
-  | Syntax.VInt i -> Type.VInt i
-  | Syntax.VStr s -> raise (TypingError "string constant not supported")
 and typeof' = function
   | Type.EArith  (t, _, _, _) -> t
   | Type.ERel    (t, _, _, _) -> t

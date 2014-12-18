@@ -74,3 +74,4 @@ and expr =
   | EArray  of ctype * expr * expr
 and value =
   | VInt of int
+  | VStr of int list
