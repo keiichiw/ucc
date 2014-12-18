@@ -11,11 +11,8 @@
 int
 main()
 {
-#ifndef __UCC__
+
   char a[7] = "Hello\n";
-#else
-  int a[7] = "Hello\n";
-#endif
   int i;
 
   for (i = 0; i < 7; ++i) {

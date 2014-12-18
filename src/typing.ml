@@ -218,11 +218,13 @@ and ex = function
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
-      | (TInt, TInt) ->
-         Type.ERel (TInt, op, ex1, ex2)
-      | (TUnsigned, _)
-      | (_, TUnsigned) ->
-         raise (TypingError "relation: unsigned")
+      | (t1, t2) when is_integral t1 && is_integral t2 ->
+         if int_conv (t1, t2) = TUnsigned then
+           raise (TypingError "relation: unsigned")
+         else
+           Type.ERel (TInt, op, ex1, ex2)
+      | (TPtr _, TPtr _) ->
+         raise (TypingError "relation: pointer")
       | _ ->
          raise (TypingError "relation"))
   | Syntax.EEq (eop, e1, e2) ->
@@ -230,23 +232,25 @@ and ex = function
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
-      | (TInt, TInt) ->
-         Type.EEq (TInt, op, ex1, ex2)
-      | (TUnsigned, _)
-      | (_, TUnsigned) ->
-         raise (TypingError "eq: unsigned")
+      | (t1, t2) when is_integral t1 && is_integral t2 ->
+         if int_conv (t1, t2) = TUnsigned then
+           raise (TypingError "eq: unsigned")
+         else
+           Type.EEq (TInt, op, ex1, ex2)
+      | (TPtr _, TPtr _) ->
+         raise (TypingError "eq: pointer")
       | _ ->
-         raise (TypingError "eq"))
+         raise (TypingError "eq: otherwise"))
   | Syntax.ELog (lop, e1, e2) ->
      let op  = logical_bin_op lop in
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
-      | (TInt, TInt) ->
-         Type.ELog (TInt, op, ex1, ex2)
-      | (TUnsigned, _)
-      | (_, TUnsigned) ->
-         raise (TypingError "logical: unsigned")
+      | (t1, t2) when is_integral t1 && is_integral t2 ->
+         if int_conv (t1, t2) = TUnsigned then
+           raise (TypingError "logical: unsigned")
+         else
+           Type.ELog (TInt, op, ex1, ex2)
       | _ ->
          raise (TypingError "logical"))
   | Syntax.EUnary (op1, e1) ->
@@ -254,7 +258,8 @@ and ex = function
      let ex1= ex e1 in
      (match (op, typeof ex1) with
       | (Type.LogNot, _)
-      | (_, TInt) ->
+      | (_, TInt)
+      | (_, TChar) ->
          Type.EUnary(TInt, op, ex1)
       | (_, TUnsigned) ->
          Type.EUnary(TUnsigned, op, ex1)
@@ -355,18 +360,19 @@ and typeof e =
   | t -> t
 and is_integral = function
   | TInt
-  | TUnsigned -> true
+  | TUnsigned
+  | TChar -> true
   | _ -> false
 and int_conv = function
   | (TUnsigned, _)
   | (_, TUnsigned) ->
      TUnsigned
-  | (TInt, TInt) ->
+  | _ ->
      TInt
-  | _ -> raise (TypingError "inv_conv")
 and size_of = function
   | TInt
   | TUnsigned
+  | TChar
   | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (size_of ty)
   | TFun _ -> raise (TypingError "sizeof function")

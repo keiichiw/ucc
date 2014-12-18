@@ -107,6 +107,7 @@ let resolve_struct s =
 let rec size_of = function
   | TInt
   | TUnsigned
+  | TChar
   | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (size_of ty)
   | TFun _ -> raise (EmitError "sizeof function")

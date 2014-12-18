@@ -45,6 +45,8 @@ rule token = parse
     { TINT }
 | "unsigned"
     { TUNSIGNED }
+| "char"
+    { TCHAR }
 | "struct"
     { STRUCT }
 | "typedef"

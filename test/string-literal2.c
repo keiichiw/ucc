@@ -18,11 +18,8 @@
 int
 main()
 {
-#ifndef __UCC__
+
   char *p = "Hello, World!\n";
-#else
-  int *p = "Hello, World!\n";
-#endif
   int i = 0;
 
   while (p[i]) {
