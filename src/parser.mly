@@ -132,7 +132,7 @@ struct_decl:
 init_declarator:
 | declarator
   { ($1, None) }
-| declarator ASSIGN assign_expr
+| declarator ASSIGN initializer_
   { ($1, Some $3) }
 
 declarator:
@@ -162,6 +162,12 @@ param_decl_list:
 param_decl:
 | decl_specs declarator
   { make_dvar $1 ($2, None) }
+
+initializer_: /* 'initializer' is an OCaml's keyword! */
+| assign_expr
+  { IScal $1 }
+| LBRACE l=separated_list(COMMA, initializer_) RBRACE
+  { IList l }
 
 type_name:
 | type_spec

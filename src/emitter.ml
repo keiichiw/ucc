@@ -124,17 +124,20 @@ let push_args args = (* add args in env *)
        go (i-4) xs in
   go (-4) args
 let push_global_var oc = function (* add global var in env *)
-  | DVar (ty, Name name, None) ->
+  | DVar (ty, Name name, []) ->
      let label = sprintf "global_%s" name in
      stack_push env_ref (name, (ty, Global label));
      fprintf oc "%s:\n" label;
      fprintf oc "\t.int 0, %d\n" (size_of ty)
-  | DVar (ty, Name name, Some (EConst (TInt, (VInt x)))) ->
+  | DVar (ty, Name name, xs) ->
      let label = sprintf "global_%s" name in
      stack_push env_ref (name, (ty, Global label));
      fprintf oc "%s:\n" label;
-     fprintf oc "\t.int %d\n" x
-  | _ -> raise (TODO "global variables isn\'t supported yet")
+     List.iter (fun e ->
+        match e with
+        | EConst (TInt, (VInt v)) -> fprintf oc "\t.int %d\n" v
+        | _ -> raise (EmitError "global initializer must be constant")
+     ) xs
 
 
 let push_local_vars vars =
@@ -169,15 +172,16 @@ and emitter oc = function
      push_global_var oc v
 and init_local_vars vars =
   let go = function
-    | DVar (_, Name nm, Some x) ->
+    | DVar (_, Name nm, xs) ->
        (match resolve_var nm with
         | (_, Mem offset) ->
            let reg = reg_alloc () in
-           ex reg x;
-           emit "mov [rbp-%d], r%d" offset reg;
+           List.iteri (fun i e ->
+              ex reg e;
+              emit "mov [rbp - %d], r%d" (offset - i * 4) reg
+           ) xs;
            reg_free reg
-        |_ -> raise (Unreachable "init_local_var"))
-    | _ -> () in
+        |_ -> raise (Unreachable "init_local_var")) in
   List.iter go vars
 and st = function
   | SNil ->

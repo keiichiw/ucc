@@ -16,7 +16,7 @@ and def =
   | DefFun of dvar * stmt
   | DefVar of dvar
 and dvar =
-  | DVar of ctype * name * (expr option)
+  | DVar of ctype * name * (init option)
 and stmt =
   | SNil
   | SBlock of dvar list * stmt list
@@ -80,6 +80,9 @@ and expr =
   | EArray  of expr * expr
   | ECast   of ctype * expr
   | ESizeof of ctype
+and init =
+  | IScal of expr
+  | IList of init list
 and value =
   | VInt of int
 let struct_table : (string * int) list ref = ref [];;

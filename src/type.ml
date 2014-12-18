@@ -11,7 +11,7 @@ and def =
   | DefFun of ctype * name * (dvar list) * stmt
   | DefVar of dvar
 and dvar =
-  | DVar of ctype * name * (expr option)
+  | DVar of ctype * name * (expr list)
 and stmt =
   | SNil
   | SBlock of dvar list * stmt list

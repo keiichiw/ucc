@@ -57,7 +57,63 @@ and def = function
 and dv = function
   | Syntax.DVar(ty, Syntax.Name n, x) ->
      push_stack (n, typ ty) venv_ref;
-     Type.DVar(typ ty, Type.Name n, opex x)
+     let init = initialize ty x in
+     Type.DVar(typ ty, Type.Name n, List.map ex init)
+and initialize ty init =
+  let rec go_compound ty init idx =
+    match init with
+    | Syntax.IList ilist ->
+      begin match ty with
+      (*
+      | Syntax.TSrtuct s_id ->
+        let s = List.assoc s_id !senv_ref in
+        if List.length s = idx then [], ilist
+        else
+          let l, rem  = go_inner (snd (List.nth s i)) ty elist idx in
+          let r, tail = go_compound ty rem (idx + 1) in
+          l @ r, tail
+      *)
+      | Syntax.TArray (inner_ty, sz) ->
+        if sz = idx then [], init
+        else
+          let l, rem  = go_inner inner_ty ty ilist idx in
+          let r, tail = go_compound ty rem (idx + 1) in
+          l @ r, tail
+      | _ -> raise (TypingError "initialize: internal error")
+      end
+    | _ -> raise (TypingError "requied initializer list")
+  and go_inner inner_ty ty ilist idx =
+    let i, is =
+      if ilist = [] then
+        Syntax.IScal (Syntax.EConst (Syntax.VInt 0)), []
+      else
+        List.hd ilist, List.tl ilist in
+    match inner_ty, i with
+    | Syntax.TStruct _, Syntax.IList _ | Syntax.TArray _, Syntax.IList _ ->
+      let res, tail = go_compound inner_ty i 0 in
+      if tail <> Syntax.IList [] then
+        raise (TypingError "initializer eccess elements");
+      res, Syntax.IList is
+    | Syntax.TStruct _, _ | Syntax.TArray _, _ ->
+      go_compound inner_ty (Syntax.IList ilist) 0
+    | _, _ -> scaler i, Syntax.IList is
+  and scaler = function
+    | Syntax.IList ((Syntax.IList _)::_) ->
+      raise (TypingError "too many braces around scalar initializer")
+    | Syntax.IList [Syntax.IScal e] -> [e]
+    | Syntax.IList _ ->
+      raise (TypingError "invalid scaler initializer")
+    | Syntax.IScal e -> [e] in
+  match init with
+  | None -> []
+  | Some init ->
+    match ty with
+    | Syntax.TStruct _ | Syntax.TArray _ ->
+      let res, tail = go_compound ty init 0 in
+      if tail <> Syntax.IList [] then
+        raise (TypingError "initializer eccess elements");
+      res
+    | _ -> scaler init
 and st = function
   | Syntax.SNil -> Type.SNil
   | Syntax.SBlock(x, y) ->
@@ -243,10 +299,9 @@ and ex = function
 and typ = function
   | Syntax.TInt -> Type.TInt
   | Syntax.TUnsigned -> Type.TUnsigned
-  | Syntax.TStruct i ->
-     Type.TStruct i
+  | Syntax.TStruct i -> Type.TStruct i
   | Syntax.TPtr ty -> Type.TPtr (typ ty)
-  | Syntax.TArray (ty, sz) -> Type.TArray (typ ty,sz)
+  | Syntax.TArray (ty, sz) -> Type.TArray (typ ty, sz)
   | _ -> raise (TypingError "typ")
 and arith_bin_op = function
   | Syntax.Add -> Type.Add
@@ -280,24 +335,24 @@ and unary_op = function
 and vl = function
   | Syntax.VInt i -> Type.VInt i
 and typeof' = function
-  | Type.EArith  (t, _, _, _ ) -> t
-  | Type.ERel    (t, _, _, _ ) -> t
+  | Type.EArith  (t, _, _, _) -> t
+  | Type.ERel    (t, _, _, _) -> t
   | Type.EPAdd   (t, _, _) -> t
   | Type.EPDiff  (t, _, _) -> t
-  | Type.EEq     (t, _, _, _ ) -> t
-  | Type.ELog    (t, _, _, _ ) -> t
+  | Type.EEq     (t, _, _, _) -> t
+  | Type.ELog    (t, _, _, _) -> t
   | Type.EUnary  (t, _, _) -> t
   | Type.EConst  (t, _) -> t
   | Type.EVar    (t, _) -> t
-  | Type.EComma  (t, _, _) ->t
-  | Type.EAssign (t, _, _) ->t
-  | Type.ECall   (t, _, _) ->t
-  | Type.EAddr   (t, _) ->t
-  | Type.EPtr    (t, _) ->t
-  | Type.ECond   (t, _, _, _) ->t
-  | Type.EDot    (t, _, _) ->t
-  | Type.ECast   (t, _, _) ->t
-  | Type.EArray  (t, _, _) ->t
+  | Type.EComma  (t, _, _) -> t
+  | Type.EAssign (t, _, _) -> t
+  | Type.ECall   (t, _, _) -> t
+  | Type.EAddr   (t, _) -> t
+  | Type.EPtr    (t, _) -> t
+  | Type.ECond   (t, _, _, _) -> t
+  | Type.EDot    (t, _, _) -> t
+  | Type.ECast   (t, _, _) -> t
+  | Type.EArray  (t, _, _) -> t
 and typeof e =
   match typeof' e with
   | Type.TArray (t, _) -> Type.TPtr t
