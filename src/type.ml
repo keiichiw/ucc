@@ -1,20 +1,16 @@
+open Ctype
 type name = Name of string
 type struct_id = int
 type size = int
-type ctype =
-  | TInt
-  | TUnsigned
-  | TStruct of struct_id
-  | TPtr of ctype (* pointer *)
-  | TArray of ctype * int (* array *)
-and def =
-  | DefFun of ctype * name * (dvar list) * stmt
-  | DefVar of dvar
-and dvar =
-  | DVar of ctype * name * (expr list)
+
+type def =
+  | DefFun of ctype * name * (decl list) * stmt
+  | DefVar of decl
+and decl =
+  | Decl of ctype * name * (expr list)
 and stmt =
   | SNil
-  | SBlock of dvar list * stmt list
+  | SBlock of decl list * stmt list
   | SWhile of expr * stmt
   | SDoWhile of stmt * expr
   | SFor of (expr option) * (expr option) * (expr option) * stmt

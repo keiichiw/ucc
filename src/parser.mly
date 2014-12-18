@@ -1,5 +1,6 @@
 %{
   open Syntax
+  open Ctype
   open Parser_helper
   exception ParserError of string
   exception Unreachable of string
@@ -8,8 +9,10 @@
     | DeclPtr of declarator
     | DeclIdent  of name
     | DeclArray  of declarator * size
-    | DeclFun of declarator * (dvar list)
-  let rec make_dvar ty (decl, exp) =
+    | DeclFun of declarator * (decl list)
+  let get_ty = function
+    | Decl (ty, _, _) -> ty
+  let rec make_decl ty (decl, exp) =
     let name = ref (Name "") in
     let ty =
       let rec go k = function
@@ -21,12 +24,15 @@
         | DeclArray (d, sz) ->
            go (fun x -> TArray (k x, sz)) d
         | DeclFun (d, dvs) ->
-           go (fun x -> TFun (k x, dvs)) d in
+           go (fun x -> TFun (k x, List.map get_ty dvs)) d in
       go (fun x -> x) decl in
-    DVar (ty, !name, exp)
+    Decl (ty, !name, exp)
+  let get_params = function
+    | DeclFun (_, dvs) -> dvs
+    | _ -> raise (ParserError "get_params")
   let make_type ty decl =
-    (match make_dvar ty (decl, None) with
-     | DVar (ty, Name "", None) ->
+    (match make_decl ty (decl, None) with
+     | Decl (ty, Name "", None) ->
         ty
      | _ ->
         raise (ParserError "make_type"))
@@ -97,13 +103,13 @@ external_decl:
 
 function_definition:
 | typ=decl_specs d=declarator b=compound_stat
-  { DefFun (make_dvar typ (d,None), b) }
+  { DefFun (make_decl typ (d,None), get_params d, b) }
 
 decl:
 | typ=decl_specs; dlist=separated_list(COMMA, init_declarator); SEMICOLON
-  { List.map (make_dvar typ) dlist }
+  { List.map (make_decl typ) dlist }
 | TYPEDEF ty=type_spec d=declarator SEMICOLON
-  { typedef (make_dvar ty (d, None)); [] }
+  { typedef (make_decl ty (d, None)); [] }
 
 decl_specs:
 | type_spec
@@ -161,7 +167,7 @@ param_decl_list:
 
 param_decl:
 | decl_specs declarator
-  { make_dvar $1 ($2, None) }
+  { make_decl $1 ($2, None) }
 
 initializer_: /* 'initializer' is an OCaml's keyword! */
 | assign_expr

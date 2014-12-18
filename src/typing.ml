@@ -1,31 +1,32 @@
+open Ctype
 open Format
 exception TypingError of string
 exception TODO of string
 exception Unreachable
 type name = string
-let venv_ref : (string * Type.ctype) list ref = ref [];;
-let fenv_ref : (string * Type.ctype) list ref = ref [];;
+let venv_ref : (string * ctype) list ref = ref [];;
+let fenv_ref : (string * ctype) list ref = ref [];;
 
 (* This is initialized in main *)
-let senv_ref : (int * ((name * Type.ctype) list)) list ref = ref [];;
+let senv_ref : (int * ((name * ctype) list)) list ref = ref [];;
 
 let push_stack x env =
   env := x::!env
 let resolve_var_type nm =
   let rec go nm  = function
-    | [] -> Type.TInt
+    | [] -> TInt
     | (s, ty)::_ when s=nm -> ty
     | _ :: xs -> go nm xs in
   go nm !venv_ref
 let resolve_fun_type nm =
   let rec go nm  = function
-    | [] -> Type.TInt
+    | [] -> TInt
     | (s, ty)::_ when s=nm -> ty
     | _ :: xs -> go nm xs in
   go nm !fenv_ref
 let resolve_member_type stct mem_name =
   match stct with
-  | Type.TStruct s_id ->
+  | TStruct s_id ->
      let dvs = List.assoc s_id !senv_ref in
      List.assoc mem_name dvs
   | _ -> raise Unreachable
@@ -33,39 +34,39 @@ let resolve_member_type stct mem_name =
 let rec main defs =
   let go x =
     match dv x with
-    | Type.DVar (ty, Type.Name n, _) -> (n, ty) in
+    | Type.Decl (ty, Type.Name n, _) -> (n, ty) in
   senv_ref := List.map
                 (fun (mem,ds) -> (mem, List.map go ds))
                 (List.rev !Syntax.struct_env);
   List.map (fun x -> def x) defs
 and def = function
-  | Syntax.DefFun (Syntax.DVar (Syntax.TFun(ty, args), Syntax.Name n, None), b) ->
-     push_stack (n, typ ty) fenv_ref;
+  | Syntax.DefFun (Syntax.Decl (TFun(ty, _), Syntax.Name n, None), dlist, b) ->
+     push_stack (n, ty) fenv_ref;
      let old_venv = !venv_ref in
      let old_fenv = !fenv_ref in
      let old_senv = !senv_ref in
-     let a1 = List.map dv args in
+     let a1 = List.map dv dlist in
      let b1 = st b in
-     let ret = Type.DefFun (typ ty, Type.Name n, a1, b1) in
+     let ret = Type.DefFun (ty, Type.Name n, a1, b1) in
      venv_ref := old_venv;
      fenv_ref := old_fenv;
      senv_ref := old_senv;
      ret
-  | Syntax.DefVar dvar ->
-     Type.DefVar (dv dvar)
+  | Syntax.DefVar decl ->
+     Type.DefVar (dv decl)
   | _ -> raise (TypingError "def")
 and dv = function
-  | Syntax.DVar(ty, Syntax.Name n, x) ->
-     push_stack (n, typ ty) venv_ref;
+  | Syntax.Decl(ty, Syntax.Name n, x) ->
+     push_stack (n, ty) venv_ref;
      let init = initialize ty x in
-     Type.DVar(typ ty, Type.Name n, List.map ex init)
+     Type.Decl(ty, Type.Name n, List.map ex init)
 and initialize ty init =
   let rec go_compound ty init idx =
     match init with
     | Syntax.IList ilist ->
       begin match ty with
       (*
-      | Syntax.TSrtuct s_id ->
+      | TSrtuct s_id ->
         let s = List.assoc s_id !senv_ref in
         if List.length s = idx then [], ilist
         else
@@ -73,7 +74,7 @@ and initialize ty init =
           let r, tail = go_compound ty rem (idx + 1) in
           l @ r, tail
       *)
-      | Syntax.TArray (inner_ty, sz) ->
+      | TArray (inner_ty, sz) ->
         if sz = idx then [], init
         else
           let l, rem  = go_inner inner_ty ty ilist idx in
@@ -89,12 +90,12 @@ and initialize ty init =
       else
         List.hd ilist, List.tl ilist in
     match inner_ty, i with
-    | Syntax.TStruct _, Syntax.IList _ | Syntax.TArray _, Syntax.IList _ ->
+    | TStruct _, Syntax.IList _ | TArray _, Syntax.IList _ ->
       let res, tail = go_compound inner_ty i 0 in
       if tail <> Syntax.IList [] then
         raise (TypingError "initializer eccess elements");
       res, Syntax.IList is
-    | Syntax.TStruct _, _ | Syntax.TArray _, _ ->
+    | TStruct _, _ | TArray _, _ ->
       go_compound inner_ty (Syntax.IList ilist) 0
     | _, _ -> scaler i, Syntax.IList is
   and scaler = function
@@ -108,7 +109,7 @@ and initialize ty init =
   | None -> []
   | Some init ->
     match ty with
-    | Syntax.TStruct _ | Syntax.TArray _ ->
+    | TStruct _ | TArray _ ->
       let res, tail = go_compound ty init 0 in
       if tail <> Syntax.IList [] then
         raise (TypingError "initializer eccess elements");
@@ -169,7 +170,7 @@ and opex = function
   | None -> None
 and ex = function
   | Syntax.EConst v ->
-     Type.EConst (Type.TInt, vl v)
+     Type.EConst (TInt, vl v)
   | Syntax.EVar (Syntax.Name n)->
      Type.EVar (resolve_var_type n, Type.Name n)
   | Syntax.EComma (e1, e2) ->
@@ -181,22 +182,22 @@ and ex = function
      (match op with
       | Syntax.Add ->
          (match (typeof ex1, typeof ex2) with
-          | (Type.TPtr ty, i) when is_integral i ->
-             Type.EPAdd (Type.TPtr ty, ex1, ex2)
-          | (i, Type.TPtr ty) when is_integral i ->
-             Type.EPAdd (Type.TPtr ty, ex2, ex1)
+          | (TPtr ty, i) when is_integral i ->
+             Type.EPAdd (TPtr ty, ex1, ex2)
+          | (i, TPtr ty) when is_integral i ->
+             Type.EPAdd (TPtr ty, ex2, ex1)
           | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
              let ty = int_conv (ty1,ty2) in
              Type.EArith (ty, Type.Add, ex1, ex2)
           | _ -> raise (TypingError "EArith: add"))
       | Syntax.Sub ->
          (match (typeof ex1, typeof ex2) with
-          | (Type.TPtr ty1, Type.TPtr ty2) ->
-             Type.EPDiff(Type.TInt, ex1, ex2)
-          | (Type.TPtr ty1, i) when is_integral i ->
+          | (TPtr ty1, TPtr ty2) ->
+             Type.EPDiff(TInt, ex1, ex2)
+          | (TPtr ty1, i) when is_integral i ->
              let m_ex2 = ex (Syntax.EUnary(Syntax.Minus, e2)) in
              assert (is_integral (typeof m_ex2));
-             Type.EPAdd (Type.TPtr ty1, ex1, m_ex2)
+             Type.EPAdd (TPtr ty1, ex1, m_ex2)
           | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
              let ty = int_conv (ty1,ty2) in
              Type.EArith (ty, Type.Sub, ex1, ex2)
@@ -213,10 +214,10 @@ and ex = function
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
-      | (Type.TInt, Type.TInt) ->
-         Type.ERel (Type.TInt, op, ex1, ex2)
-      | (Type.TUnsigned, _)
-      | (_, Type.TUnsigned) ->
+      | (TInt, TInt) ->
+         Type.ERel (TInt, op, ex1, ex2)
+      | (TUnsigned, _)
+      | (_, TUnsigned) ->
          raise (TypingError "relation: unsigned")
       | _ ->
          raise (TypingError "relation"))
@@ -225,10 +226,10 @@ and ex = function
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
-      | (Type.TInt, Type.TInt) ->
-         Type.EEq (Type.TInt, op, ex1, ex2)
-      | (Type.TUnsigned, _)
-      | (_, Type.TUnsigned) ->
+      | (TInt, TInt) ->
+         Type.EEq (TInt, op, ex1, ex2)
+      | (TUnsigned, _)
+      | (_, TUnsigned) ->
          raise (TypingError "eq: unsigned")
       | _ ->
          raise (TypingError "eq"))
@@ -237,10 +238,10 @@ and ex = function
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
-      | (Type.TInt, Type.TInt) ->
-         Type.ELog (Type.TInt, op, ex1, ex2)
-      | (Type.TUnsigned, _)
-      | (_, Type.TUnsigned) ->
+      | (TInt, TInt) ->
+         Type.ELog (TInt, op, ex1, ex2)
+      | (TUnsigned, _)
+      | (_, TUnsigned) ->
          raise (TypingError "logical: unsigned")
       | _ ->
          raise (TypingError "logical"))
@@ -249,10 +250,10 @@ and ex = function
      let ex1= ex e1 in
      (match (op, typeof ex1) with
       | (Type.LogNot, _)
-      | (_, Type.TInt) ->
-         Type.EUnary(Type.TInt, op, ex1)
-      | (_, Type.TUnsigned) ->
-         Type.EUnary(Type.TUnsigned, op, ex1)
+      | (_, TInt) ->
+         Type.EUnary(TInt, op, ex1)
+      | (_, TUnsigned) ->
+         Type.EUnary(TUnsigned, op, ex1)
       | _ ->
          raise (TypingError "unary"))
   | Syntax.EAssign (e1, e2) ->
@@ -264,11 +265,11 @@ and ex = function
      Type.ECall (typeof ex1, ex1, List.map ex elist)
   | Syntax.EAddr e ->
      let ex1 = ex e in
-     Type.EAddr (Type.TPtr (typeof ex1), ex1)
+     Type.EAddr (TPtr (typeof ex1), ex1)
   | Syntax.EPtr e ->
      let ex1 = ex e in
      (match typeof ex1 with
-      | Type.TPtr ty -> Type.EPtr (ty, ex1)
+      | TPtr ty -> Type.EPtr (ty, ex1)
       | _ -> raise (TypingError "ptr"))
   | Syntax.ECond (e1, e2, e3) ->
      let ex1 = ex e1 in
@@ -280,29 +281,22 @@ and ex = function
        raise (TypingError "cond")
   | Syntax.EDot (e1, Syntax.Name nm) ->
      let ex1 = ex e1 in
-     let typ =  resolve_member_type (typeof ex1) nm in
-     Type.EDot(typ, ex1, Type.Name nm)
+     let ty =  resolve_member_type (typeof ex1) nm in
+     Type.EDot(ty, ex1, Type.Name nm)
   | Syntax.EArray (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      (match typeof ex1 with
-      | Type.TPtr t ->
+      | TPtr t ->
          Type.EArray (t, ex1, ex2)
       | _ -> raise (TypingError "EArray"))
   | Syntax.ECast (ty, e) ->
      let e = ex e in
      let ty2 = typeof e in
-     Type.ECast (typ ty, ty2, e)
+     Type.ECast (ty, ty2, e)
   | Syntax.ESizeof (ty) ->
-     let i = size_of (typ ty) in
-     Type.EConst (Type.TUnsigned, Type.VInt i)
-and typ = function
-  | Syntax.TInt -> Type.TInt
-  | Syntax.TUnsigned -> Type.TUnsigned
-  | Syntax.TStruct i -> Type.TStruct i
-  | Syntax.TPtr ty -> Type.TPtr (typ ty)
-  | Syntax.TArray (ty, sz) -> Type.TArray (typ ty, sz)
-  | _ -> raise (TypingError "typ")
+     let i = size_of ty in
+     Type.EConst (TUnsigned, Type.VInt i)
 and arith_bin_op = function
   | Syntax.Add -> Type.Add
   | Syntax.Sub -> Type.Sub
@@ -355,25 +349,26 @@ and typeof' = function
   | Type.EArray  (t, _, _) -> t
 and typeof e =
   match typeof' e with
-  | Type.TArray (t, _) -> Type.TPtr t
+  | TArray (t, _) -> TPtr t
   | t -> t
 and is_integral = function
-  | Type.TInt
-  | Type.TUnsigned -> true
+  | TInt
+  | TUnsigned -> true
   | _ -> false
 and int_conv = function
-  | (Type.TUnsigned, _)
-  | (_, Type.TUnsigned) ->
-     Type.TUnsigned
-  | (Type.TInt, Type.TInt) ->
-     Type.TInt
+  | (TUnsigned, _)
+  | (_, TUnsigned) ->
+     TUnsigned
+  | (TInt, TInt) ->
+     TInt
   | _ -> raise (TypingError "inv_conv")
 and size_of = function
-  | Type.TInt
-  | Type.TUnsigned
-  | Type.TPtr _ -> 1
-  | Type.TArray (ty, sz) -> sz * (size_of ty)
-  | Type.TStruct sid ->
+  | TInt
+  | TUnsigned
+  | TPtr _ -> 1
+  | TArray (ty, sz) -> sz * (size_of ty)
+  | TFun _ -> raise (TypingError "sizeof function")
+  | TStruct sid ->
      let sz fs = List.fold_left (fun num (_, ty) -> num + (size_of ty)) 0 fs in
      let rec go = function
        | [] -> raise (TypingError (sprintf "struct %d not found" sid))

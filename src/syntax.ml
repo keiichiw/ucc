@@ -1,3 +1,4 @@
+open Ctype
 exception NotMatch
 exception TODO of string
 
@@ -5,21 +6,14 @@ type name = Name of string
 type size = int
 type star_num = int
 type id = int
-type ctype =
-  | TInt
-  | TUnsigned
-  | TStruct of id
-  | TPtr of ctype
-  | TArray of ctype * int
-  | TFun of ctype * (dvar list)
-and def =
-  | DefFun of dvar * stmt
-  | DefVar of dvar
-and dvar =
-  | DVar of ctype * name * (init option)
+type def =
+  | DefFun of decl * (decl list) * stmt
+  | DefVar of decl
+and decl =
+  | Decl of ctype * name * (init option)
 and stmt =
   | SNil
-  | SBlock of dvar list * stmt list
+  | SBlock of decl list * stmt list
   | SWhile of expr * stmt
   | SDoWhile of stmt * expr
   | SFor of (expr option) * (expr option) * (expr option) * stmt
@@ -86,4 +80,4 @@ and init =
 and value =
   | VInt of int
 let struct_table : (string * int) list ref = ref [];;
-let struct_env : (int * (dvar list)) list ref = ref [];;
+let struct_env : (int * (decl list)) list ref = ref [];;

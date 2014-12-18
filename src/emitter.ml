@@ -1,3 +1,4 @@
+open Ctype
 open Type
 open Printf
 exception EmitError of string
@@ -108,28 +109,29 @@ let rec size_of = function
   | TUnsigned
   | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (size_of ty)
+  | TFun _ -> raise (EmitError "sizeof function")
   | TStruct s_id ->
      fst (resolve_struct s_id)
-let size_of_dvar = function
-  | DVar (ty,_,_) -> size_of ty
-let get_dvar_name = function
-  | DVar (_,Name n, _) -> n
-let get_dvar_type = function
-  | DVar (t,_, _) -> t
+let size_of_decl = function
+  | Decl (ty,_,_) -> size_of ty
+let get_decl_name = function
+  | Decl (_,Name n, _) -> n
+let get_decl_type = function
+  | Decl (t,_, _) -> t
 let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
-    | (DVar (ty, Name name, _))::xs ->
+    | (Decl (ty, Name name, _))::xs ->
        env_ref := (name, (ty, Mem i))::!env_ref;
        go (i-4) xs in
   go (-4) args
 let push_global_var oc = function (* add global var in env *)
-  | DVar (ty, Name name, []) ->
+  | Decl (ty, Name name, []) ->
      let label = sprintf "global_%s" name in
      stack_push env_ref (name, (ty, Global label));
      fprintf oc "%s:\n" label;
      fprintf oc "\t.int 0, %d\n" (size_of ty)
-  | DVar (ty, Name name, xs) ->
+  | Decl (ty, Name name, xs) ->
      let label = sprintf "global_%s" name in
      stack_push env_ref (name, (ty, Global label));
      fprintf oc "%s:\n" label;
@@ -142,7 +144,7 @@ let push_global_var oc = function (* add global var in env *)
 
 let push_local_vars vars =
   let go = function
-    | DVar (ty, Name name, _) ->
+    | Decl (ty, Name name, _) ->
        let sz = size_of ty in
        sp_offset_ref := !sp_offset_ref + sz*4;
        stack_push env_ref (name, (ty, Mem (!sp_offset_ref+4))) in
@@ -172,7 +174,7 @@ and emitter oc = function
      push_global_var oc v
 and init_local_vars vars =
   let go = function
-    | DVar (_, Name nm, xs) ->
+    | Decl (_, Name nm, xs) ->
        (match resolve_var nm with
         | (_, Mem offset) ->
            let reg = reg_alloc () in
@@ -567,7 +569,7 @@ and lv_addr ret_reg = function
       | _ -> raise (EmitError "lv_addr dot"))
   | EPtr (_, e) -> ex ret_reg e
   | EArray (ty, e1, e2) ->
-     ex ret_reg (EPAdd(Type.TPtr ty, e1, e2))
+     ex ret_reg (EPAdd(TPtr ty, e1, e2))
   | e ->
      (match Typing.typeof e with
       | TPtr _ -> ex ret_reg e
