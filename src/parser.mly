@@ -105,11 +105,15 @@ function_definition:
 | typ=decl_specs d=declarator b=compound_stat
   { DefFun (make_decl typ (d,None), get_params d, b) }
 
-decl:
-| typ=decl_specs; dlist=separated_list(COMMA, init_declarator); SEMICOLON
+real_decl:
+| typ=decl_specs; dlist=separated_list(COMMA, init_declarator)
   { List.map (make_decl typ) dlist }
-| TYPEDEF ty=type_spec d=declarator SEMICOLON
+| TYPEDEF ty=type_spec d=declarator
   { typedef (make_decl ty (d, None)); [] }
+
+decl:
+| real_decl SEMICOLON
+  { $1 }
 
 decl_specs:
 | type_spec
@@ -121,7 +125,7 @@ type_spec:
 | TUNSIGNED
   { TUnsigned }
 | TYPEDEF_NAME
-  { List.assoc $1 !typedef_env }
+    { List.assoc $1 !typedef_env }
 | struct_spec
   { $1 }
 
