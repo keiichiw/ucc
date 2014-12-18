@@ -65,25 +65,23 @@ and initialize ty init =
     match init with
     | Syntax.IList ilist ->
       begin match ty with
-      (*
-      | TSrtuct s_id ->
+      | TStruct s_id ->
         let s = List.assoc s_id !senv_ref in
-        if List.length s = idx then [], ilist
+        if List.length s = idx then [], init
         else
-          let l, rem  = go_inner (snd (List.nth s i)) ty elist idx in
+          let l, rem  = go_inner (snd (List.nth s idx)) ty ilist in
           let r, tail = go_compound ty rem (idx + 1) in
           l @ r, tail
-      *)
       | TArray (inner_ty, sz) ->
         if sz = idx then [], init
         else
-          let l, rem  = go_inner inner_ty ty ilist idx in
+          let l, rem  = go_inner inner_ty ty ilist in
           let r, tail = go_compound ty rem (idx + 1) in
           l @ r, tail
       | _ -> raise (TypingError "initialize: internal error")
       end
     | _ -> raise (TypingError "requied initializer list")
-  and go_inner inner_ty ty ilist idx =
+  and go_inner inner_ty ty ilist =
     let i, is =
       if ilist = [] then
         Syntax.IScal (Syntax.EConst (Syntax.VInt 0)), []
