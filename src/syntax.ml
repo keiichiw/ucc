@@ -71,7 +71,6 @@ and expr =
   | EAddr   of expr
   | ECond   of expr * expr * expr
   | EDot    of expr * name
-  | EArray  of expr * expr
   | ECast   of ctype * expr
   | ESizeof of ctype
 and init =

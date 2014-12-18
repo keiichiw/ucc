@@ -71,7 +71,6 @@ and expr =
   | ECond   of ctype * expr * expr * expr
   | EDot    of ctype * expr * name
   | ECast   of ctype * ctype * expr
-  | EArray  of ctype * expr * expr
 and value =
   | VInt of int
   | VStr of int list

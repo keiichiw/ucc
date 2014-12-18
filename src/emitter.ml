@@ -369,13 +369,7 @@ and ex ret_reg = function
       | VInt i ->
          emit "mov r%d, %d" ret_reg i
       | VStr s ->
-         let ldata = label_create () in
-         let ltext = label_create () in
-         emit "br L%d" ltext;
-         emit_label ldata;
-         List.iter (fun i -> emit ".int %d" i) s;
-         emit_label ltext;
-         emit "mov r%d, L%d" ret_reg ldata)
+         raise (EmitError "logic flaw: EConst at Emitter.ex"))
   | ECond (_, c, t, e) ->
      let lelse = label_create () in
      let lend = label_create () in
@@ -522,6 +516,8 @@ and ex ret_reg = function
   | EVar (t, Name name) ->
      (match resolve_var name with
       | (TArray  _, _)
+      | (TFun _, _) ->
+         raise (EmitError "logic flaw: EVar at Emitter.ex")
       | (TStruct _, _) ->
          lv_addr ret_reg (EVar (t, Name name));
       | _ ->
@@ -540,12 +536,6 @@ and ex ret_reg = function
      emit "mov r%d, [r%d]" ret_reg ret_reg
   | EDot (t, e, Name name) ->
      lv_addr ret_reg (EDot (t, e, Name name));
-     (match t with
-      | TArray _ | TStruct _ -> ()
-      | _ ->
-         emit "mov r%d, [r%d]" ret_reg ret_reg)
-  | EArray (t, e1, e2) ->
-     lv_addr ret_reg (EArray (t, e1, e2));
      (match t with
       | TArray _ | TStruct _ -> ()
       | _ ->
@@ -578,9 +568,16 @@ and lv_addr ret_reg = function
          lv_addr ret_reg expr;
          emit "add r%d, r%d, %d" ret_reg ret_reg mem_offset
       | _ -> raise (EmitError "lv_addr dot"))
-  | EPtr (_, e) -> ex ret_reg e
-  | EArray (ty, e1, e2) ->
-     ex ret_reg (EPAdd(TPtr ty, e1, e2))
+  | EPtr (_, e) ->
+     ex ret_reg e
+  | EConst (_, VStr s) ->
+     let ldata = label_create () in
+     let ltext = label_create () in
+     emit "br L%d" ltext;
+     emit_label ldata;
+     List.iter (fun i -> emit ".int %d" i) s;
+     emit_label ltext;
+     emit "mov r%d, L%d" ret_reg ldata
   | e ->
      (match Typing.typeof e with
       | TPtr _ -> ex ret_reg e
