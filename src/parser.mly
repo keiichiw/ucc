@@ -59,6 +59,7 @@
 %}
 
 %token <int> INT
+%token <int list> STR
 %token <string> ID
 %token <string> TYPEDEF_NAME
 %token TINT TUNSIGNED
@@ -440,3 +441,5 @@ arg_expr_list:
 constant_expr:
 | INT
   { EConst(VInt $1) }
+| STR
+  { EConst(VStr $1) }

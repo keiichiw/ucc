@@ -80,6 +80,9 @@ and initialize ty init =
           l @ r, tail
       | _ -> raise (TypingError "initialize: internal error")
       end
+    | Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
+       let ilist = Syntax.IList (List.map (fun i -> Syntax.IScal (Syntax.EConst (Syntax.VInt i))) str) in
+       go_compound ty ilist 0
     | _ -> raise (TypingError "requied initializer list")
   and go_inner inner_ty ty ilist =
     let i, is =
@@ -326,6 +329,7 @@ and unary_op = function
   | Syntax.PostDec -> Type.PostDec
 and vl = function
   | Syntax.VInt i -> Type.VInt i
+  | Syntax.VStr s -> raise (TypingError "string constant not supported")
 and typeof' = function
   | Type.EArith  (t, _, _, _) -> t
   | Type.ERel    (t, _, _, _) -> t

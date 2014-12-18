@@ -177,6 +177,8 @@ rule token = parse
     { INT (int_of_string i) }
 | '\'' (char as c) '\''
     { INT (cast_char_to_int c) }
+| '\"'
+    { STR (string_elements lexbuf) }
 | ident  as n
     {
       if is_typedef_name n then
@@ -191,6 +193,12 @@ rule token = parse
                (Printf.sprintf "At offset %d: unexpected character.\n"
                                (Lexing.lexeme_start lexbuf)))
     }
+
+and string_elements = parse
+| '\"'
+    { [] }
+| char as c
+    { (cast_char_to_int c)::(string_elements lexbuf) }
 
 and comment = parse
 | "*/"

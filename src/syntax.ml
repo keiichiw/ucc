@@ -79,5 +79,6 @@ and init =
   | IList of init list
 and value =
   | VInt of int
+  | VStr of int list
 let struct_table : (string * int) list ref = ref [];;
 let struct_env : (int * (decl list)) list ref = ref [];;
