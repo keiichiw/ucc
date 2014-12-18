@@ -578,8 +578,5 @@ and lv_addr ret_reg = function
      List.iter (fun i -> emit ".int %d" i) s;
      emit_label ltext;
      emit "mov r%d, L%d" ret_reg ldata
-  | e ->
-     (match Typing.typeof e with
-      | TPtr _ -> ex ret_reg e
-      | TStruct _ -> raise (TODO "lv struct")
-      | _ -> raise (EmitError "this expr is not lvalue"))
+  | _ ->
+     raise (EmitError "this expr is not lvalue")
