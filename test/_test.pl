@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 use strict;
 
+use File::Temp 'tempfile';
 use File::Basename;
 use Test::Simple tests => 1;
 
@@ -20,14 +21,14 @@ my $content = <FH>;
 my ($expected) = $content =~ m{/\*\n(|.*?\n)\*/}s
     or die "expected output not given in '$file'";
 
-system "$bin/ucc $file 2> /dev/null";
+my (undef, $outfile) = tempfile;
+
+system "$bin/ucc -o $outfile $file 2> /dev/null";
 
 if ($? != 0) {
     ok $expected eq "DEAD\n", "ok";
     exit;
 }
-
-(my $outfile = $file) =~ s/^(.*)\.c$/$1.out/;
 
 open PIPE, "$bin/sim $outfile 2> /dev/null |"
     or die "could not run simulator with $outfile";
