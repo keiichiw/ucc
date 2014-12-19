@@ -3,8 +3,6 @@
 */
 #include "test.h"
 
-int print_int(int i);
-
 int foo(int a, int b);
 
 int foo(int a, int b)

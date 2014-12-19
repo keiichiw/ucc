@@ -6,13 +6,6 @@
 */
 #include "test.h"
 
-#ifndef __UCC__
-#include <stdio.h>
-int print_int(int n){
-  printf("%d\n", n);
-}
-#endif
-
 int main () {
   int i, r;
   r = 23/3;

@@ -487,12 +487,24 @@ and ex ret_reg = function
          let reg = reg_alloc () in
          emit "mov r%d, [r%d]" ret_reg areg;
          if op = PostInc then
-           emit "add r%d, r%d, %d" reg ret_reg (size_of ty)
+           emit "add r%d, r%d, 1" reg ret_reg
          else
-           emit "sub r%d, r%d, %d" reg ret_reg (size_of ty);
+           emit "sub r%d, r%d, 1" reg ret_reg;
          emit "mov [r%d], r%d" areg reg;
          reg_free areg;
          reg_free reg)
+  | EPPost (ty, op, e) ->
+     let areg = reg_alloc () in
+     lv_addr areg e;
+     let reg = reg_alloc () in
+     emit "mov r%d, [r%d]" ret_reg areg;
+     if op = Inc then
+       emit "add r%d, r%d, %d" reg ret_reg (4*size_of ty)
+     else
+       emit "sub r%d, r%d, %d" reg ret_reg (4*size_of ty);
+     emit "mov [r%d], r%d" areg reg;
+     reg_free areg;
+     reg_free reg
   | ECall (_, f, exlst) ->
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
      let arg_list = List.map

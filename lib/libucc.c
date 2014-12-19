@@ -1,12 +1,5 @@
 int asm_write(int n);
 
-int print_int (int n) {
-  asm_write(n >> 24);
-  asm_write(n >> 16);
-  asm_write(n >>  8);
-  asm_write(n);
-  return 0;
-}
 
 int __mul (int a, int b) {
   int i, r;
@@ -47,3 +40,33 @@ int __mod (int n, int d) {
   return q;
 }
 
+
+void __putc (char c) {
+  asm_write(c);
+}
+
+void __printint(int xx, int base, int sgn) {
+  char digits[20] = "0123456789ABCDEF";
+  char buf[16];
+  int i, neg;
+  unsigned x;
+
+  neg = 0;
+  if(sgn && xx < 0) {
+    neg = 1;
+    x = -xx;
+  } else {
+    x = xx;
+  }
+
+  i = 0;
+  do{
+    buf[i++] = digits[x % base];
+  }while((x /= base) != 0);
+
+  if(neg)
+    buf[i++] = '-';
+
+  while(--i >= 0)
+    __putc(buf[i]);
+}

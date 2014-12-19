@@ -231,11 +231,7 @@ and ex' = function
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
       | (t1, t2) when is_integral t1 && is_integral t2 ->
-         (match int_conv (t1, t2) with
-          | TUnsigned ->
-             raise (TypingError "eq: unsigned")
-          | ty -> (* long or int*)
-             Type.EEq (TInt, op, ex1, ex2))
+         Type.EEq (TInt, op, ex1, ex2)
       | (TPtr _, TPtr _) ->
          raise (TypingError "eq: pointer")
       | _ ->
@@ -257,6 +253,10 @@ and ex' = function
      let op = unary_op op1 in
      let ex1= ex e1 in
      (match (op, typeof ex1) with
+      | (Type.PostInc, TPtr t) ->
+         Type.EPPost(TPtr t, Type.Inc, ex1)
+      | (Type.PostDec, TPtr t) ->
+         Type.EPPost(TPtr t, Type.Dec, ex1)
       | (Type.LogNot, _) (* ! *)
       | (_, TInt)
       | (_, TShort)
@@ -266,9 +266,6 @@ and ex' = function
          Type.EUnary(TLong, op, ex1)
       | (_, TUnsigned) ->
          Type.EUnary(TUnsigned, op, ex1)
-      | (Type.PostInc, TPtr t)
-      | (Type.PostDec, TPtr t) ->
-         Type.EUnary(TPtr t, op, ex1)
       | _ ->
          raise (TypingError "unary"))
   | Syntax.EAssign (e1, e2) ->
@@ -345,6 +342,7 @@ and typeof = function
   | Type.EEq     (t, _, _, _) -> t
   | Type.ELog    (t, _, _, _) -> t
   | Type.EUnary  (t, _, _) -> t
+  | Type.EPPost  (t, _, _) -> t
   | Type.EConst  (t, _) -> t
   | Type.EVar    (t, _) -> t
   | Type.EComma  (t, _, _) -> t

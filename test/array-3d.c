@@ -29,13 +29,6 @@
 */
 #include "test.h"
 
-#ifndef __UCC__
-#include <stdio.h>
-int print_int(int n){
-  printf("%d\n", n);
-}
-#endif
-
 int array[3][3][3];
 int main () {
   int i,j,k;

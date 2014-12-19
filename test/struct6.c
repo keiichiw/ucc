@@ -8,13 +8,6 @@
 */
 #include "test.h"
 
-#ifndef __UCC__
-#include <stdio.h>
-int print_int(int n){
-  printf("%d\n", n);
-}
-#endif
-
 struct pair{
   int x, y;
 };

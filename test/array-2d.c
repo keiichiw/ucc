@@ -1,16 +1,11 @@
 /*
+2
 */
 #include "test.h"
 
-#ifndef __UCC__
-#include <stdio.h>
-int print_int(int n){
-  printf("%d\n", n);
-}
-#endif
-
 int main () {
   int a[2][2];
-  a[3][3];
+  a[0][1] = 2;
+  print_int(a[0][1]);
   return 0;
 }

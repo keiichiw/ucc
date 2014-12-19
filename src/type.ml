@@ -53,6 +53,9 @@ and unary =
   | LogNot (* ! *)
   | PostInc
   | PostDec
+and inc =
+  | Inc
+  | Dec
 and expr =
   | EArith  of ctype * arith_bin   * expr * expr
   | EPAdd   of ctype * expr * expr
@@ -61,6 +64,7 @@ and expr =
   | EEq     of ctype * eq_bin      * expr * expr
   | ELog    of ctype * logical_bin * expr * expr
   | EUnary  of ctype * unary * expr
+  | EPPost  of ctype * inc * expr
   | EConst  of ctype * value
   | EVar    of ctype * name
   | EComma  of ctype * expr * expr
