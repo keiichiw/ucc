@@ -10,6 +10,7 @@
 64
 81
 */
+#include "ucc.h"
 
 struct pair {
   int x, y;

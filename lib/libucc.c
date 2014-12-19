@@ -1,3 +1,5 @@
+int asm_write(int n);
+
 int print_int (int n) {
   asm_write(n >> 24);
   asm_write(n >> 16);

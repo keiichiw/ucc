@@ -1,6 +1,7 @@
 /*
 42
 */
+#include "ucc.h"
 
 int main()
 {

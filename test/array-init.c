@@ -3,6 +3,7 @@
 2
 0
 */
+#include "ucc.h"
 int main() {
     int a[3] = { 1, 2 };
     print_int(a[0]);

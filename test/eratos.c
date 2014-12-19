@@ -25,6 +25,7 @@
 89
 97
 */
+#include "ucc.h"
 
 #define N 100
 

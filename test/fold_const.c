@@ -1,6 +1,7 @@
 /*
 1
 */
+#include "ucc.h"
 
 int
 main()

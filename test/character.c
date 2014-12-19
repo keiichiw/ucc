@@ -14,6 +14,7 @@
 25
 51
 */
+#include "ucc.h"
 
 int main() {
   print_int(' ');

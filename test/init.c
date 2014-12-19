@@ -1,6 +1,7 @@
 /*
 6
 */
+#include "ucc.h"
 
 int main()
 {

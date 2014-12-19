@@ -20,6 +20,7 @@
 4
 4
 */
+#include "ucc.h"
 
 #define TEST(op, op2, arg)                      \
   print_int(a op arg);                          \

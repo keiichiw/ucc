@@ -5,6 +5,7 @@
 4
 5
 */
+#include "ucc.h"
 
 struct pair{
   int x, y;

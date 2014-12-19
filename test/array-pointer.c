@@ -10,6 +10,7 @@
 3
 4
 */
+#include "ucc.h"
 
 int main () {
   int a[5], i;

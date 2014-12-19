@@ -8,6 +8,7 @@
 3
 0
 */
+#include "ucc.h"
 
 struct foo {
     int a;

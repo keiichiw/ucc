@@ -4,6 +4,7 @@
 -7
 7
 */
+#include "ucc.h"
 
 #ifndef __UCC__
 #include <stdio.h>

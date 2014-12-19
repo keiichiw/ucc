@@ -1,5 +1,6 @@
 /*
 */
+#include "ucc.h"
 
 #ifndef __UCC__
 #include <stdio.h>
@@ -9,7 +10,7 @@ int print_int(int n){
 #endif
 
 int main () {
-int a[3][3];
-  a[2][3];
+  int a[2][2];
+  a[3][3];
   return 0;
 }

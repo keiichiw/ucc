@@ -25,6 +25,7 @@
 89
 97
 */
+#include "ucc.h"
 
 int main () {
   int i, j;

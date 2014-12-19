@@ -99,6 +99,7 @@
 98
 -1
 */
+#include "ucc.h"
 
 int main () {
   int i;

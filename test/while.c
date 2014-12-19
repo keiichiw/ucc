@@ -11,6 +11,7 @@
 9
 10
 */
+#include "ucc.h"
 
 int main () {
   int i;

@@ -3,6 +3,8 @@
 2
 3
 */
+#include "ucc.h"
+
 int main () {
   long a[3] = {1,2,3};
   int *p;

@@ -7,6 +7,7 @@
 5
 6
 */
+#include "ucc.h"
 
 int main () {
   int a[3],b[4];

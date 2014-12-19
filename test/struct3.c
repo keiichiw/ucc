@@ -1,6 +1,7 @@
 /*
 12
 */
+#include "ucc.h"
 
 struct point {
   int x, y;

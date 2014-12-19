@@ -27,6 +27,7 @@
 0
 0
 */
+#include "ucc.h"
 int main() {
     int i, j, k;
     int a[3][3][3] = {

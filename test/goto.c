@@ -6,6 +6,7 @@
 5
 6
 */
+#include "ucc.h"
 
 int foo()
 {

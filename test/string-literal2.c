@@ -14,6 +14,7 @@
 33
 10
 */
+#include "ucc.h"
 
 int
 main()

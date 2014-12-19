@@ -3,6 +3,7 @@
 2
 3
 */
+#include "ucc.h"
 
 int main () {
   int a, *b, **c, **d;

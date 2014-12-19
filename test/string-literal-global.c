@@ -28,6 +28,7 @@
 33
 10
 */
+#include "ucc.h"
 
 char a[32] = "Hello, World!\n";
 char *p = "Hello, World!\n";

@@ -6,6 +6,7 @@
 3
 31
 */
+#include "ucc.h"
 
 #ifndef __UCC__
 #include <stdio.h>
