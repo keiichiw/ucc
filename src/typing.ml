@@ -169,7 +169,17 @@ and opex = function
      let ex1 = ex x in
      Some ex1
   | None -> None
-and ex = function
+and ex e =
+  let e = ex' e in
+  let ty = typeof e in
+  match ty with
+  | TArray (ty, _) ->
+     Type.EAddr (TPtr ty, e)
+  | TFun _ ->
+     Type.EAddr (TPtr ty, e)
+  | _ ->
+     e
+and ex' = function
   | Syntax.EConst v ->
      let (ty, v) = match v with
        | Syntax.VInt i -> TInt, Type.VInt i
@@ -292,13 +302,6 @@ and ex = function
      let ex1 = ex e1 in
      let ty =  resolve_member_type (typeof ex1) nm in
      Type.EDot(ty, ex1, Type.Name nm)
-  | Syntax.EArray (e1, e2) ->
-     let ex1 = ex e1 in
-     let ex2 = ex e2 in
-     (match typeof ex1 with
-      | TPtr t ->
-         Type.EArray (t, ex1, ex2)
-      | _ -> raise (TypingError "EArray"))
   | Syntax.ECast (ty, e) ->
      let e = ex e in
      let ty2 = typeof e in
@@ -335,7 +338,7 @@ and unary_op = function
   | Syntax.LogNot -> Type.LogNot
   | Syntax.PostInc -> Type.PostInc
   | Syntax.PostDec -> Type.PostDec
-and typeof' = function
+and typeof = function
   | Type.EArith  (t, _, _, _) -> t
   | Type.ERel    (t, _, _, _) -> t
   | Type.EPAdd   (t, _, _) -> t
@@ -353,11 +356,6 @@ and typeof' = function
   | Type.ECond   (t, _, _, _) -> t
   | Type.EDot    (t, _, _) -> t
   | Type.ECast   (t, _, _) -> t
-  | Type.EArray  (t, _, _) -> t
-and typeof e =
-  match typeof' e with
-  | TArray (t, _) -> TPtr t
-  | t -> t
 and is_integral = function
   | TInt
   | TUnsigned

@@ -416,7 +416,7 @@ postfix_expr:
 | primary_expr
   { $1 }
 | postfix_expr LBRACKET expr RBRACKET
-  { EArray($1, $3) }
+  { EPtr(EArith(Add, $1, $3)) }
 | postfix_expr INC
   { EUnary (PostInc, $1) }
 | postfix_expr DEC
