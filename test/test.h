@@ -1,8 +1,8 @@
-int __mul(int a, int b);
-int __div(int a, int b);
-int __mod(int a, int b);
-int __printint(int a, int b, int c);
-void __putc (char c);
+int _mul(int a, int b);
+int _div(int a, int b);
+int _mod(int a, int b);
+int _printint(int a, int b, int c);
+void _putc (char c);
 #ifndef __UCC__
 #include <stdio.h>
 void print_int(int n){
@@ -10,7 +10,7 @@ void print_int(int n){
 }
 #else
 void print_int(int n) {
-  __printint(n, 10, 1);
-  __putc('\n');
+  _printint(n, 10, 1);
+  _putc('\n');
 }
 #endif

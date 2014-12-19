@@ -6,12 +6,12 @@ Hello!
 #include "test.h"
 
 int main () {
-  __putc('H');
-  __putc('e');
-  __putc('l');
-  __putc('l');
-  __putc('o');
-  __putc('!');
-  __putc('\n');
+  _putc('H');
+  _putc('e');
+  _putc('l');
+  _putc('l');
+  _putc('o');
+  _putc('!');
+  _putc('\n');
   print_int(42);
 }

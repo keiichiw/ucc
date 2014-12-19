@@ -1,7 +1,7 @@
 int asm_write(int n);
 
 
-int __mul (int a, int b) {
+int _mul (int a, int b) {
   int i, r;
   r = 0;
   for (i = 31; i >= 0; --i) {
@@ -11,7 +11,7 @@ int __mul (int a, int b) {
   return r;
 }
 
-int __div_kernel (int n, int d, int *qp, int *rp) {
+int _div_kernel (int n, int d, int *qp, int *rp) {
   int sign = ((n >> 31) ^ (d >> 31)) & 1;
   int i, q = 0, r = 0;
   if (n < 0) n = -n;
@@ -28,24 +28,24 @@ int __div_kernel (int n, int d, int *qp, int *rp) {
   *rp = sign ? -r : r;
 }
 
-int __div (int n, int d) {
+int _div (int n, int d) {
   int p, q;
-  __div_kernel(n, d, &p, &q);
+  _div_kernel(n, d, &p, &q);
   return p;
 }
 
-int __mod (int n, int d) {
+int _mod (int n, int d) {
   int p, q;
-  __div_kernel(n, d, &p, &q);
+  _div_kernel(n, d, &p, &q);
   return q;
 }
 
 
-void __putc (char c) {
+void _putc (char c) {
   asm_write(c);
 }
 
-void __printint(int xx, int base, int sgn) {
+void _printint(int xx, int base, int sgn) {
   char digits[20] = "0123456789ABCDEF";
   char buf[16];
   int i, neg;
@@ -68,5 +68,5 @@ void __printint(int xx, int base, int sgn) {
     buf[i++] = '-';
 
   while(--i >= 0)
-    __putc(buf[i]);
+    _putc(buf[i]);
 }
