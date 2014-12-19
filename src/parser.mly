@@ -97,24 +97,24 @@ main:
   { List.concat $1 }
 
 external_decl:
-| function_definition
+| fun_definition
   { [$1] }
 | decl
   { List.map (fun x -> DefVar x) $1 }
 
-function_definition:
+fun_definition:
 | typ=decl_specs d=declarator b=compound_stat
   { DefFun (make_decl typ (d,None), get_params d, b) }
 
-real_decl:
+decl:
+| decl_real SEMICOLON
+  { $1 }
+
+decl_real:
 | typ=decl_specs; dlist=separated_list(COMMA, init_declarator)
   { List.map (make_decl typ) dlist }
 | TYPEDEF ty=type_spec d=declarator
   { typedef (make_decl ty (d, None)); [] }
-
-decl:
-| real_decl SEMICOLON
-  { $1 }
 
 decl_specs:
 | type_spec

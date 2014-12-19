@@ -4,7 +4,6 @@ exception TODO of string
 
 type name = Name of string
 type size = int
-type star_num = int
 type id = int
 type def =
   | DefFun of decl * (decl list) * stmt
