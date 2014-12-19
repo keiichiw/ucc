@@ -9,7 +9,7 @@ type def =
   | DefFun of decl * (decl list) * stmt
   | DefVar of decl
 and decl =
-  | Decl of ctype * name * (init option)
+  | Decl of linkage * ctype * name * (init option)
 and stmt =
   | SNil
   | SBlock of decl list * stmt list

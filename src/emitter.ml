@@ -43,7 +43,6 @@ let emit_label num =
   stack_push buffer_ref (sprintf "L%d:\n" num)
 
 let print_buffer oc name =
-  fprintf oc ".global %s\n%s:\n" name name;
   let buf' = List.rev !buffer_ref in
   (* don't insert halt directly. the way of handling halt can be changed in the future *)
   let buf = buf' @ [ "\tmov r1, r0\n"; "\tleave\n"; "\tret\n" ] in
@@ -124,43 +123,18 @@ let rec size_of = function
 let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
-    | (Decl (ty, Name name, _))::xs ->
+    | (Decl (_, ty, Name name, _))::xs ->
        env_ref := (name, (ty, Mem i))::!env_ref;
        go (i-4) xs in
   go (-4) args
-let push_global_var oc = function (* add global var in env *)
-  | Decl ((TFun _) as ty, Name name, _) ->
-     stack_push env_ref (name, (ty, Global name));
-     ()                         (* ignore function prototypes *)
-  | Decl (ty, Name name, []) ->
-     let label = sprintf "global_%s" name in
-     stack_push env_ref (name, (ty, Global label));
-     fprintf oc "%s:\n" label;
-     fprintf oc "\t.int 0, %d\n" (size_of ty)
-  | Decl (ty, Name name, xs) ->
-     let label = sprintf "global_%s" name in
-     let contents = ref [] in
-     stack_push env_ref (name, (ty, Global label));
-     fprintf oc "%s:\n" label;
-     List.iter (fun e ->
-        match e with
-        | EConst (TInt, (VInt v)) -> fprintf oc "\t.int %d\n" v
-        | EAddr (TPtr TInt, EConst (TArray (TInt, sz), VStr s)) ->
-          contents := s :: !contents;
-          fprintf oc "\t.int %s_contents_%d\n" label (List.length !contents)
-        | _ -> raise (EmitError "global initializer must be constant")
-     ) xs;
-     List.iteri (fun i c ->
-        fprintf oc "%s_contents_%d:\n" label (i + 1);
-        List.iter (fun n -> fprintf oc "\t.int %d\n" n) c
-     ) (List.rev !contents)
 
 let push_local_vars vars =
   let go = function
-    | Decl (ty, Name name, _) ->
+    | Decl (NoLink, ty, Name name, _) ->
        let sz = size_of ty in
        sp_offset_ref := !sp_offset_ref + sz*4;
-       stack_push env_ref (name, (ty, Mem (!sp_offset_ref+4))) in
+       stack_push env_ref (name, (ty, Mem (!sp_offset_ref+4)))
+    | _ -> raise (EmitError "push_local_vars") in
   List.iter go vars
 (*emit main*)
 let rec main oc defs =
@@ -171,7 +145,7 @@ let rec main oc defs =
   List.iter go !Typing.senv_ref;
   List.iter (emitter oc) defs
 and emitter oc = function
-  | DefFun(Decl(ty, Name name, _), args, b) ->
+  | DefFun(Decl(ln, ty, Name name, _), args, b) ->
      stack_push env_ref (name, (ty, Global name));
      fun_name_ref := name;
      let free_regs = !free_reg_stack in
@@ -183,12 +157,50 @@ and emitter oc = function
      free_reg_stack := free_regs;
      env_ref := old_env;
      struct_env_ref := old_senv;
+     (match ln with
+      | NoLink
+      | Extern ->
+         fprintf oc "\t.global %s\n%s:\n" name name;
+      | Static ->
+         ());
      print_buffer oc name
-  | DefVar v ->
-     push_global_var oc v
+  | DefVar (Decl (ln, ty, Name name, init)) ->
+     stack_push env_ref (name, (ty, Global name));
+     (match (ln, init) with
+      | NoLink, [] when not (is_funty ty) ->
+         (* violating ISO C by intention! *)
+         fprintf oc "\t.global %s\n" name;
+         fprintf oc "%s:\n" name;
+         fprintf oc "\t.int 0, %d\n" (size_of ty)
+      | NoLink, []
+      | Extern, [] ->
+         ()                     (* ignore *)
+      | NoLink, xs
+      | Extern, xs ->
+         fprintf oc "\t.global %s\n" name;
+         emit_global_var oc name xs
+      | Static, xs ->
+         emit_global_var oc name xs)
+and emit_global_var oc name init =
+  let contents = ref [] in
+  fprintf oc "%s:\n" name;
+  List.iter
+    (fun e ->
+     match e with
+     | EConst (TInt, (VInt v)) -> fprintf oc "\t.int %d\n" v
+     | EAddr (TPtr TInt, EConst (TArray (TInt, sz), VStr s)) ->
+        contents := s :: !contents;
+        fprintf oc "\t.int %s_contents_%d\n" name (List.length !contents)
+     | _ -> raise (EmitError "global initializer must be constant")
+    ) init;
+  List.iteri
+    (fun i c ->
+     fprintf oc "%s_contents_%d:\n" name (i + 1);
+     List.iter (fun n -> fprintf oc "\t.int %d\n" n) c
+    ) (List.rev !contents)
 and init_local_vars vars =
   let go = function
-    | Decl (_, Name nm, xs) ->
+    | Decl (_, _, Name nm, xs) ->
        (match resolve_var nm with
         | (_, Mem offset) ->
            let reg = reg_alloc () in

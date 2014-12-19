@@ -27,7 +27,7 @@ let resolve_member_type stct mem_name =
 let rec main defs =
   let go x =
     match dv x with
-    | Type.Decl (ty, Type.Name n, _) -> (n, ty) in
+    | Type.Decl (_, ty, Type.Name n, _) -> (n, ty) in
   senv_ref := List.map
                 (fun (mem,ds) -> (mem, List.map go ds))
                 (List.rev !Syntax.struct_env);
@@ -46,10 +46,10 @@ and def = function
   | Syntax.DefVar decl ->
      Type.DefVar (dv decl)
 and dv = function
-  | Syntax.Decl(ty, Syntax.Name n, x) ->
+  | Syntax.Decl(ln, ty, Syntax.Name n, x) ->
      push_stack (n, ty) venv_ref;
      let init = initialize ty x in
-     Type.Decl(ty, Type.Name n, List.map ex init)
+     Type.Decl(ln, ty, Type.Name n, List.map ex init)
 and initialize ty init =
   let scaler = function
     | Syntax.IList ((Syntax.IList _)::_) ->

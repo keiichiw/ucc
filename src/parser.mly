@@ -11,8 +11,8 @@
     | DeclArray  of declarator * size
     | DeclFun of declarator * (decl list)
   let get_ty = function
-    | Decl (ty, _, _) -> ty
-  let rec make_decl ty (decl, exp) =
+    | Decl (_, ty, _, _) -> ty
+  let rec make_decl ln ty (decl, exp) =
     let name = ref (Name "") in
     let ty =
       let rec go k = function
@@ -26,13 +26,13 @@
         | DeclFun (d, dvs) ->
            go (fun x -> TFun (k x, List.map get_ty dvs)) d in
       go (fun x -> x) decl in
-    Decl (ty, !name, exp)
+    Decl (ln, ty, !name, exp)
   let get_params = function
     | DeclFun (_, dvs) -> dvs
     | _ -> raise (ParserError "get_params")
   let make_type ty decl =
-    (match make_decl ty (decl, None) with
-     | Decl (ty, Name "", None) ->
+    (match make_decl NoLink ty (decl, None) with
+     | Decl (_, ty, Name "", None) ->
         ty
      | _ ->
         raise (ParserError "make_type"))
@@ -64,6 +64,7 @@
 %token <string> TYPEDEF_NAME
 %token TINT TUNSIGNED TCHAR TSHORT TLONG TVOID
 %token STRUCT TYPEDEF
+%token STATIC EXTERN
 %token IF ELSE WHILE DO FOR
 %token RETURN CONTINUE BREAK GOTO
 %token SWITCH CASE DEFAULT
@@ -103,18 +104,26 @@ external_decl:
   { List.map (fun x -> DefVar x) $1 }
 
 fun_definition:
-| decl_specs declarator compound_stat
-  { DefFun (make_decl $1 ($2, None), get_params $2, $3) }
+| linkage decl_specs declarator compound_stat
+  { DefFun (make_decl $1 $2 ($3, None), get_params $3, $4) }
+
+linkage:
+|
+  { NoLink }
+| EXTERN
+  { Extern }
+| STATIC
+  { Static }
 
 decl:
 | decl_real SEMICOLON
   { $1 }
 
 decl_real:
-| typ=decl_specs; dlist=separated_list(COMMA, init_declarator)
-  { List.map (make_decl typ) dlist }
+| ln=linkage; typ=decl_specs; dlist=separated_list(COMMA, init_declarator)
+  { List.map (make_decl ln typ) dlist }
 | TYPEDEF type_spec declarator
-  { typedef (make_decl $2 ($3, None)); [] }
+  { typedef (make_decl NoLink $2 ($3, None)); [] }
 
 decl_specs:
 | type_spec
@@ -180,7 +189,7 @@ param_decl_list:
 
 param_decl:
 | decl_specs declarator
-  { make_decl $1 ($2, None) }
+  { make_decl NoLink $1 ($2, None) }
 
 initializer_: /* 'initializer' is an OCaml's keyword! */
 | assign_expr
