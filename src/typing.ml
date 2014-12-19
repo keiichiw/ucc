@@ -233,7 +233,19 @@ and ex' = function
       | (t1, t2) when is_integral t1 && is_integral t2 ->
          Type.EEq (TInt, op, ex1, ex2)
       | (TPtr _, TPtr _) ->
-         raise (TypingError "eq: pointer")
+         Type.EEq (TInt, op, ex1, ex2)
+      | (t, TPtr _) when is_integral t ->
+         (match ex1 with
+          | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
+             Type.EEq (TInt, op, ex1, ex2)
+          | _ ->
+             raise (TypingError "eq: pointer and non-zero integer"))
+      | (TPtr _, t) when is_integral t ->
+         (match ex2 with
+          | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
+             Type.EEq (TInt, op, ex1, ex2)
+          | _ ->
+             raise (TypingError "eq: pointer and non-zero integer"))
       | _ ->
          raise (TypingError "eq: otherwise"))
   | Syntax.ELog (lop, e1, e2) ->
