@@ -5,7 +5,6 @@ exception TODO of string
 exception Unreachable
 type name = string
 let venv_ref : (string * ctype) list ref = ref [];;
-let fenv_ref : (string * ctype) list ref = ref [];;
 
 (* This is initialized in main *)
 let senv_ref : (int * ((name * ctype) list)) list ref = ref [];;
@@ -18,12 +17,6 @@ let resolve_var_type nm =
     | (s, ty)::_ when s=nm -> ty
     | _ :: xs -> go nm xs in
   go nm !venv_ref
-let resolve_fun_type nm =
-  let rec go nm  = function
-    | [] -> TInt
-    | (s, ty)::_ when s=nm -> ty
-    | _ :: xs -> go nm xs in
-  go nm !fenv_ref
 let resolve_member_type stct mem_name =
   match stct with
   | TStruct s_id ->
@@ -41,15 +34,12 @@ let rec main defs =
   List.map (fun x -> def x) defs
 and def = function
   | Syntax.DefFun (Syntax.Decl (TFun(ty, _), Syntax.Name n, None), dlist, b) ->
-     push_stack (n, ty) fenv_ref;
      let old_venv = !venv_ref in
-     let old_fenv = !fenv_ref in
      let old_senv = !senv_ref in
      let a1 = List.map dv dlist in
      let b1 = st b in
      let ret = Type.DefFun (ty, Type.Name n, a1, b1) in
      venv_ref := old_venv;
-     fenv_ref := old_fenv;
      senv_ref := old_senv;
      ret
   | Syntax.DefVar decl ->
