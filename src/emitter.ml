@@ -480,9 +480,9 @@ and ex ret_reg = function
          let reg = reg_alloc () in
          emit "mov r%d, [r%d]" ret_reg areg;
          if op = PostInc then
-           emit "add r%d, r%d, 1" reg ret_reg
+           emit "add r%d, r%d, %d" reg ret_reg (size_of ty)
          else
-           emit "sub r%d, r%d, 1" reg ret_reg;
+           emit "sub r%d, r%d, %d" reg ret_reg (size_of ty);
          emit "mov [r%d], r%d" areg reg;
          reg_free areg;
          reg_free reg)

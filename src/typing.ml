@@ -266,6 +266,9 @@ and ex' = function
          Type.EUnary(TLong, op, ex1)
       | (_, TUnsigned) ->
          Type.EUnary(TUnsigned, op, ex1)
+      | (Type.PostInc, TPtr t)
+      | (Type.PostDec, TPtr t) ->
+         Type.EUnary(TPtr t, op, ex1)
       | _ ->
          raise (TypingError "unary"))
   | Syntax.EAssign (e1, e2) ->
