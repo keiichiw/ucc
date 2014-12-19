@@ -2,7 +2,7 @@
 210
 455
 */
-#include "ucc.h"
+#include "test.h"
 
 int dp[20][30];
 

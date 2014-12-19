@@ -3,7 +3,7 @@
 42
 0
 */
-#include "ucc.h"
+#include "test.h"
 int a[1];
 int b[2] = { 42 };
 int main() {

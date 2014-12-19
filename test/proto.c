@@ -1,7 +1,7 @@
 /*
 5
 */
-#include "ucc.h"
+#include "test.h"
 
 int print_int(int i);
 

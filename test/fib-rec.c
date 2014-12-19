@@ -1,7 +1,7 @@
 /*
 832040
 */
-#include "ucc.h"
+#include "test.h"
 
 int fib (int x) {
   if (x <= 1) {

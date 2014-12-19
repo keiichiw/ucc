@@ -2,7 +2,7 @@
 1
 2
 */
-#include "ucc.h"
+#include "test.h"
 
 int main () {
   long l = 1;

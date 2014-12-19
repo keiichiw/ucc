@@ -5,7 +5,7 @@
 3
 4
 */
-#include "ucc.h"
+#include "test.h"
 
 typedef int myInt;
 myInt x;

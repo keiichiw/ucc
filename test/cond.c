@@ -2,7 +2,7 @@
 42
 42
 */
-#include "ucc.h"
+#include "test.h"
 
 int main()
 {

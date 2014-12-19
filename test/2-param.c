@@ -1,7 +1,7 @@
 /*
 13
 */
-#include "ucc.h"
+#include "test.h"
 
 int add(int x, int y){
   if (x==0) {

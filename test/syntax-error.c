@@ -1,7 +1,7 @@
 /*
 DEAD
 */
-#include "ucc.h"
+#include "test.h"
 
 int main()
 {

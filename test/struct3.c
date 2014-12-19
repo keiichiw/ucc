@@ -1,7 +1,7 @@
 /*
 12
 */
-#include "ucc.h"
+#include "test.h"
 
 struct point {
   int x, y;

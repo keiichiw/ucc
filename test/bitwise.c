@@ -4,7 +4,7 @@
 -14
 11
 */
-#include "ucc.h"
+#include "test.h"
 
 int main () {
   print_int(13 & 6); // 4

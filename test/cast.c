@@ -1,7 +1,7 @@
 /*
 1
 */
-#include "ucc.h"
+#include "test.h"
 
 struct foo {
   int x;

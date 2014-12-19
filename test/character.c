@@ -14,7 +14,7 @@
 25
 51
 */
-#include "ucc.h"
+#include "test.h"
 
 int main() {
   print_int(' ');

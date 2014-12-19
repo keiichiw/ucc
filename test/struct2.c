@@ -1,7 +1,7 @@
 /*
 -2
 */
-#include "ucc.h"
+#include "test.h"
 
 struct matrix {
   int a[2], b[2];

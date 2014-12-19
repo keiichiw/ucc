@@ -3,7 +3,7 @@
 10
 83
 */
-#include "ucc.h"
+#include "test.h"
 int main () {
   int a = 0xab;
   int b = 0b1010;

@@ -4,7 +4,7 @@
 5
 6
 */
-#include "ucc.h"
+#include "test.h"
 
 int (*f)(int a, int b);
 

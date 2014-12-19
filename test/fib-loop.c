@@ -1,7 +1,7 @@
 /*
 832040
 */
-#include "ucc.h"
+#include "test.h"
 
 int main () {
   int a, b, i, n;

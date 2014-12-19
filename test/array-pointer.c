@@ -10,7 +10,7 @@
 3
 4
 */
-#include "ucc.h"
+#include "test.h"
 
 int main () {
   int a[5], i;

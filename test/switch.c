@@ -9,7 +9,7 @@
 2
 5
 */
-#include "ucc.h"
+#include "test.h"
 
 int
 main()

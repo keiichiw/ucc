@@ -6,7 +6,7 @@
 5
 6
 */
-#include "ucc.h"
+#include "test.h"
 
 int foo()
 {

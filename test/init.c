@@ -1,7 +1,7 @@
 /*
 6
 */
-#include "ucc.h"
+#include "test.h"
 
 int main()
 {

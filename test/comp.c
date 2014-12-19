@@ -32,7 +32,7 @@
 0
 1
 */
-#include "ucc.h"
+#include "test.h"
 
 int main () {
   print_int(1< 2);

@@ -1,7 +1,7 @@
 /*
 32
 */
-#include "ucc.h"
+#include "test.h"
 
 
 struct tri {

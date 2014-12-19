@@ -1,7 +1,7 @@
 /*
 2
 */
-#include "ucc.h"
+#include "test.h"
 
 int f (int x) {
   return x+1;

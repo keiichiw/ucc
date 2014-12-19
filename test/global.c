@@ -2,7 +2,7 @@
 100
 10
 */
-#include "ucc.h"
+#include "test.h"
 
 int count = 100;
 

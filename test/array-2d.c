@@ -1,6 +1,6 @@
 /*
 */
-#include "ucc.h"
+#include "test.h"
 
 #ifndef __UCC__
 #include <stdio.h>

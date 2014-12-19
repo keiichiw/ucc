@@ -6,7 +6,7 @@
 2
 1
 */
-#include "ucc.h"
+#include "test.h"
 int main () {
   int i=0;
   print_int(i++);

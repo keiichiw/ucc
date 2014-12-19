@@ -6,7 +6,7 @@
 1
 3
 */
-#include "ucc.h"
+#include "test.h"
 
 struct foo {
   int a;
