@@ -129,14 +129,21 @@ let push_global_var oc = function (* add global var in env *)
      fprintf oc "\t.int 0, %d\n" (size_of ty)
   | Decl (ty, Name name, xs) ->
      let label = sprintf "global_%s" name in
+     let contents = ref [] in
      stack_push env_ref (name, (ty, Global label));
      fprintf oc "%s:\n" label;
      List.iter (fun e ->
         match e with
         | EConst (TInt, (VInt v)) -> fprintf oc "\t.int %d\n" v
+        | EAddr (TPtr TInt, EConst (TArray (TInt, sz), VStr s)) ->
+          contents := s :: !contents;
+          fprintf oc "\t.int %s_contents_%d\n" label (List.length !contents)
         | _ -> raise (EmitError "global initializer must be constant")
-     ) xs
-
+     ) xs;
+     List.iteri (fun i c ->
+        fprintf oc "%s_contents_%d:\n" label (i + 1);
+        List.iter (fun n -> fprintf oc "\t.int %d\n" n) c
+     ) (List.rev !contents)
 
 let push_local_vars vars =
   let go = function

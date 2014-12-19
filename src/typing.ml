@@ -51,30 +51,34 @@ and dv = function
      let init = initialize ty x in
      Type.Decl(ty, Type.Name n, List.map ex init)
 and initialize ty init =
-  let rec go_compound ty init idx =
-    match init with
-    | Syntax.IList ilist ->
-      begin match ty with
-      | TStruct s_id ->
-        let s = List.assoc s_id !senv_ref in
-        if List.length s = idx then [], init
-        else
-          let l, rem  = go_inner (snd (List.nth s idx)) ty ilist in
-          let r, tail = go_compound ty rem (idx + 1) in
-          l @ r, tail
-      | TArray (inner_ty, sz) ->
-        if sz = idx then [], init
-        else
-          let l, rem  = go_inner inner_ty ty ilist in
-          let r, tail = go_compound ty rem (idx + 1) in
-          l @ r, tail
-      | _ -> raise (TypingError "initialize: internal error")
-      end
-    | Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
-       let ilist = Syntax.IList (List.map (fun i -> Syntax.IScal (Syntax.EConst (Syntax.VInt i))) str) in
-       go_compound ty ilist 0
+  let scaler = function
+    | Syntax.IList ((Syntax.IList _)::_) ->
+      raise (TypingError "too many braces around scalar initializer")
+    | Syntax.IList [Syntax.IScal e] -> [e]
+    | Syntax.IList _ ->
+      raise (TypingError "invalid scaler initializer")
+    | Syntax.IScal e -> [e] in
+  let rec compound ty init idx =
+    match ty, init with
+    | TStruct s_id, Syntax.IList ilist ->
+      let s = List.assoc s_id !senv_ref in
+      if List.length s = idx then [], init
+      else
+        let l, rem  = inner (snd (List.nth s idx)) ty ilist in
+        let r, tail = compound ty rem (idx + 1) in
+        l @ r, tail
+    | TArray (inner_ty, sz), Syntax.IList ilist ->
+      if sz = idx then [], init
+      else
+        let l, rem  = inner inner_ty ty ilist in
+        let r, tail = compound ty rem (idx + 1) in
+        l @ r, tail
+    | TArray (TChar, _), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
+      let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
+      let ilist = Syntax.IList (List.map f str) in
+      compound ty ilist 0
     | _ -> raise (TypingError "requied initializer list")
-  and go_inner inner_ty ty ilist =
+  and inner inner_ty ty ilist =
     let i, is =
       if ilist = [] then
         Syntax.IScal (Syntax.EConst (Syntax.VInt 0)), []
@@ -82,26 +86,19 @@ and initialize ty init =
         List.hd ilist, List.tl ilist in
     match inner_ty, i with
     | TStruct _, Syntax.IList _ | TArray _, Syntax.IList _ ->
-      let res, tail = go_compound inner_ty i 0 in
+      let res, tail = compound inner_ty i 0 in
       if tail <> Syntax.IList [] then
         raise (TypingError "initializer eccess elements");
       res, Syntax.IList is
     | TStruct _, _ | TArray _, _ ->
-      go_compound inner_ty (Syntax.IList ilist) 0
-    | _, _ -> scaler i, Syntax.IList is
-  and scaler = function
-    | Syntax.IList ((Syntax.IList _)::_) ->
-      raise (TypingError "too many braces around scalar initializer")
-    | Syntax.IList [Syntax.IScal e] -> [e]
-    | Syntax.IList _ ->
-      raise (TypingError "invalid scaler initializer")
-    | Syntax.IScal e -> [e] in
+      compound inner_ty (Syntax.IList ilist) 0
+    | _, _ -> scaler i, Syntax.IList is in
   match init with
   | None -> []
   | Some init ->
     match ty with
     | TStruct _ | TArray _ ->
-      let res, tail = go_compound ty init 0 in
+      let res, tail = compound ty init 0 in
       if tail <> Syntax.IList [] then
         raise (TypingError "initializer eccess elements");
       res
