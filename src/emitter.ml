@@ -97,6 +97,7 @@ let escape_default () =
 
 let resolve_var name =
   List.assoc name !env_ref
+
 let resolve_struct s =
   let rec go s_id = function
     | [] -> raise (EmitError (sprintf "struct %d not found" s_id))
@@ -113,12 +114,6 @@ let rec size_of = function
   | TFun _ -> raise (EmitError "sizeof function")
   | TStruct s_id ->
      fst (resolve_struct s_id)
-let size_of_decl = function
-  | Decl (ty,_,_) -> size_of ty
-let get_decl_name = function
-  | Decl (_,Name n, _) -> n
-let get_decl_type = function
-  | Decl (t,_, _) -> t
 let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
