@@ -394,13 +394,15 @@ and ex ret_reg = function
      ex ret_reg e;
      emit_label lend
   | EArith (ty, op, e1, e2) ->
+     let t = TFun (TInt, [TInt;TInt]) in
+     let t_ptr = TPtr t in
      (match op with
       | Mul ->
-         ex ret_reg (ECall (ty, EAddr (TInt, EVar(TInt, Name "__mul")), [e1;e2]))
+         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__mul")), [e1;e2]))
       | Div ->
-         ex ret_reg (ECall (ty, EAddr (TInt, EVar(TInt, Name "__div")), [e1;e2]))
+         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__div")), [e1;e2]))
       | Mod ->
-         ex ret_reg (ECall (ty, EAddr (TInt, EVar(TInt, Name "__mod")), [e1;e2]))
+         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__mod")), [e1;e2]))
       | _ ->
          let op = match op with
            | Add    -> "add"
@@ -434,7 +436,7 @@ and ex ret_reg = function
            ex reg e2
          else
            let sz = EConst(TInt, VInt ty_size) in
-           ex reg (EArith (ty, Mul, e2, sz))); (* FIXME! *)
+           ex reg (EArith (TInt, Mul, e2, sz)));
          emit "shl r%d, r%d, 2" reg reg;
          emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
          reg_free reg

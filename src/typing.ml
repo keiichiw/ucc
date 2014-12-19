@@ -277,7 +277,7 @@ and ex' = function
      (match typeof ex1 with
       | TPtr (TFun (retty, _)) ->
          Type.ECall (retty, ex1, List.map ex elist)
-      | _ -> raise (TypingError "ECall"))
+      | _ -> raise (TypingError "ECall: not a function given"))
   | Syntax.EAddr e ->
      let ex1 = ex e in
      Type.EAddr (TPtr (typeof ex1), ex1)
