@@ -168,7 +168,6 @@ and emitter oc = function
      stack_push env_ref (name, (ty, Global name));
      (match (ln, init) with
       | NoLink, [] when not (is_funty ty) ->
-         (* violating ISO C by intention! *)
          fprintf oc "\t.global %s\n" name;
          fprintf oc "%s:\n" name;
          fprintf oc "\t.int 0, %d\n" (size_of ty)
