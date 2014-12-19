@@ -107,6 +107,8 @@ let resolve_struct s =
 
 let rec size_of = function
   | TInt
+  | TShort
+  | TLong
   | TUnsigned
   | TChar
   | TPtr _ -> 1
@@ -114,6 +116,8 @@ let rec size_of = function
   | TFun _ -> raise (EmitError "sizeof function")
   | TStruct s_id ->
      fst (resolve_struct s_id)
+  | TVoid ->
+     raise (EmitError "sizeof void")
 let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()

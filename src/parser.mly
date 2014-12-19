@@ -62,7 +62,7 @@
 %token <int list> STR
 %token <string> ID
 %token <string> TYPEDEF_NAME
-%token TINT TUNSIGNED TCHAR
+%token TINT TUNSIGNED TCHAR TSHORT TLONG TVOID
 %token STRUCT TYPEDEF
 %token IF ELSE WHILE DO FOR
 %token RETURN CONTINUE BREAK GOTO
@@ -123,10 +123,16 @@ decl_specs:
 type_spec:
 | TINT
   { TInt }
+| TSHORT
+  { TShort }
+| TLONG
+  { TLong }
 | TUNSIGNED
   { TUnsigned }
 | TCHAR
   { TChar }
+| TVOID
+  { TVoid }
 | TYPEDEF_NAME
     { List.assoc $1 !typedef_env }
 | struct_spec

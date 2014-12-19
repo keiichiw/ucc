@@ -43,10 +43,16 @@ rule token = parse
     { COMMA}
 | "int"
     { TINT }
+| "long"
+    { TLONG }
+| "short"
+    { TSHORT }
 | "unsigned"
     { TUNSIGNED }
 | "char"
     { TCHAR }
+| "void"
+    { TVOID }
 | "struct"
     { STRUCT }
 | "typedef"

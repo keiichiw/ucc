@@ -216,10 +216,11 @@ and ex' = function
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
       | (t1, t2) when is_integral t1 && is_integral t2 ->
-         if int_conv (t1, t2) = TUnsigned then
-           raise (TypingError "relation: unsigned")
-         else
-           Type.ERel (TInt, op, ex1, ex2)
+         (match int_conv (t1, t2) with
+          | TUnsigned ->
+             raise (TypingError "relation: unsigned")
+          | _ ->
+             Type.ERel (TInt, op, ex1, ex2))
       | (TPtr _, TPtr _) ->
          raise (TypingError "relation: pointer")
       | _ ->
@@ -230,10 +231,11 @@ and ex' = function
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
       | (t1, t2) when is_integral t1 && is_integral t2 ->
-         if int_conv (t1, t2) = TUnsigned then
-           raise (TypingError "eq: unsigned")
-         else
-           Type.EEq (TInt, op, ex1, ex2)
+         (match int_conv (t1, t2) with
+          | TUnsigned ->
+             raise (TypingError "eq: unsigned")
+          | ty -> (* long or int*)
+             Type.EEq (TInt, op, ex1, ex2))
       | (TPtr _, TPtr _) ->
          raise (TypingError "eq: pointer")
       | _ ->
@@ -244,20 +246,24 @@ and ex' = function
      let ex2 = ex e2 in
      (match (typeof ex1, typeof ex2) with
       | (t1, t2) when is_integral t1 && is_integral t2 ->
-         if int_conv (t1, t2) = TUnsigned then
-           raise (TypingError "logical: unsigned")
-         else
-           Type.ELog (TInt, op, ex1, ex2)
+         (match int_conv (t1, t2) with
+          | TUnsigned ->
+             raise (TypingError "logical: unsigned")
+          | ty -> (* long or int*)
+             Type.ELog (TInt, op, ex1, ex2))
       | _ ->
          raise (TypingError "logical"))
   | Syntax.EUnary (op1, e1) ->
      let op = unary_op op1 in
      let ex1= ex e1 in
      (match (op, typeof ex1) with
-      | (Type.LogNot, _)
+      | (Type.LogNot, _) (* ! *)
       | (_, TInt)
+      | (_, TShort)
       | (_, TChar) ->
          Type.EUnary(TInt, op, ex1)
+      | (_, TLong) ->
+         Type.EUnary(TLong, op, ex1)
       | (_, TUnsigned) ->
          Type.EUnary(TUnsigned, op, ex1)
       | _ ->
@@ -345,10 +351,18 @@ and typeof = function
   | Type.ECast   (t, _, _) -> t
 and is_integral = function
   | TInt
+  | TShort
+  | TLong
   | TUnsigned
   | TChar -> true
   | _ -> false
 and int_conv = function
+  | (TVoid, _)
+  | (_, TVoid) ->
+     raise (TypingError "int_conv: void")
+  | (TLong, _)
+  | (_, TLong) ->
+     TLong
   | (TUnsigned, _)
   | (_, TUnsigned) ->
      TUnsigned
@@ -356,6 +370,8 @@ and int_conv = function
      TInt
 and size_of = function
   | TInt
+  | TShort
+  | TLong
   | TUnsigned
   | TChar
   | TPtr _ -> 1
@@ -368,3 +384,5 @@ and size_of = function
        | (s, ms)::_ when s = sid -> sz ms
        | _::zs -> go zs in
      go !senv_ref
+  | TVoid ->
+     raise (TypingError "sizeof void")
