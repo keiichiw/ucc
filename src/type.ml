@@ -4,7 +4,7 @@ type struct_id = int
 type size = int
 
 type def =
-  | DefFun of ctype * name * (decl list) * stmt
+  | DefFun of decl * (decl list) * stmt
   | DefVar of decl
 and decl =
   | Decl of ctype * name * (expr list)

@@ -13,7 +13,7 @@ let push_stack x env =
   env := x::!env
 let resolve_var_type nm =
   let rec go nm  = function
-    | [] -> TInt
+    | [] -> raise (TypingError (sprintf "variable not found: %s" nm))
     | (s, ty)::_ when s=nm -> ty
     | _ :: xs -> go nm xs in
   go nm !venv_ref
@@ -33,18 +33,18 @@ let rec main defs =
                 (List.rev !Syntax.struct_env);
   List.map (fun x -> def x) defs
 and def = function
-  | Syntax.DefFun (Syntax.Decl (TFun(ty, _), Syntax.Name n, None), dlist, b) ->
+  | Syntax.DefFun (d, dlist, b) ->
+     let d1 = dv d in
      let old_venv = !venv_ref in
      let old_senv = !senv_ref in
      let a1 = List.map dv dlist in
      let b1 = st b in
-     let ret = Type.DefFun (ty, Type.Name n, a1, b1) in
+     let ret = Type.DefFun (d1, a1, b1) in
      venv_ref := old_venv;
      senv_ref := old_senv;
      ret
   | Syntax.DefVar decl ->
      Type.DefVar (dv decl)
-  | _ -> raise (TypingError "def")
 and dv = function
   | Syntax.Decl(ty, Syntax.Name n, x) ->
      push_stack (n, ty) venv_ref;
@@ -277,7 +277,10 @@ and ex' = function
      Type.EAssign (typeof ex1, ex1, ex2)
   | Syntax.ECall (e1, elist) ->
      let ex1 = ex e1 in
-     Type.ECall (typeof ex1, ex1, List.map ex elist)
+     (match typeof ex1 with
+      | TPtr (TFun (retty, _)) ->
+         Type.ECall (retty, ex1, List.map ex elist)
+      | _ -> raise (TypingError "ECall"))
   | Syntax.EAddr e ->
      let ex1 = ex e in
      Type.EAddr (TPtr (typeof ex1), ex1)

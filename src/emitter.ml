@@ -126,6 +126,9 @@ let push_args args = (* add args in env *)
        go (i-4) xs in
   go (-4) args
 let push_global_var oc = function (* add global var in env *)
+  | Decl ((TFun _) as ty, Name name, _) ->
+     stack_push env_ref (name, (ty, Global name));
+     ()                         (* ignore function prototypes *)
   | Decl (ty, Name name, []) ->
      let label = sprintf "global_%s" name in
      stack_push env_ref (name, (ty, Global label));
@@ -165,7 +168,8 @@ let rec main oc defs =
   List.iter go !Typing.senv_ref;
   List.iter (emitter oc) defs
 and emitter oc = function
-  | DefFun(ty, Name name, args, b) ->
+  | DefFun(Decl(ty, Name name, _), args, b) ->
+     stack_push env_ref (name, (ty, Global name));
      fun_name_ref := name;
      let free_regs = !free_reg_stack in
      let old_env = !env_ref in
@@ -487,10 +491,6 @@ and ex ret_reg = function
          reg_free areg;
          reg_free reg)
   | ECall (_, f, exlst) ->
-     let fname =
-       (match f with
-        | EVar (_, Name nm) -> nm
-        | _ -> raise (EmitError "ECall: fname")) in
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
      let arg_list = List.map
                       (fun e ->
@@ -508,7 +508,10 @@ and ex ret_reg = function
                 emit "push r%d" reg)
                (List.rev arg_list);
      reg_free_all ();
-     emit "call %s" fname;
+     let fun_reg = reg_alloc () in
+     ex fun_reg f;
+     reg_free fun_reg;
+     emit "call r%d" fun_reg;
      reg_use ret_reg;
      if ret_reg != 1 then
        emit "mov r%d, r1" ret_reg;
