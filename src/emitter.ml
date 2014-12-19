@@ -96,7 +96,10 @@ let escape_default () =
   sprintf "L_default_%s_%d" !fun_name_ref (List.hd !switch_stack)
 
 let resolve_var name =
-  List.assoc name !env_ref
+  try
+    List.assoc name !env_ref
+  with
+  | Not_found -> raise (EmitError (sprintf "not found %s" name))
 
 let resolve_struct s =
   let rec go s_id = function
@@ -393,11 +396,11 @@ and ex ret_reg = function
   | EArith (ty, op, e1, e2) ->
      (match op with
       | Mul ->
-         ex ret_reg (ECall (ty, EVar(TInt, Name "__mul"),[e1;e2]))
+         ex ret_reg (ECall (ty, EAddr (TInt, EVar(TInt, Name "__mul")), [e1;e2]))
       | Div ->
-         ex ret_reg (ECall (ty, EVar(TInt, Name "__div"),[e1;e2]))
+         ex ret_reg (ECall (ty, EAddr (TInt, EVar(TInt, Name "__div")), [e1;e2]))
       | Mod ->
-         ex ret_reg (ECall (ty, EVar(TInt, Name "__mod"),[e1;e2]))
+         ex ret_reg (ECall (ty, EAddr (TInt, EVar(TInt, Name "__mod")), [e1;e2]))
       | _ ->
          let op = match op with
            | Add    -> "add"
@@ -431,7 +434,7 @@ and ex ret_reg = function
            ex reg e2
          else
            let sz = EConst(TInt, VInt ty_size) in
-           ex reg (ECall (ty, EVar(TInt, Name "__mul"), [e2;sz])));
+           ex reg (EArith (ty, Mul, e2, sz))); (* FIXME! *)
          emit "shl r%d, r%d, 2" reg reg;
          emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
          reg_free reg
