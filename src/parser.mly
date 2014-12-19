@@ -103,8 +103,8 @@ external_decl:
   { List.map (fun x -> DefVar x) $1 }
 
 fun_definition:
-| typ=decl_specs d=declarator b=compound_stat
-  { DefFun (make_decl typ (d,None), get_params d, b) }
+| decl_specs declarator compound_stat
+  { DefFun (make_decl $1 ($2, None), get_params $2, $3) }
 
 decl:
 | decl_real SEMICOLON
@@ -113,8 +113,8 @@ decl:
 decl_real:
 | typ=decl_specs; dlist=separated_list(COMMA, init_declarator)
   { List.map (make_decl typ) dlist }
-| TYPEDEF ty=type_spec d=declarator
-  { typedef (make_decl ty (d, None)); [] }
+| TYPEDEF type_spec declarator
+  { typedef (make_decl $2 ($3, None)); [] }
 
 decl_specs:
 | type_spec
