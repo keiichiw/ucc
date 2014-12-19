@@ -57,6 +57,10 @@ rule token = parse
     { STRUCT }
 | "typedef"
     { TYPEDEF }
+| "const"
+    { token lexbuf }
+| "volatile"
+    { token lexbuf }
 | "if"
     { IF }
 | "else"
