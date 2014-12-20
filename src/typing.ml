@@ -23,22 +23,6 @@ let resolve_member_type stct mem_name =
      List.assoc mem_name dvs
   | _ -> failwith "resolve_member_type"
 
-let sp_ref = ref 0
-let sp_max = ref 0
-
-let enter_block size =
-  sp_ref := !sp_ref + size;
-  sp_max := max !sp_ref !sp_max
-let leave_block size =
-  sp_ref := !sp_ref - size
-
-let stack_info = ref []
-
-let append_info x =
-  stack_info := x :: !stack_info
-
-let sum = List.fold_left (+) 0
-
 let typeof = function
   | Type.EArith  (t, _, _, _) -> t
   | Type.ERel    (t, _, _, _) -> t
@@ -317,11 +301,7 @@ let rec st = function
   | Syntax.SBlock(x, y) ->
      let x1 = List.map dv x in
      let y1 = List.map st y in
-     let size = sum (List.map (fun (Syntax.Decl (_,ty,_,_)) -> sizeof ty * 4) x) in
-     enter_block size;
-     let s = Type.SBlock(x1, y1) in
-     leave_block size;
-     s
+     Type.SBlock(x1, y1)
   | Syntax.SWhile (e, stmt) ->
      let e1 = ex e in
      let s1 = st stmt in
@@ -371,10 +351,7 @@ let rec def = function
      let old_venv = !venv_ref in
      let old_senv = !senv_ref in
      let a1 = List.map dv dlist in
-     sp_max := 0;
      let b1 = st b in
-     let Type.Decl (_,_,Name name,_) = d1 in
-     append_info (name, !sp_max);
      let ret = Type.DefFun (d1, a1, b1) in
      venv_ref := old_venv;
      senv_ref := old_senv;

@@ -121,6 +121,25 @@ let rec sizeof = function
   | TVoid ->
      raise (EmitError "sizeof void")
 
+let sizeof_decl (Decl (_,ty,_,_)) =
+  sizeof ty * 4
+
+let rec sizeof_block = function
+  | SBlock (d, s) ->
+     let s1 = List.fold_left (+) (0) (List.map sizeof_decl d) in
+     let s2 = List.fold_left max (0) (List.map sizeof_block s) in
+     s1 + s2
+  | SWhile (_, s)
+  | SDoWhile (s, _)
+  | SFor (_, _, _, s)
+  | SLabel (_, s)
+  | SSwitch (_, s) ->
+     sizeof_block s
+  | SIfElse (_, s, t) ->
+     max (sizeof_block s) (sizeof_block t)
+  | _ ->
+     0
+
 let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
@@ -582,7 +601,7 @@ let rec emitter oc = function
      let old_env = !env_ref in
      let old_senv = !struct_env_ref in
      push_args args;
-     emit "enter %d" (List.assoc name !Typing.stack_info);
+     emit "enter %d" (sizeof_block b);
      st b;
      free_reg_stack := free_regs;
      env_ref := old_env;
