@@ -9,18 +9,20 @@ type storageplace =
   | Global of string
 
 let register_list = Array.init 27 succ |> Array.to_list
-let created_label_num = ref 0
 let free_reg_stack = ref register_list
 let buffer_ref : string list ref = ref []
+let env_ref : (string * (ctype * storageplace)) list ref = ref []
+let fun_name_ref = ref ""
 let sp_offset_ref = ref 0
+
+(* label management *)
+let created_label_num = ref 0
 let con_stack : int list ref = ref []
 let brk_stack : int list ref = ref []
 let switch_counter = ref (-1)
 let switch_stack = ref []
 let switch_cases = ref []
 let switch_defaults = ref []
-let fun_name_ref = ref ""
-let env_ref : (string * (ctype * storageplace)) list ref = ref []
 
 (* This is initialized in main *)
 let senv_ref : (size * ((string * ctype) list)) list ref = ref []
@@ -41,7 +43,7 @@ let emit_raw fmt =
 let emit_label num =
   stack_push buffer_ref (sprintf "L%d:\n" num)
 
-let insert_prologue () =
+let insert_epilogue () =
   emit "mov r1, r0";
   emit "leave";
   emit "ret"
@@ -57,7 +59,7 @@ let flush_buffer oc name =
     (List.rev !buffer_ref);
   buffer_ref := []
 
-let reg_alloc _ =
+let reg_alloc () =
   match !free_reg_stack with
   | [] ->
      raise (EmitError "register starvation!!");
@@ -76,10 +78,10 @@ let reg_free i =
   else
     free_reg_stack := i::!free_reg_stack
 
-let reg_free_all _ =
+let reg_free_all () =
   free_reg_stack := register_list
 
-let get_used_reg _ =
+let get_used_reg () =
   List.filter
     (fun x -> (List.mem x !free_reg_stack) = false)
     register_list
@@ -648,7 +650,7 @@ let rec emitter oc = function
      free_reg_stack := free_regs;
      env_ref := old_env;
      senv_ref := old_senv;
-     insert_prologue ();
+     insert_epilogue ();
      if name = "main" then
        insert_halt ();
      (match ln with
