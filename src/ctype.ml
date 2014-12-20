@@ -32,7 +32,7 @@ type arith_bin =
   | LShift | RShift
   | BitAnd | BitXor | BitOr
 
-type logical_bin = And | Or
+type logical_bin = LogAnd | LogOr
 
 type rel_bin = Lt | Le | Gt | Ge
 

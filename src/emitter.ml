@@ -213,7 +213,7 @@ let rec ex ret_reg = function
      raise (TODO "EPDiff")
   | ELog (_, op, e1, e2) ->
      (match op with
-      | And ->
+      | LogAnd ->
          let l1 = label_create () in
          let l2 = label_create () in
          ex ret_reg e1;
@@ -225,7 +225,7 @@ let rec ex ret_reg = function
          emit_label l1;
          emit "mov r%d, 0" ret_reg;
          emit_label l2
-      | Or ->
+      | LogOr ->
          let l1 = label_create () in
          let l2 = label_create () in
          ex ret_reg e1;

@@ -71,8 +71,8 @@ let rec fold_expr = function
   | EEq (Eq, e1, e2) -> if (fold_expr e1) = (fold_expr e2) then 1 else 0
   | EEq (Ne, e1, e2) -> if (fold_expr e1) != (fold_expr e2) then 1 else 0
   | ECond (e1, e2, e3) -> if fold_expr e1 != 0 then fold_expr e2 else fold_expr e3
-  | ELog (And, e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
-  | ELog (Or, e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
+  | ELog (LogAnd, e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
+  | ELog (LogOr, e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
   | _ -> raise (ParserError "fold_expr")
 
 %}
@@ -360,13 +360,13 @@ logor_expr:
 | logand_expr
   { $1 }
 | logor_expr OR logand_expr
-  { ELog (Or, $1, $3) }
+  { ELog (LogOr, $1, $3) }
 
 logand_expr:
 | bitor_expr
   { $1 }
 | logand_expr AND bitor_expr
-  { ELog (And, $1, $3) }
+  { ELog (LogAnd, $1, $3) }
 
 bitor_expr:
 | bitxor_expr
