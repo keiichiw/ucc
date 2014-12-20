@@ -237,39 +237,21 @@ let rec ex ret_reg = function
        | Gt -> "cmpgt" in
      emit_bin ret_reg op e1 e2
   | EURel (ty, op, e1, e2) ->
-     let op_h = match op with
-       | Le | Lt -> "cmplt"
-       | Ge | Gt -> "cmpgt" in
-     let op_l = match op with
+     let op = match op with
        | Le -> "cmple"
        | Lt -> "cmplt"
        | Ge -> "cmpge"
        | Gt -> "cmpgt" in
-     let areg = reg_alloc () in
-     ex areg e1;
-     let breg = reg_alloc () in
-     ex breg e2;
-     let a_high = reg_alloc () in
-     let b_high = reg_alloc () in
-     emit "shr r%d, r%d, 16" a_high areg;
-     emit "shr r%d, r%d, 16" b_high breg;
-     let a_low = areg in
-     let b_low = breg in
-     emit "ldh r%d, r%d, 0" a_low a_low;
-     emit "ldh r%d, r%d, 0" b_low b_low;
-     let reg1 = reg_alloc () in
-     let reg2 = reg_alloc () in
-     emit "%s r%d, r%d, r%d" op_h ret_reg a_high b_high;
-     emit "cmpeq r%d, r%d, r%d"   reg1 a_high b_high;
-     emit "%s r%d, r%d, r%d" op_l reg2 a_low b_low;
-     emit "and r%d, r%d, r%d" reg1 reg1 reg2;
-     emit "or r%d, r%d, r%d" ret_reg ret_reg reg1;
-     reg_free areg;
-     reg_free breg;
-     reg_free a_high;
-     reg_free b_high;
-     reg_free reg1;
-     reg_free reg2;
+     ex ret_reg e1;
+     let reg  = reg_alloc () in
+     ex reg e2;
+     let sreg = reg_alloc () in
+     emit "ldh r%d, r0, -0x8000" sreg;
+     emit "xor r%d, r%d, r%d" ret_reg ret_reg sreg;
+     emit "xor r%d, r%d, r%d" reg reg sreg;
+     emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
+     reg_free reg;
+     reg_free sreg
   | EEq (ty, op, e1, e2) ->
      let op = match op with
        | Eq -> "cmpeq"
