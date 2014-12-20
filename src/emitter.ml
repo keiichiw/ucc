@@ -14,6 +14,7 @@ let buffer_ref : string list ref = ref []
 let env_ref : (string * (ctype * storageplace)) list ref = ref []
 let fun_name_ref = ref ""
 let sp_offset_ref = ref 0
+let for_continue_flg_ref = ref 0
 
 (* label management *)
 let created_label_num = ref 0
@@ -519,8 +520,12 @@ let rec st = function
      stack_push con_stack condlabel;
      stack_push brk_stack endlabel;
      emit_label beginlabel;
+     let continue_flg = !for_continue_flg_ref in
+     for_continue_flg_ref := 0;
      st b;
-     emit_label condlabel;
+     if !for_continue_flg_ref = 1 then
+       emit_label condlabel;
+     for_continue_flg_ref := continue_flg;
      let cond_reg = reg_alloc () in
      ex cond_reg cond;
      emit "bz r%d, L%d" cond_reg endlabel;
@@ -549,8 +554,12 @@ let rec st = function
          emit "bz r%d, L%d" cond_reg endlnum;
          reg_free cond_reg
       | _ -> ());
+     let continue_flg = !for_continue_flg_ref in
+     for_continue_flg_ref := 0;
      st b;
-     emit_label iterlnum;
+     if !for_continue_flg_ref = 1 then
+       emit_label iterlnum;
+     for_continue_flg_ref := continue_flg;
      (match iter with
       | Some itex ->
          let temp = reg_alloc () in
@@ -588,6 +597,7 @@ let rec st = function
   | SContinue ->
      let lbl = (List.hd !con_stack) in
      emit "br L%d" lbl;
+     for_continue_flg_ref := 1
   | SBreak ->
      let lbl = (List.hd !brk_stack) in
      emit "br L%d" lbl
