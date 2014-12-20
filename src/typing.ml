@@ -303,17 +303,17 @@ and ex' = function
      let i = sizeof ty in
      Type.EConst (TUnsigned, Type.VInt i)
 
+let ex_opt = function
+  | Some e ->
+     Some (ex e)
+  | None ->
+     None
+
 let dv = function
   | Syntax.Decl(ln, ty, Syntax.Name n, x) ->
      push_stack (n, ty) venv_ref;
      let init = initialize ty x in
      Type.Decl(ln, ty, Type.Name n, List.map ex init)
-
-let opex = function
-  | Some x ->
-     let ex1 = ex x in
-     Some ex1
-  | None -> None
 
 let rec st = function
   | Syntax.SNil -> Type.SNil
@@ -334,9 +334,9 @@ let rec st = function
      let e1 = ex e in
      Type.SDoWhile (s1, e1)
   | Syntax.SFor (e1, e2, e3, stmt) ->
-     let oe1 = opex e1 in
-     let oe2 = opex e2 in
-     let oe3 = opex e3 in
+     let oe1 = ex_opt e1 in
+     let oe2 = ex_opt e2 in
+     let oe3 = ex_opt e3 in
      let s1 = st stmt in
      Type.SFor (oe1, oe2, oe3, s1)
   | Syntax.SIfElse (e, s1, s2) ->
@@ -345,7 +345,7 @@ let rec st = function
      let st2 = st s2 in
      Type.SIfElse (ex1, st1, st2)
   | Syntax.SReturn e ->
-     let ex1 = opex e in
+     let ex1 = ex_opt e in
      Type.SReturn (ex1)
   | Syntax.SContinue ->
      Type.SContinue
