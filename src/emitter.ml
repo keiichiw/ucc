@@ -19,7 +19,6 @@ let switch_counter = ref (-1)
 let switch_stack = ref []
 let switch_cases = ref []
 let switch_defaults = ref []
-let for_continue_flg_ref = ref 0
 let fun_name_ref = ref ""
 let env_ref : (string * (ctype * storageplace)) list ref = ref []
 
@@ -118,8 +117,12 @@ let rec sizeof = function
   | TFun _ -> raise (EmitError "sizeof function")
   | TVoid -> raise (EmitError "sizeof void")
 
-let sizeof_decl (Decl (_,ty,_,_)) =
-  sizeof ty * 4
+let sizeof_decl = function
+  | Decl (NoLink,ty,_,_) ->
+     sizeof ty * 4
+  | Decl (Extern,_,_,_)
+  | Decl (Static,_,_,_) ->
+     0
 
 let rec sizeof_block = function
   | SBlock (d, s) ->
@@ -151,8 +154,31 @@ let push_local_vars vars =
        let sz = sizeof ty in
        sp_offset_ref := !sp_offset_ref + sz*4;
        stack_push env_ref (name, (ty, Mem !sp_offset_ref))
-    | _ -> raise (EmitError "push_local_vars") in
+    | Decl (Extern, ty, Name name, _) ->
+       stack_push env_ref (name, (ty, Global name))
+    | Decl (Static, ty, Name name, _) ->
+       let label_id = label_create () in
+       let label = sprintf "L_%s_%d" name label_id in
+       stack_push env_ref (name, (ty, Global label)) in
   List.iter go vars
+
+let emit_global_var name init =
+  let contents = ref [] in
+  emit_raw "%s:\n" name;
+  List.iter
+    (fun e ->
+     match e with
+     | EConst (TInt, (VInt v)) -> emit ".int %d" v
+     | EAddr (TPtr TInt, EConst (TArray (TInt, sz), VStr s)) ->
+        contents := s :: !contents;
+        emit ".int %s_contents_%d" name (List.length !contents)
+     | _ -> raise (EmitError "global initializer must be constant")
+    ) init;
+  List.iteri
+    (fun i c ->
+     emit_raw "%s_contents_%d:\n" name (i + 1);
+     List.iter (fun n -> emit ".int %d" n) c
+    ) (List.rev !contents)
 
 let rec ex ret_reg = function
   | EComma(_, ex1, ex2) ->
@@ -434,17 +460,26 @@ and emit_lv_addr ret_reg = function
      raise (EmitError "this expr is not lvalue")
 
 let init_local_vars vars =
-  let go = function
-    | Decl (_, _, Name nm, xs) ->
-       (match resolve_var nm with
-        | (_, Mem offset) ->
-           let reg = reg_alloc () in
-           List.iteri (fun i e ->
-              ex reg e;
-              emit "mov [rbp - %d], r%d" (offset - i * 4) reg
-           ) xs;
-           reg_free reg
-        |_ -> failwith "init_local_vars") in
+  let go (Decl (ln, _, Name nm, init)) =
+    match resolve_var nm with
+    | (_, Mem offset) ->
+       let reg = reg_alloc () in
+       List.iteri (fun i e ->
+                   ex reg e;
+                   emit "mov [rbp - %d], r%d" (offset - i * 4) reg
+                  ) init;
+       reg_free reg
+    | (_, Global label) ->
+       (match (ln, init) with
+        | NoLink, _  -> failwith "init_local_vars"
+        | Extern, [] ->
+           ()                   (* ignore *)
+        | Static, [] ->
+           raise (EmitError "local static variable has no initializer")
+        | Extern, xs ->
+           raise (EmitError "local extern variable has initializer")
+        | Static, xs ->
+           emit_global_var label xs) in
   List.iter go vars
 
 let rec st = function
@@ -482,12 +517,8 @@ let rec st = function
      stack_push con_stack condlabel;
      stack_push brk_stack endlabel;
      emit_label beginlabel;
-     let continue_flg = !for_continue_flg_ref in
-     for_continue_flg_ref := 0;
      st b;
-     if !for_continue_flg_ref = 1 then
-       emit_label condlabel;
-     for_continue_flg_ref := continue_flg;
+     emit_label condlabel;
      let cond_reg = reg_alloc () in
      ex cond_reg cond;
      emit "bz r%d, L%d" cond_reg endlabel;
@@ -516,12 +547,8 @@ let rec st = function
          emit "bz r%d, L%d" cond_reg endlnum;
          reg_free cond_reg
       | _ -> ());
-     let continue_flg = !for_continue_flg_ref in
-     for_continue_flg_ref := 0;
      st b;
-     if !for_continue_flg_ref = 1 then
-       emit_label iterlnum;
-     for_continue_flg_ref := continue_flg;
+     emit_label iterlnum;
      (match iter with
       | Some itex ->
          let temp = reg_alloc () in
@@ -559,7 +586,6 @@ let rec st = function
   | SContinue ->
      let lbl = (List.hd !con_stack) in
      emit "br L%d" lbl;
-     for_continue_flg_ref := 1
   | SBreak ->
      let lbl = (List.hd !brk_stack) in
      emit "br L%d" lbl
@@ -608,24 +634,6 @@ let rec st = function
      let temp = reg_alloc () in
      ex temp exp;
      reg_free temp
-
-let emit_global_var name init =
-  let contents = ref [] in
-  emit_raw "%s:\n" name;
-  List.iter
-    (fun e ->
-     match e with
-     | EConst (TInt, (VInt v)) -> emit ".int %d" v
-     | EAddr (TPtr TInt, EConst (TArray (TInt, sz), VStr s)) ->
-        contents := s :: !contents;
-        emit ".int %s_contents_%d" name (List.length !contents)
-     | _ -> raise (EmitError "global initializer must be constant")
-    ) init;
-  List.iteri
-    (fun i c ->
-     emit_raw "%s_contents_%d:\n" name (i + 1);
-     List.iter (fun n -> emit ".int %d" n) c
-    ) (List.rev !contents)
 
 let rec emitter oc = function
   | DefFun(Decl(ln, ty, Name name, _), args, b) ->
