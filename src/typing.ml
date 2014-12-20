@@ -198,7 +198,7 @@ and ex' = function
           | _ ->
              Type.ERel (TInt, op, ex1, ex2))
       | (TPtr _, TPtr _) ->
-         raise (TypingError "relation: pointer")
+         Type.EURel (TInt, op, ex1, ex2)
       | _ ->
          raise (TypingError "relation"))
   | Syntax.EEq (op, e1, e2) ->
