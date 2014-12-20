@@ -158,131 +158,148 @@ and ex' = function
   | Syntax.EArith (op, e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     (match op with
-      | Add ->
-         (match (typeof ex1, typeof ex2) with
-          | (TPtr ty, i) when is_integral i ->
-             Type.EPAdd (TPtr ty, ex1, ex2)
-          | (i, TPtr ty) when is_integral i ->
-             Type.EPAdd (TPtr ty, ex2, ex1)
-          | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
-             let ty = int_conv (ty1,ty2) in
-             Type.EArith (ty, Add, ex1, ex2)
-          | _ -> raise (TypingError "EArith: add"))
-      | Sub ->
-         (match (typeof ex1, typeof ex2) with
-          | (TPtr ty1, TPtr ty2) ->
-             Type.EPDiff(TInt, ex1, ex2)
-          | (TPtr ty1, i) when is_integral i ->
-             let m_ex2 = ex (Syntax.EUnary(Minus, e2)) in
-             assert (is_integral (typeof m_ex2));
-             Type.EPAdd (TPtr ty1, ex1, m_ex2)
-          | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
-             let ty = int_conv (ty1,ty2) in
-             Type.EArith (ty, Sub, ex1, ex2)
-          | _ -> raise (TypingError "EArith: sub"))
-      | _ ->
-         (match (typeof ex1, typeof ex2) with
-          | (t1, t2) when is_integral t1 && is_integral t2->
-             let ty = int_conv (t1, t2) in
-             Type.EArith (ty, op, ex1, ex2)
-          | _ -> raise (TypingError "EArith")))
+     begin match op with
+     | Add ->
+        begin match (typeof ex1, typeof ex2) with
+        | (TPtr ty, i) when is_integral i ->
+           Type.EPAdd (TPtr ty, ex1, ex2)
+        | (i, TPtr ty) when is_integral i ->
+           Type.EPAdd (TPtr ty, ex2, ex1)
+        | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
+           let ty = int_conv (ty1,ty2) in
+           Type.EArith (ty, Add, ex1, ex2)
+        | _ -> raise (TypingError "EArith: add")
+        end
+     | Sub ->
+        begin match (typeof ex1, typeof ex2) with
+        | (TPtr ty1, TPtr ty2) ->
+           Type.EPDiff(TInt, ex1, ex2)
+        | (TPtr ty1, i) when is_integral i ->
+           let m_ex2 = ex (Syntax.EUnary(Minus, e2)) in
+           assert (is_integral (typeof m_ex2));
+           Type.EPAdd (TPtr ty1, ex1, m_ex2)
+        | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
+           let ty = int_conv (ty1,ty2) in
+           Type.EArith (ty, Sub, ex1, ex2)
+        | _ -> raise (TypingError "EArith: sub")
+        end
+     | _ ->
+        begin match (typeof ex1, typeof ex2) with
+        | (t1, t2) when is_integral t1 && is_integral t2->
+           let ty = int_conv (t1, t2) in
+           Type.EArith (ty, op, ex1, ex2)
+        | _ -> raise (TypingError "EArith")
+        end
+     end
   | Syntax.ERel (op, e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     (match (typeof ex1, typeof ex2) with
-      | (t1, t2) when is_integral t1 && is_integral t2 ->
-         (match int_conv (t1, t2) with
-          | TUnsigned ->
-             Type.EURel (TInt, op, ex1, ex2)
-          | _ ->
-             Type.ERel (TInt, op, ex1, ex2))
-      | (TPtr _, TPtr _) ->
-         Type.EURel (TInt, op, ex1, ex2)
-      | (t, TPtr _) when is_integral t ->
-         (match ex1 with
-          | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
-             Type.EURel (TInt, op, ex1, ex2)
-          | _ ->
-             raise (TypingError "rel: pointer and non-zero integer"))
-      | (TPtr _, t) when is_integral t ->
-         (match ex2 with
-          | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
-             Type.EURel (TInt, op, ex1, ex2)
-          | _ ->
-             raise (TypingError "rel: pointer and non-zero integer"))
-      | _ ->
-         raise (TypingError "relation"))
+     begin match (typeof ex1, typeof ex2) with
+     | (t1, t2) when is_integral t1 && is_integral t2 ->
+        begin match int_conv (t1, t2) with
+        | TUnsigned ->
+           Type.EURel (TInt, op, ex1, ex2)
+        | _ ->
+           Type.ERel (TInt, op, ex1, ex2)
+        end
+     | (TPtr _, TPtr _) ->
+        Type.EURel (TInt, op, ex1, ex2)
+     | (t, TPtr _) when is_integral t ->
+        begin match ex1 with
+        | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
+           Type.EURel (TInt, op, ex1, ex2)
+        | _ ->
+           raise (TypingError "rel: pointer and non-zero integer")
+        end
+     | (TPtr _, t) when is_integral t ->
+        begin match ex2 with
+        | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
+           Type.EURel (TInt, op, ex1, ex2)
+        | _ ->
+           raise (TypingError "rel: pointer and non-zero integer")
+        end
+     | _ ->
+        raise (TypingError "relation")
+     end
   | Syntax.EEq (op, e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     (match (typeof ex1, typeof ex2) with
-      | (t1, t2) when is_integral t1 && is_integral t2 ->
-         Type.EEq (TInt, op, ex1, ex2)
-      | (TPtr _, TPtr _) ->
-         Type.EEq (TInt, op, ex1, ex2)
-      | (t, TPtr _) when is_integral t ->
-         (match ex1 with
-          | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
-             Type.EEq (TInt, op, ex1, ex2)
-          | _ ->
-             raise (TypingError "eq: pointer and non-zero integer"))
-      | (TPtr _, t) when is_integral t ->
-         (match ex2 with
-          | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
-             Type.EEq (TInt, op, ex1, ex2)
-          | _ ->
-             raise (TypingError "eq: pointer and non-zero integer"))
-      | _ ->
-         raise (TypingError "eq: otherwise"))
+     begin match (typeof ex1, typeof ex2) with
+     | (t1, t2) when is_integral t1 && is_integral t2 ->
+        Type.EEq (TInt, op, ex1, ex2)
+     | (TPtr _, TPtr _) ->
+        Type.EEq (TInt, op, ex1, ex2)
+     | (t, TPtr _) when is_integral t ->
+        begin match ex1 with
+        | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
+           Type.EEq (TInt, op, ex1, ex2)
+        | _ ->
+           raise (TypingError "eq: pointer and non-zero integer")
+        end
+     | (TPtr _, t) when is_integral t ->
+        begin match ex2 with
+        | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
+           Type.EEq (TInt, op, ex1, ex2)
+        | _ ->
+           raise (TypingError "eq: pointer and non-zero integer")
+        end
+     | _ ->
+        raise (TypingError "eq: otherwise")
+     end
   | Syntax.ELog (op, e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     (match (typeof ex1, typeof ex2) with
-      | (t1, t2) when is_integral t1 && is_integral t2 ->
-         (match int_conv (t1, t2) with
-          | TUnsigned ->
-             raise (TypingError "logical: unsigned")
-          | ty -> (* long or int*)
-             Type.ELog (TInt, op, ex1, ex2))
-      | _ ->
-         raise (TypingError "logical"))
+     begin match (typeof ex1, typeof ex2) with
+     | (t1, t2) when is_integral t1 && is_integral t2 ->
+        begin match int_conv (t1, t2) with
+        | TUnsigned ->
+           raise (TypingError "logical: unsigned")
+        | ty -> (* long or int*)
+           Type.ELog (TInt, op, ex1, ex2)
+        end
+     | _ ->
+        raise (TypingError "logical")
+     end
   | Syntax.EUnary (op, e1) ->
      let ex1= ex e1 in
-     (match (op, typeof ex1) with
-      | (PostInc, TPtr t) ->
-         Type.EPPost(TPtr t, Inc, ex1)
-      | (PostDec, TPtr t) ->
-         Type.EPPost(TPtr t, Dec, ex1)
-      | (LogNot, _) (* ! *)
-      | (_, TInt)
-      | (_, TShort)
-      | (_, TChar) ->
-         Type.EUnary(TInt, op, ex1)
-      | (_, TLong) ->
-         Type.EUnary(TLong, op, ex1)
-      | (_, TUnsigned) ->
-         Type.EUnary(TUnsigned, op, ex1)
-      | _ ->
-         raise (TypingError "unary"))
+     begin match (op, typeof ex1) with
+     | (PostInc, TPtr t) ->
+        Type.EPPost(TPtr t, Inc, ex1)
+     | (PostDec, TPtr t) ->
+        Type.EPPost(TPtr t, Dec, ex1)
+     | (LogNot, _) (* ! *)
+     | (_, TInt)
+     | (_, TShort)
+     | (_, TChar) ->
+        Type.EUnary(TInt, op, ex1)
+     | (_, TLong) ->
+        Type.EUnary(TLong, op, ex1)
+     | (_, TUnsigned) ->
+        Type.EUnary(TUnsigned, op, ex1)
+     | _ ->
+        raise (TypingError "unary")
+     end
   | Syntax.EAssign (e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      Type.EAssign (typeof ex1, ex1, ex2)
   | Syntax.ECall (e1, elist) ->
      let ex1 = ex e1 in
-     (match typeof ex1 with
-      | TPtr (TFun (retty, _)) ->
-         Type.ECall (retty, ex1, List.map ex elist)
-      | _ -> raise (TypingError "ECall: not a function given"))
+     begin match typeof ex1 with
+     | TPtr (TFun (retty, _)) ->
+        Type.ECall (retty, ex1, List.map ex elist)
+     | _ ->
+        raise (TypingError "ECall: not a function given")
+     end
   | Syntax.EAddr e ->
      let ex1 = ex e in
      Type.EAddr (TPtr (typeof ex1), ex1)
   | Syntax.EPtr e ->
      let ex1 = ex e in
-     (match typeof ex1 with
-      | TPtr ty -> Type.EPtr (ty, ex1)
-      | _ -> raise (TypingError "ptr"))
+     begin match typeof ex1 with
+     | TPtr ty -> Type.EPtr (ty, ex1)
+     | _ -> raise (TypingError "ptr")
+     end
   | Syntax.ECond (e1, e2, e3) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in

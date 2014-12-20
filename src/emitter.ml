@@ -169,30 +169,34 @@ let emit_global_var name init =
   let contents = ref [] in
   emit_raw "%s:\n" name;
   List.iter
-    (fun e ->
-     match e with
-     | EConst (TInt, (VInt v)) -> emit ".int %d" v
-     | EAddr (TPtr TInt, EConst (TArray (TInt, sz), VStr s)) ->
-        contents := s :: !contents;
-        emit ".int %s_contents_%d" name (List.length !contents)
-     | _ -> raise (EmitError "global initializer must be constant")
-    ) init;
+    begin function
+    | EConst (TInt, (VInt v)) ->
+       emit ".int %d" v
+    | EAddr (TPtr TInt, EConst (TArray (TInt, sz), VStr s)) ->
+       contents := s :: !contents;
+       emit ".int %s_contents_%d" name (List.length !contents)
+    | _ ->
+       raise (EmitError "global initializer must be constant")
+    end
+    init;
+
   List.iteri
     (fun i c ->
      emit_raw "%s_contents_%d:\n" name (i + 1);
-     List.iter (fun n -> emit ".int %d" n) c
-    ) (List.rev !contents)
+     List.iter (fun n -> emit ".int %d" n) c)
+    (List.rev !contents)
 
 let rec ex ret_reg = function
   | EComma(_, ex1, ex2) ->
      ex ret_reg ex1;
      ex ret_reg ex2
   | EConst (_, v) ->
-     (match v with
-      | VInt i ->
-         emit "mov r%d, %d" ret_reg i
-      | VStr s ->
-         raise (EmitError "logic flaw: EConst at Emitter.ex"))
+     begin match v with
+     | VInt i ->
+        emit "mov r%d, %d" ret_reg i
+     | VStr s ->
+        raise (EmitError "logic flaw: EConst at Emitter.ex")
+     end
   | ECond (_, c, t, e) ->
      let lelse = label_create () in
      let lend = label_create () in
@@ -206,24 +210,25 @@ let rec ex ret_reg = function
   | EArith (ty, op, e1, e2) ->
      let t = TFun (TInt, [TInt;TInt]) in
      let t_ptr = TPtr t in
-     (match op with
-      | Mul ->
-         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__mul")), [e1;e2]))
-      | Div ->
-         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__div")), [e1;e2]))
-      | Mod ->
-         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__mod")), [e1;e2]))
-      | _ ->
-         let op = match op with
-           | Add    -> "add"
-           | Sub    -> "sub"
-           | LShift -> "shl"
-           | RShift -> "shr"
-           | BitAnd -> "and"
-           | BitOr  -> "or"
-           | BitXor -> "xor"
-           | _ -> assert false in
-         emit_bin ret_reg op e1 e2)
+     begin match op with
+     | Mul ->
+        ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__mul")), [e1;e2]))
+     | Div ->
+        ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__div")), [e1;e2]))
+     | Mod ->
+        ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__mod")), [e1;e2]))
+     | _ ->
+        let op = match op with
+          | Add    -> "add"
+          | Sub    -> "sub"
+          | LShift -> "shl"
+          | RShift -> "shr"
+          | BitAnd -> "and"
+          | BitOr  -> "or"
+          | BitXor -> "xor"
+          | _ -> assert false in
+        emit_bin ret_reg op e1 e2
+     end
   | ERel (ty, op, e1, e2) ->
      let op = match op with
        | Le -> "cmple"
@@ -273,74 +278,78 @@ let rec ex ret_reg = function
        | Ne -> "cmpne" in
      emit_bin ret_reg op e1 e2
   | EPAdd (t1, e1, e2) ->
-     (match (Typing.typeof e1, Typing.typeof e2) with
-      | (TPtr ty, i) when Typing.is_integral i ->
-         let ty_size = sizeof ty in
-         ex ret_reg e1;
-         let reg = reg_alloc () in
-         (if ty_size = 1 then
-           ex reg e2
-         else
+     begin match (Typing.typeof e1, Typing.typeof e2) with
+     | (TPtr ty, i) when Typing.is_integral i ->
+        let ty_size = sizeof ty in
+        ex ret_reg e1;
+        let reg = reg_alloc () in
+        begin match ty_size with
+        | 1 -> ex reg e2
+        | _ ->
            let sz = EConst(TInt, VInt ty_size) in
-           ex reg (EArith (TInt, Mul, e2, sz)));
-         emit "shl r%d, r%d, 2" reg reg;
-         emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
-         reg_free reg
+           ex reg (EArith (TInt, Mul, e2, sz))
+        end;
+        emit "shl r%d, r%d, 2" reg reg;
+        emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
+        reg_free reg
       | _ ->
-         failwith "EPAdd")
+         failwith "EPAdd"
+     end
   | EPDiff (t1, e1, e2) ->
      raise (TODO "EPDiff")
   | ELog (_, op, e1, e2) ->
-     (match op with
-      | LogAnd ->
-         let l1 = label_create () in
-         let l2 = label_create () in
-         ex ret_reg e1;
-         emit "bz r%d, L%d" ret_reg l1;
-         ex ret_reg e2;
-         emit "bz r%d, L%d" ret_reg l1;
-         emit "mov r%d, 1" ret_reg;
-         emit "br L%d" l2;
-         emit_label l1;
-         emit "mov r%d, 0" ret_reg;
-         emit_label l2
-      | LogOr ->
-         let l1 = label_create () in
-         let l2 = label_create () in
-         ex ret_reg e1;
-         emit "bnz r%d, L%d" ret_reg l1;
-         ex ret_reg e2;
-         emit "bnz r%d, L%d" ret_reg l1;
-         emit "br L%d" l2;
-         emit_label l1;
-         emit "mov r%d, 1" ret_reg;
-         emit_label l2)
+     begin match op with
+     | LogAnd ->
+        let l1 = label_create () in
+        let l2 = label_create () in
+        ex ret_reg e1;
+        emit "bz r%d, L%d" ret_reg l1;
+        ex ret_reg e2;
+        emit "bz r%d, L%d" ret_reg l1;
+        emit "mov r%d, 1" ret_reg;
+        emit "br L%d" l2;
+        emit_label l1;
+        emit "mov r%d, 0" ret_reg;
+        emit_label l2
+     | LogOr ->
+        let l1 = label_create () in
+        let l2 = label_create () in
+        ex ret_reg e1;
+        emit "bnz r%d, L%d" ret_reg l1;
+        ex ret_reg e2;
+        emit "bnz r%d, L%d" ret_reg l1;
+        emit "br L%d" l2;
+        emit_label l1;
+        emit "mov r%d, 1" ret_reg;
+        emit_label l2
+     end
   | EUnary (ty, op, e) ->
-     (match op with
-      | Plus ->
-         ex ret_reg e
-      | Minus ->
-         ex ret_reg e;
-         emit "neg r%d, r%d" ret_reg ret_reg
-      | BitNot ->
-         ex ret_reg e;
-         emit "not r%d, r%d" ret_reg ret_reg
-      | LogNot ->
-         ex ret_reg e;
-         emit "cmpeq r%d, r%d, 0" ret_reg ret_reg
-      | PostInc
-      | PostDec ->
-         let areg = reg_alloc () in
-         emit_lv_addr areg e;
-         let reg = reg_alloc () in
-         emit "mov r%d, [r%d]" ret_reg areg;
-         if op = PostInc then
-           emit "add r%d, r%d, 1" reg ret_reg
-         else
-           emit "sub r%d, r%d, 1" reg ret_reg;
-         emit "mov [r%d], r%d" areg reg;
-         reg_free areg;
-         reg_free reg)
+     begin match op with
+     | Plus ->
+        ex ret_reg e
+     | Minus ->
+        ex ret_reg e;
+        emit "neg r%d, r%d" ret_reg ret_reg
+     | BitNot ->
+        ex ret_reg e;
+        emit "not r%d, r%d" ret_reg ret_reg
+     | LogNot ->
+        ex ret_reg e;
+        emit "cmpeq r%d, r%d, 0" ret_reg ret_reg
+     | PostInc
+     | PostDec ->
+        let areg = reg_alloc () in
+        emit_lv_addr areg e;
+        let reg = reg_alloc () in
+        emit "mov r%d, [r%d]" ret_reg areg;
+        if op = PostInc then
+          emit "add r%d, r%d, 1" reg ret_reg
+        else
+          emit "sub r%d, r%d, 1" reg ret_reg;
+        emit "mov [r%d], r%d" areg reg;
+        reg_free areg;
+        reg_free reg
+     end
   | EPPost (ty, op, e) ->
      let areg = reg_alloc () in
      emit_lv_addr areg e;
@@ -386,14 +395,15 @@ let rec ex ret_reg = function
                 emit "pop r%d" i)
                (List.rev used_reg)
   | EVar (t, Name name) ->
-     (match resolve_var name with
-      | TArray _, _ | TFun _, _ ->
-         raise (EmitError "logic flaw: EVar")
-      | TStruct _, _ | TUnion _, _ ->
-         raise (EmitError "EVar: struct as value is unsupported")
-      | _ ->
-         emit_lv_addr ret_reg (EVar (t, Name name));
-         emit "mov r%d, [r%d]" ret_reg ret_reg)
+     begin match resolve_var name with
+     | TArray _, _ | TFun _, _ ->
+        raise (EmitError "logic flaw: EVar")
+     | TStruct _, _ | TUnion _, _ ->
+        raise (EmitError "EVar: struct as value is unsupported")
+     | _ ->
+        emit_lv_addr ret_reg (EVar (t, Name name));
+        emit "mov r%d, [r%d]" ret_reg ret_reg
+     end
   | EAssign (_, e1, e2) ->
      let reg = reg_alloc () in
      emit_lv_addr reg e1;
@@ -407,20 +417,21 @@ let rec ex ret_reg = function
      emit "mov r%d, [r%d]" ret_reg ret_reg
   | EDot (t, e, Name name) ->
      emit_lv_addr ret_reg (EDot (t, e, Name name));
-     (match t with
-      | TArray _ | TStruct _ | TUnion _ ->
-         raise (EmitError "EDot")
-      | _ ->
-         emit "mov r%d, [r%d]" ret_reg ret_reg)
+     begin match t with
+     | TArray _ | TStruct _ | TUnion _ ->
+       raise (EmitError "EDot")
+     | _ ->
+        emit "mov r%d, [r%d]" ret_reg ret_reg
+     end
   | ECast (t1, t2, e) ->
-     (match t1, t2 with
-      | TStruct _, _ | _, TStruct _
-      | TUnion  _, _ | _, TUnion  _
-      | TArray  _, _ | _, TArray  _ ->
-         raise (EmitError "ECast")
-      | _ ->
-         ex ret_reg e)
-
+     begin match t1, t2 with
+     | TStruct _, _ | _, TStruct _
+     | TUnion  _, _ | _, TUnion  _
+     | TArray  _, _ | _, TArray  _ ->
+        raise (EmitError "ECast")
+     | _ ->
+        ex ret_reg e
+     end
 and emit_bin ret_reg op e1 e2 =
   ex ret_reg e1;
   let reg = reg_alloc () in
@@ -430,25 +441,27 @@ and emit_bin ret_reg op e1 e2 =
 
 and emit_lv_addr ret_reg = function
   | EVar (_, Name name) ->
-     (match resolve_var name with
-      | (_, Mem offset) ->
-         emit "sub r%d, rbp, %d" ret_reg offset
-      | (_, Global label) ->
-         emit "mov r%d, %s" ret_reg label)
+     begin match resolve_var name with
+     | (_, Mem offset) ->
+        emit "sub r%d, rbp, %d" ret_reg offset
+     | (_, Global label) ->
+        emit "mov r%d, %s" ret_reg label
+     end
   | EDot (_, expr, Name mem) ->
-     (match Typing.typeof expr with
-      | TStruct s_id ->
-         let rec go i s = function
-           | [] -> failwith "edot"
-           | (v, _)::_ when v=s -> i
-           | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
-         let memlist = snd (resolve_struct s_id) in
-         let mem_offset = go 0 mem memlist in
-         emit_lv_addr ret_reg expr;
-         emit "add r%d, r%d, %d" ret_reg ret_reg mem_offset
-      | TUnion _ ->
-         emit_lv_addr ret_reg expr
-      | _ -> raise (EmitError "emit_lv_addr dot"))
+     begin match Typing.typeof expr with
+     | TStruct s_id ->
+        let rec go i s = function
+          | [] -> failwith "edot"
+          | (v, _)::_ when v=s -> i
+          | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
+        let memlist = snd (resolve_struct s_id) in
+        let mem_offset = go 0 mem memlist in
+        emit_lv_addr ret_reg expr;
+        emit "add r%d, r%d, %d" ret_reg ret_reg mem_offset
+     | TUnion _ ->
+        emit_lv_addr ret_reg expr
+     | _ -> raise (EmitError "emit_lv_addr dot")
+     end
   | EPtr (_, e) ->
      ex ret_reg e
   | EConst (_, VStr s) ->
@@ -473,16 +486,16 @@ let init_local_vars vars =
                   ) init;
        reg_free reg
     | (_, Global label) ->
-       (match (ln, init) with
-        | NoLink, _  -> failwith "init_local_vars"
-        | Extern, [] ->
-           ()                   (* ignore *)
-        | Static, [] ->
-           raise (EmitError "local static variable has no initializer")
-        | Extern, xs ->
-           raise (EmitError "local extern variable has initializer")
-        | Static, xs ->
-           emit_global_var label xs) in
+       match (ln, init) with
+       | NoLink, _  -> failwith "init_local_vars"
+       | Extern, [] ->
+          ()                   (* ignore *)
+       | Static, [] ->
+          raise (EmitError "local static variable has no initializer")
+       | Extern, xs ->
+          raise (EmitError "local extern variable has initializer")
+       | Static, xs ->
+          emit_global_var label xs in
   List.iter go vars
 
 let rec st = function
@@ -540,32 +553,35 @@ let rec st = function
      let endlnum = label_create () in
      stack_push con_stack iterlnum;
      stack_push brk_stack endlnum;
-     (match init with
-      | Some iex ->
-         let temp = reg_alloc () in
-         ex temp iex;
-         reg_free temp
-      | _ -> ());
+     begin match init with
+     | Some iex ->
+        let temp = reg_alloc () in
+        ex temp iex;
+        reg_free temp
+     | _ -> ()
+     end;
      emit_label startlnum;
-     (match cond with
-      | Some cex ->
-         let cond_reg = reg_alloc () in
-         ex cond_reg cex;
-         emit "bz r%d, L%d" cond_reg endlnum;
-         reg_free cond_reg
-      | _ -> ());
+     begin match cond with
+     | Some cex ->
+        let cond_reg = reg_alloc () in
+        ex cond_reg cex;
+        emit "bz r%d, L%d" cond_reg endlnum;
+        reg_free cond_reg
+     | _ -> ()
+     end;
      let continue_flg = !for_continue_flg_ref in
      for_continue_flg_ref := 0;
      st b;
      if !for_continue_flg_ref = 1 then
        emit_label iterlnum;
      for_continue_flg_ref := continue_flg;
-     (match iter with
-      | Some itex ->
-         let temp = reg_alloc () in
-         ex temp itex;
-         reg_free temp
-      |  _ -> ());
+     begin match iter with
+     | Some itex ->
+        let temp = reg_alloc () in
+        ex temp itex;
+        reg_free temp
+     |  _ -> ()
+     end;
      emit "br L%d" startlnum;
      emit_label endlnum;
      stack_pop con_stack;
@@ -583,15 +599,16 @@ let rec st = function
      st b2;
      emit_label endlnum
   | SReturn exp ->
-     (match exp with
-      | Some exp ->
-         let reg = reg_alloc () in
-         ex reg exp;
-         if reg != 1 then
-           emit "mov r1, r%d" reg;
-         reg_free reg
-      | None ->
-         ());
+     begin match exp with
+     | Some exp ->
+        let reg = reg_alloc () in
+        ex reg exp;
+        if reg != 1 then
+          emit "mov r1, r%d" reg;
+        reg_free reg
+     | None ->
+        ()
+     end;
      emit "leave";
      emit "ret";
   | SContinue ->
@@ -663,30 +680,32 @@ let rec emitter oc = function
      insert_epilogue ();
      if name = "main" then
        insert_halt ();
-     (match ln with
-      | NoLink
-      | Extern ->
-         fprintf oc ".global %s\n%s:\n" name name;
-      | Static ->
-         ());
+     begin match ln with
+     | NoLink
+     | Extern ->
+        fprintf oc ".global %s\n%s:\n" name name;
+     | Static ->
+        ()
+     end;
      flush_buffer oc name
   | DefVar (Decl (ln, ty, Name name, init)) ->
      stack_push env_ref (name, (ty, Global name));
-     (match (ln, init) with
-      | NoLink, [] when not (is_funty ty) ->
-         emit_raw ".global %s\n" name;
-         emit_raw "%s:\n" name;
-         emit ".int 0, %d\n" (sizeof ty)
-      | NoLink, []
-      | Extern, []
-      | Static, [] ->
-         ()                     (* ignore *)
-      | NoLink, xs
-      | Extern, xs ->
-         emit_raw ".global %s\n" name;
-         emit_global_var name xs
-      | Static, xs ->
-         emit_global_var name xs);
+     begin match (ln, init) with
+     | NoLink, [] when not (is_funty ty) ->
+        emit_raw ".global %s\n" name;
+        emit_raw "%s:\n" name;
+        emit ".int 0, %d\n" (sizeof ty)
+     | NoLink, []
+     | Extern, []
+     | Static, [] ->
+        ()                     (* ignore *)
+     | NoLink, xs
+     | Extern, xs ->
+        emit_raw ".global %s\n" name;
+        emit_global_var name xs
+     | Static, xs ->
+        emit_global_var name xs
+     end;
      flush_buffer oc name
 
 (*emit main*)
