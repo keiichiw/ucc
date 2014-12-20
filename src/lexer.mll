@@ -55,6 +55,8 @@ rule token = parse
     { TVOID }
 | "struct"
     { STRUCT }
+| "enum"
+    { ENUM }
 | "typedef"
     { TYPEDEF }
 | "static"
@@ -199,6 +201,8 @@ rule token = parse
     {
       if is_typedef_name n then
         TYPEDEF_NAME n
+      else if is_enum_id n then
+        ENUM_ID n
       else
         ID n
     }

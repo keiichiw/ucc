@@ -56,14 +56,25 @@
     | ELog (And, e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
     | ELog (Or, e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
     | _ -> raise (ParserError "fold_expr")
+  let make_enumty _ enums =
+    let go num = function
+      | (enum, Some cnst) ->
+         let idx = fold_expr cnst in
+         enum_def enum (fold_expr cnst);
+         idx+1
+      | (enum, None) ->
+         enum_def enum num;
+         num+1 in
+    let _ = List.fold_left go 0 enums in ()
 %}
 
 %token <int> INT
 %token <int list> STR
 %token <string> ID
 %token <string> TYPEDEF_NAME
+%token <string> ENUM_ID
 %token TINT TUNSIGNED TCHAR TSHORT TLONG TVOID
-%token STRUCT TYPEDEF
+%token STRUCT TYPEDEF ENUM
 %token STATIC EXTERN
 %token IF ELSE WHILE DO FOR
 %token RETURN CONTINUE BREAK GOTO
@@ -146,6 +157,8 @@ type_spec:
     { List.assoc $1 !typedef_env }
 | struct_spec
   { $1 }
+| enum_spec
+  { $1 }
 
 struct_spec:
 | STRUCT ID? LBRACE struct_decl+ RBRACE
@@ -157,6 +170,17 @@ struct_decl:
 | decl
   { $1 }
 
+enum_spec:
+| ENUM ID? LBRACE separated_nonempty_list(COMMA, enumerator) RBRACE
+  { make_enumty $2 $4; TInt }
+| ENUM ID
+  { TInt }
+
+enumerator:
+| ID
+  { ($1, None) }
+| ID ASSIGN constant_expr
+  { ($1, Some $3) }
 init_declarator:
 | declarator
   { ($1, None) }
@@ -458,5 +482,7 @@ arg_expr_list:
 constant_expr:
 | INT
   { EConst(VInt $1) }
+| ENUM_ID
+  { EConst (VInt (get_enum $1)) }
 | STR
   { EConst(VStr $1) }
