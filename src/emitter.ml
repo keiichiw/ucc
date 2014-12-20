@@ -59,7 +59,7 @@ let flush_buffer oc name =
     (List.rev !buffer_ref);
   buffer_ref := []
 
-let reg_alloc _ =
+let reg_alloc () =
   match !free_reg_stack with
   | [] ->
      raise (EmitError "register starvation!!");
@@ -78,10 +78,10 @@ let reg_free i =
   else
     free_reg_stack := i::!free_reg_stack
 
-let reg_free_all _ =
+let reg_free_all () =
   free_reg_stack := register_list
 
-let get_used_reg _ =
+let get_used_reg () =
   List.filter
     (fun x -> (List.mem x !free_reg_stack) = false)
     register_list
