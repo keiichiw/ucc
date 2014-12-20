@@ -33,8 +33,9 @@ let rec make_decl ln ty (decl, exp) =
     go (fun x -> x) decl in
   Decl (ln, ty, !name, exp)
 
-let get_params = function
+let rec get_params = function
   | DeclFun (_, dvs) -> dvs
+  | DeclPtr d -> get_params d
   | _ -> raise (ParserError "get_params")
 
 let make_type ty decl =
@@ -44,25 +45,61 @@ let make_type ty decl =
    | _ ->
       raise (ParserError "make_type"))
 
+let lookup_structty name =
+  try
+    List.assoc name !struct_table
+  with
+  | Not_found ->
+     let sid = List.length !struct_env in
+     struct_table := (name, sid) :: !struct_table;
+     struct_env := [] :: !struct_env; (* push a dummy *)
+     sid
+
+let lookup_unionty name =
+  try
+    List.assoc name !union_table
+  with
+  | Not_found ->
+     let uid = List.length !union_env in
+     union_table := (name, uid) :: !union_table;
+     union_env := [] :: !union_env; (* push a dummy *)
+     uid
+
+let insert_struct_decl sid decl =
+  let rec go = function
+    | [], _ -> failwith "insert_struct_decl"
+    | (_::xs), i when i = sid -> decl::xs
+    | (x::xs), i -> x :: go (xs, (i-1)) in
+  struct_env := go (!struct_env, List.length !struct_env - 1)
+
+let insert_union_decl uid decl =
+  let rec go = function
+    | [], _ -> failwith "insert_union_decl"
+    | (_::xs), i when i = uid -> decl::xs
+    | (x::xs), i -> x :: go (xs, (i-1)) in
+  union_env := go (!union_env, List.length !union_env - 1)
+
 let make_structty name_opt decl =
-  let sid = List.length !struct_env in
-  begin match name_opt with
-    | Some name ->
-      struct_table := (name, sid) :: !struct_table
-    | None -> ()
-  end;
-  struct_env := decl :: !struct_env;
-  TStruct sid
+  match name_opt with
+  | Some name ->
+     let sid = lookup_structty name in
+     insert_struct_decl sid decl;
+     TStruct sid
+  | None ->
+     let sid = List.length !struct_env in
+     struct_env := decl :: !struct_env;
+     TStruct sid
 
 let make_unionty name_opt decl =
-  let uid = List.length !union_env in
-  begin match name_opt with
-    | Some name ->
-      union_table := (name, uid) :: !union_table
-    | None -> ()
-  end;
-  union_env := decl :: !union_env;
-  TUnion uid
+  match name_opt with
+  | Some name ->
+     let uid = lookup_unionty name in
+     insert_union_decl uid decl;
+     TUnion uid
+  | None ->
+     let uid = List.length !union_env in
+     union_env := decl :: !union_env;
+     TUnion uid
 
 let make_enumty enums =
   let go num = function
@@ -184,11 +221,11 @@ struct_spec:
 | STRUCT ID? LBRACE struct_decl+ RBRACE
   { make_structty $2 (List.concat $4) }
 | STRUCT ID
-  { TStruct (List.assoc $2 !struct_table) }
+  { TStruct (lookup_structty $2) }
 | UNION ID? LBRACE struct_decl+ RBRACE
   { make_unionty $2 (List.concat $4) }
 | UNION ID
-  { TUnion (List.assoc $2 !union_table) }
+  { TUnion (lookup_unionty $2) }
 
 struct_decl:
 | decl
