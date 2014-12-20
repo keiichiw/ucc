@@ -592,7 +592,7 @@ let rec emitter oc = function
      (match ln with
       | NoLink
       | Extern ->
-         fprintf oc "\t.global %s\n%s:\n" name name;
+         fprintf oc ".global %s\n%s:\n" name name;
       | Static ->
          ());
      print_buffer oc name
@@ -600,7 +600,7 @@ let rec emitter oc = function
      stack_push env_ref (name, (ty, Global name));
      (match (ln, init) with
       | NoLink, [] when not (is_funty ty) ->
-         fprintf oc "\t.global %s\n" name;
+         fprintf oc ".global %s\n" name;
          fprintf oc "%s:\n" name;
          fprintf oc "\t.int 0, %d\n" (sizeof ty)
       | NoLink, []
@@ -608,7 +608,7 @@ let rec emitter oc = function
          ()                     (* ignore *)
       | NoLink, xs
       | Extern, xs ->
-         fprintf oc "\t.global %s\n" name;
+         fprintf oc ".global %s\n" name;
          emit_global_var oc name xs
       | Static, xs ->
          emit_global_var oc name xs)
