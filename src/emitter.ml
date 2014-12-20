@@ -255,10 +255,8 @@ let rec ex ret_reg = function
      emit "shr r%d, r%d, 16" b_high breg;
      let a_low = areg in
      let b_low = breg in
-     emit "shl r%d, r%d, 16" a_low a_low;
-     emit "shr r%d, r%d, 16" a_low a_low;
-     emit "shl r%d, r%d, 16" b_low b_low;
-     emit "shr r%d, r%d, 16" b_low b_low;
+     emit "ldh r%d, r%d, 0" a_low a_low;
+     emit "ldh r%d, r%d, 0" b_low b_low;
      let reg1 = reg_alloc () in
      let reg2 = reg_alloc () in
      emit "%s r%d, r%d, r%d" op_h ret_reg a_high b_high;
