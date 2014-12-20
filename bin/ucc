@@ -17,7 +17,7 @@ while getopts sSo:h OPT
 do
     case $OPT in
         s|S)
-            ASM=1
+            ASM_MODE=1
             ;;
         o)
             OUTFILE=$OPTARG
@@ -46,9 +46,9 @@ $CPP -D__UCC__=1 $1 > /tmp/$FILENAME.x || exit 1
 
 $CC /tmp/$FILENAME.x || exit 1
 
-if [ $ASM ]
+if [ $ASM_MODE ]
 then
-    cp /tmp/$FILENAME.x.s $FILEDIR/$FILENAME.s
+    cp /tmp/$FILENAME.x.s $FILEDIR/${FILENAME%.*}.s
     exit 0
 fi
 
