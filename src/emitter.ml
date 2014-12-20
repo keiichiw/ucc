@@ -19,7 +19,6 @@ let switch_counter = ref (-1)
 let switch_stack = ref []
 let switch_cases = ref []
 let switch_defaults = ref []
-let for_continue_flg_ref = ref 0
 let fun_name_ref = ref ""
 let env_ref : (string * (ctype * storageplace)) list ref = ref []
 
@@ -482,12 +481,8 @@ let rec st = function
      stack_push con_stack condlabel;
      stack_push brk_stack endlabel;
      emit_label beginlabel;
-     let continue_flg = !for_continue_flg_ref in
-     for_continue_flg_ref := 0;
      st b;
-     if !for_continue_flg_ref = 1 then
-       emit_label condlabel;
-     for_continue_flg_ref := continue_flg;
+     emit_label condlabel;
      let cond_reg = reg_alloc () in
      ex cond_reg cond;
      emit "bz r%d, L%d" cond_reg endlabel;
@@ -516,12 +511,8 @@ let rec st = function
          emit "bz r%d, L%d" cond_reg endlnum;
          reg_free cond_reg
       | _ -> ());
-     let continue_flg = !for_continue_flg_ref in
-     for_continue_flg_ref := 0;
      st b;
-     if !for_continue_flg_ref = 1 then
-       emit_label iterlnum;
-     for_continue_flg_ref := continue_flg;
+     emit_label iterlnum;
      (match iter with
       | Some itex ->
          let temp = reg_alloc () in
@@ -559,7 +550,6 @@ let rec st = function
   | SContinue ->
      let lbl = (List.hd !con_stack) in
      emit "br L%d" lbl;
-     for_continue_flg_ref := 1
   | SBreak ->
      let lbl = (List.hd !brk_stack) in
      emit "br L%d" lbl
