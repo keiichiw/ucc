@@ -9,18 +9,20 @@ type storageplace =
   | Global of string
 
 let register_list = Array.init 27 succ |> Array.to_list
-let created_label_num = ref 0
 let free_reg_stack = ref register_list
 let buffer_ref : string list ref = ref []
+let env_ref : (string * (ctype * storageplace)) list ref = ref []
+let fun_name_ref = ref ""
 let sp_offset_ref = ref 0
+
+(* label management *)
+let created_label_num = ref 0
 let con_stack : int list ref = ref []
 let brk_stack : int list ref = ref []
 let switch_counter = ref (-1)
 let switch_stack = ref []
 let switch_cases = ref []
 let switch_defaults = ref []
-let fun_name_ref = ref ""
-let env_ref : (string * (ctype * storageplace)) list ref = ref []
 
 (* This is initialized in main *)
 let senv_ref : (size * ((string * ctype) list)) list ref = ref []
