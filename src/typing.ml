@@ -5,11 +5,10 @@ exception TypingError of string
 exception TODO of string
 exception Unreachable
 
-type name = string
 let venv_ref : (string * ctype) list ref = ref [];;
 
 (* This is initialized in main *)
-let senv_ref : (int * ((name * ctype) list)) list ref = ref [];;
+let senv_ref : (int * ((string * ctype) list)) list ref = ref [];;
 
 let push_stack x env =
   env := x::!env
