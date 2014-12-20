@@ -262,7 +262,7 @@ let rec ex ret_reg = function
       | PostInc
       | PostDec ->
          let areg = reg_alloc () in
-         lv_addr areg e;
+         emit_lv_addr areg e;
          let reg = reg_alloc () in
          emit "mov r%d, [r%d]" ret_reg areg;
          if op = PostInc then
@@ -274,7 +274,7 @@ let rec ex ret_reg = function
          reg_free reg)
   | EPPost (ty, op, e) ->
      let areg = reg_alloc () in
-     lv_addr areg e;
+     emit_lv_addr areg e;
      let reg = reg_alloc () in
      emit "mov r%d, [r%d]" ret_reg areg;
      if op = Inc then
@@ -321,23 +321,23 @@ let rec ex ret_reg = function
       | TArray _, _ | TFun _, _ ->
          raise (EmitError "logic flaw: EVar at Emitter.ex")
       | TStruct _, _ | TUnion _, _ ->
-         lv_addr ret_reg (EVar (t, Name name));
+         emit_lv_addr ret_reg (EVar (t, Name name));
       | _ ->
-         lv_addr ret_reg (EVar (t, Name name));
+         emit_lv_addr ret_reg (EVar (t, Name name));
          emit "mov r%d, [r%d]" ret_reg ret_reg)
   | EAssign (_, e1, e2) ->
      let reg = reg_alloc () in
-     lv_addr reg e1;
+     emit_lv_addr reg e1;
      ex ret_reg e2;
      emit "mov [r%d], r%d" reg ret_reg;
      reg_free reg
   | EAddr (_, e) ->
-     lv_addr ret_reg e
+     emit_lv_addr ret_reg e
   | EPtr (_, e) ->
      ex ret_reg e;
      emit "mov r%d, [r%d]" ret_reg ret_reg
   | EDot (t, e, Name name) ->
-     lv_addr ret_reg (EDot (t, e, Name name));
+     emit_lv_addr ret_reg (EDot (t, e, Name name));
      (match t with
       | TArray _ | TStruct _ | TUnion _ -> ()
       | _ ->
@@ -358,7 +358,7 @@ and emit_bin ret_reg op e1 e2 =
   emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
   reg_free reg
 
-and lv_addr ret_reg = function
+and emit_lv_addr ret_reg = function
   | EVar (_, Name name) ->
      (match resolve_var name with
       | (_, Mem offset) ->
@@ -374,11 +374,11 @@ and lv_addr ret_reg = function
            | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
          let memlist = snd (resolve_struct s_id) in
          let mem_offset = go 0 mem memlist in
-         lv_addr ret_reg expr;
+         emit_lv_addr ret_reg expr;
          emit "add r%d, r%d, %d" ret_reg ret_reg mem_offset
       | TUnion _ ->
-         lv_addr ret_reg expr
-      | _ -> raise (EmitError "lv_addr dot"))
+         emit_lv_addr ret_reg expr
+      | _ -> raise (EmitError "emit_lv_addr dot"))
   | EPtr (_, e) ->
      ex ret_reg e
   | EConst (_, VStr s) ->
