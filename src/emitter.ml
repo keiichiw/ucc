@@ -109,9 +109,9 @@ let resolve_union u =
 let rec sizeof = function
   | TInt | TShort | TLong | TUnsigned | TChar | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (sizeof ty)
-  | TFun _ -> raise (EmitError "sizeof function")
   | TStruct s_id -> fst (resolve_struct s_id)
   | TUnion u_id -> fst (resolve_union u_id)
+  | TFun _ -> raise (EmitError "sizeof function")
   | TVoid -> raise (EmitError "sizeof void")
 
 let sizeof_decl (Decl (_,ty,_,_)) =
