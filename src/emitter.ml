@@ -289,7 +289,19 @@ let rec ex ret_reg = function
          failwith "EPAdd"
      end
   | EPDiff (t1, e1, e2) ->
-     raise (TODO "EPDiff")
+     begin match (Typing.typeof e1, Typing.typeof e2) with
+     | (TPtr t1, TPtr t2) when t1=t2 ->
+        let sz = 4 * (sizeof t1) in
+        ex ret_reg e1;
+        let reg = reg_alloc () in
+        ex reg e2;
+        emit "sub r%d, r%d, r%d" ret_reg ret_reg reg;
+        emit "mov r%d, %d" reg sz;
+        emit_native_call ret_reg "__div" ret_reg reg;
+        reg_free reg
+     | _ ->
+        failwith "EPDiff"
+     end
   | ELog (_, op, e1, e2) ->
      begin match op with
      | LogAnd ->

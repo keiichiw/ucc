@@ -172,7 +172,7 @@ and ex' = function
         end
      | Sub ->
         begin match (typeof ex1, typeof ex2) with
-        | (TPtr ty1, TPtr ty2) ->
+        | (TPtr ty1, TPtr ty2) when ty1 = ty2->
            Type.EPDiff(TInt, ex1, ex2)
         | (TPtr ty1, i) when is_integral i ->
            let m_ex2 = ex (Syntax.EUnary(Minus, e2)) in
