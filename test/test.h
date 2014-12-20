@@ -1,6 +1,6 @@
-int _mul(int a, int b);
-int _div(int a, int b);
-int _mod(int a, int b);
+int __mul(int a, int b);
+int __div(int a, int b);
+int __mod(int a, int b);
 int _printint(int a, int b, int c);
 void _putc (char c);
 int _printf();

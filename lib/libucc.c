@@ -1,7 +1,7 @@
 int asm_write(int n);
 
 
-int _mul (int a, int b) {
+int __mul (int a, int b) {
   int i, r;
   r = 0;
   for (i = 31; i >= 0; --i) {
@@ -11,7 +11,7 @@ int _mul (int a, int b) {
   return r;
 }
 
-int _div_kernel (int n, int d, int *qp, int *rp) {
+int __div_kernel (int n, int d, int *qp, int *rp) {
   int sign = ((n >> 31) ^ (d >> 31)) & 1;
   int i, q = 0, r = 0;
   if (n < 0) n = -n;
@@ -28,15 +28,15 @@ int _div_kernel (int n, int d, int *qp, int *rp) {
   *rp = sign ? -r : r;
 }
 
-int _div (int n, int d) {
+int __div (int n, int d) {
   int p, q;
-  _div_kernel(n, d, &p, &q);
+  __div_kernel(n, d, &p, &q);
   return p;
 }
 
-int _mod (int n, int d) {
+int __mod (int n, int d) {
   int p, q;
-  _div_kernel(n, d, &p, &q);
+  __div_kernel(n, d, &p, &q);
   return q;
 }
 
