@@ -614,7 +614,8 @@ let rec emitter oc = function
          fprintf oc "%s:\n" name;
          fprintf oc "\t.int 0, %d\n" (sizeof ty)
       | NoLink, []
-      | Extern, [] ->
+      | Extern, []
+      | Static, [] ->
          ()                     (* ignore *)
       | NoLink, xs
       | Extern, xs ->
