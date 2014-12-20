@@ -13,6 +13,7 @@ type ctype =
   | TChar
   | TVoid
   | TStruct of int
+  | TUnion of int
   | TPtr of ctype
   | TArray of ctype * int
   | TFun of ctype * (ctype list)

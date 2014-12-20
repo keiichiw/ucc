@@ -3,10 +3,11 @@ open Format
 
 exception TypingError of string
 
-let venv_ref : (string * ctype) list ref = ref [];;
+let venv_ref : (string * ctype) list ref = ref []
 
 (* This is initialized in main *)
-let senv_ref : (string * ctype) list list ref = ref [];;
+let senv_ref : (string * ctype) list list ref = ref []
+let uenv_ref : (string * ctype) list list ref = ref []
 
 let push_stack x env =
   env := x::!env
@@ -16,10 +17,13 @@ let resolve_var_type nm =
     | (s, ty)::_ when s=nm -> ty
     | _ :: xs -> go nm xs in
   go nm !venv_ref
-let resolve_member_type stct mem_name =
-  match stct with
+let resolve_member_type ty mem_name =
+  match ty with
   | TStruct s_id ->
      let dvs = List.nth !senv_ref s_id in
+     List.assoc mem_name dvs
+  | TUnion u_id ->
+     let dvs = List.nth !uenv_ref u_id in
      List.assoc mem_name dvs
   | _ -> failwith "resolve_member_type"
 
@@ -52,9 +56,12 @@ let rec sizeof = function
   | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (sizeof ty)
   | TFun _ -> raise (TypingError "sizeof function")
-  | TStruct sid ->
-    let sz fs = List.fold_left (fun num (_, ty) -> num + sizeof ty) 0 fs in
-    sz (List.nth !senv_ref sid)
+  | TStruct s_id ->
+    let sz = List.fold_left (fun n (_, ty) -> n + sizeof ty) 0 in
+    sz (List.nth !senv_ref s_id)
+  | TUnion u_id ->
+    let sz = List.fold_left (fun n (_, ty) -> max n (sizeof ty)) 0 in
+    sz (List.nth !uenv_ref u_id)
   | TVoid ->
     raise (TypingError "sizeof void")
 
@@ -85,6 +92,9 @@ let initialize ty init =
         let l, rem  = inner (snd (List.nth s idx)) ty ilist in
         let r, tail = compound ty rem (idx + 1) in
         l @ r, tail
+    | TUnion u_id, Syntax.IVect ilist ->
+      let u = List.nth !uenv_ref u_id in
+      inner (snd (List.hd u)) ty ilist
     | TArray (inner_ty, sz), Syntax.IVect ilist ->
       if sz = idx then [], init
       else
@@ -115,7 +125,7 @@ let initialize ty init =
   | None -> []
   | Some init ->
     match ty with
-    | TStruct _ | TArray _ ->
+    | TStruct _ | TUnion _ | TArray _ ->
       let res, tail = compound ty init 0 in
       if tail <> Syntax.IVect [] then
         raise (TypingError "initializer eccess elements");
@@ -270,7 +280,7 @@ and ex' = function
        raise (TypingError "cond")
   | Syntax.EDot (e1, Name nm) ->
      let ex1 = ex e1 in
-     let ty =  resolve_member_type (typeof ex1) nm in
+     let ty = resolve_member_type (typeof ex1) nm in
      Type.EDot(ty, ex1, Name nm)
   | Syntax.ECast (ty, e) ->
      let e = ex e in
@@ -358,4 +368,5 @@ let rec def = function
 let main defs =
   let go x = let Type.Decl (_, ty, Name n, _) = dv x in (n, ty) in
   senv_ref := List.map (List.map go) (List.rev !Syntax.struct_env);
+  uenv_ref := List.map (List.map go) (List.rev !Syntax.union_env);
   List.map (fun x -> def x) defs

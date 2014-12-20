@@ -24,7 +24,8 @@ let fun_name_ref = ref ""
 let env_ref : (string * (ctype * storageplace)) list ref = ref []
 
 (* This is initialized in main *)
-let struct_env_ref : (size * ((string * ctype) list)) list ref = ref []
+let senv_ref : (size * ((string * ctype) list)) list ref = ref []
+let uenv_ref : (size * ((string * ctype) list)) list ref = ref []
 
 (* Access ref values*)
 let stack_push stack i =
@@ -100,21 +101,18 @@ let resolve_var name =
   | Not_found -> raise (EmitError (sprintf "not found %s" name))
 
 let resolve_struct s =
-  List.nth !struct_env_ref s
+  List.nth !senv_ref s
+
+let resolve_union u =
+  List.nth !uenv_ref u
 
 let rec sizeof = function
-  | TInt
-  | TShort
-  | TLong
-  | TUnsigned
-  | TChar
-  | TPtr _ -> 1
+  | TInt | TShort | TLong | TUnsigned | TChar | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (sizeof ty)
   | TFun _ -> raise (EmitError "sizeof function")
-  | TStruct s_id ->
-     fst (resolve_struct s_id)
-  | TVoid ->
-     raise (EmitError "sizeof void")
+  | TStruct s_id -> fst (resolve_struct s_id)
+  | TUnion u_id -> fst (resolve_union u_id)
+  | TVoid -> raise (EmitError "sizeof void")
 
 let sizeof_decl (Decl (_,ty,_,_)) =
   sizeof ty * 4
@@ -320,10 +318,9 @@ let rec ex ret_reg = function
                (List.rev used_reg)
   | EVar (t, Name name) ->
      (match resolve_var name with
-      | (TArray  _, _)
-      | (TFun _, _) ->
+      | TArray _, _ | TFun _, _ ->
          raise (EmitError "logic flaw: EVar at Emitter.ex")
-      | (TStruct _, _) ->
+      | TStruct _, _ | TUnion _, _ ->
          lv_addr ret_reg (EVar (t, Name name));
       | _ ->
          lv_addr ret_reg (EVar (t, Name name));
@@ -342,15 +339,14 @@ let rec ex ret_reg = function
   | EDot (t, e, Name name) ->
      lv_addr ret_reg (EDot (t, e, Name name));
      (match t with
-      | TArray _ | TStruct _ -> ()
+      | TArray _ | TStruct _ | TUnion _ -> ()
       | _ ->
          emit "mov r%d, [r%d]" ret_reg ret_reg)
   | ECast (t1, t2, e) ->
-     (match (t1, t2) with
-      | (TStruct _, _)
-      | (_, TStruct _)
-      | (TArray _, _)
-      | (_, TArray _) ->
+     (match t1, t2 with
+      | TStruct _, _ | _, TStruct _
+      | TUnion  _, _ | _, TUnion  _
+      | TArray  _, _ | _, TArray  _ ->
          raise (EmitError "ECast")
       | _ ->
          ex ret_reg e)
@@ -380,6 +376,8 @@ and lv_addr ret_reg = function
          let mem_offset = go 0 mem memlist in
          lv_addr ret_reg expr;
          emit "add r%d, r%d, %d" ret_reg ret_reg mem_offset
+      | TUnion _ ->
+         lv_addr ret_reg expr
       | _ -> raise (EmitError "lv_addr dot"))
   | EPtr (_, e) ->
      ex ret_reg e
@@ -414,13 +412,13 @@ let rec st = function
   | SBlock (vars, stmts) ->
      let old_sp = !sp_offset_ref in
      let old_env = !env_ref in
-     let old_senv = !struct_env_ref in
+     let old_senv = !senv_ref in
      push_local_vars vars;
      init_local_vars vars;
      List.iter st stmts;
      sp_offset_ref := old_sp;
      env_ref := old_env;
-     struct_env_ref := old_senv;
+     senv_ref := old_senv;
   | SWhile (cond, b) ->
      let beginlabel = label_create () in
      let endlabel = label_create () in
@@ -594,13 +592,13 @@ let rec emitter oc = function
      fun_name_ref := name;
      let free_regs = !free_reg_stack in
      let old_env = !env_ref in
-     let old_senv = !struct_env_ref in
+     let old_senv = !senv_ref in
      push_args args;
      emit "enter %d" (sizeof_block b);
      st b;
      free_reg_stack := free_regs;
      env_ref := old_env;
-     struct_env_ref := old_senv;
+     senv_ref := old_senv;
      (match ln with
       | NoLink
       | Extern ->
@@ -627,8 +625,12 @@ let rec emitter oc = function
 
 (*emit main*)
 let rec main oc defs =
-  let go l =
-    let sz = List.fold_left (fun num (_, ty) -> num + (sizeof ty)) 0 l in
-    struct_env_ref := !struct_env_ref @ [(sz, l)] in
-  List.iter go !Typing.senv_ref;
+  let go_struct l =
+    let sz = List.fold_left (fun n (_, ty) -> n + sizeof ty) 0 l in
+    senv_ref := !senv_ref @ [(sz, l)] in
+  let go_union l =
+    let sz = List.fold_left (fun n (_, ty) -> max n (sizeof ty)) 0 l in
+    uenv_ref := !uenv_ref @ [(sz, l)] in
+  List.iter go_struct !Typing.senv_ref;
+  List.iter go_union  !Typing.uenv_ref;
   List.iter (emitter oc) defs

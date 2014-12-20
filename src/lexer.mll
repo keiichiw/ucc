@@ -56,6 +56,8 @@ rule token = parse
   { TVOID }
 | "struct"
   { STRUCT }
+| "union"
+  { UNION }
 | "enum"
   { ENUM }
 | "typedef"

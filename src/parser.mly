@@ -12,6 +12,7 @@ type declarator =
   | DeclFun of declarator * (decl list)
 
 let struct_table : (string * int) list ref = ref []
+let union_table  : (string * int) list ref = ref []
 
 let get_ty = function
   | Decl (_, ty, _, _) -> ty
@@ -53,7 +54,17 @@ let make_structty name_opt decl =
   struct_env := decl :: !struct_env;
   TStruct sid
 
-let make_enumty _ enums =
+let make_unionty name_opt decl =
+  let uid = List.length !union_env in
+  begin match name_opt with
+    | Some name ->
+      union_table := (name, uid) :: !union_table
+    | None -> ()
+  end;
+  union_env := decl :: !union_env;
+  TUnion uid
+
+let make_enumty enums =
   let go num = function
     | (enum, Some cnst) ->
        enum_def enum cnst;
@@ -83,7 +94,7 @@ let rec fold_expr = function
 %token <string> TYPEDEF_NAME
 %token <string> ENUM_ID
 %token TINT TUNSIGNED TCHAR TSHORT TLONG TVOID
-%token STRUCT TYPEDEF ENUM
+%token STRUCT UNION TYPEDEF ENUM
 %token STATIC EXTERN
 %token IF ELSE WHILE DO FOR
 %token RETURN CONTINUE BREAK GOTO
@@ -174,6 +185,10 @@ struct_spec:
   { make_structty $2 (List.concat $4) }
 | STRUCT ID
   { TStruct (List.assoc $2 !struct_table) }
+| UNION ID? LBRACE struct_decl+ RBRACE
+  { make_unionty $2 (List.concat $4) }
+| UNION ID
+  { TUnion (List.assoc $2 !union_table) }
 
 struct_decl:
 | decl
@@ -181,7 +196,7 @@ struct_decl:
 
 enum_spec:
 | ENUM ID? LBRACE separated_nonempty_list(COMMA, enumerator) RBRACE
-  { make_enumty $2 $4; TInt }
+  { make_enumty $4; TInt }
 | ENUM ID
   { TInt }
 
