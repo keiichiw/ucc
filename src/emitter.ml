@@ -42,16 +42,20 @@ let emit_raw fmt =
 let emit_label num =
   stack_push buffer_ref (sprintf "L%d:\n" num)
 
-let print_buffer oc name =
-  let buf' = List.rev !buffer_ref in
-  (* don't insert halt directly. the way of handling halt can be changed in the future *)
-  let buf = buf' @ [ "\tmov r1, r0\n"; "\tleave\n"; "\tret\n" ] in
-  let _ = List.map
-            (fun s -> if name = "main" && s = "\tret\n" then
-                        fprintf oc "\thalt\n"
-                      else
-                        fprintf oc "%s" s)
-            buf in
+let insert_prologue () =
+  emit "mov r1, r0";
+  emit "leave";
+  emit "ret"
+
+let insert_halt () =
+  let trap s = if s = "\tret\n" then "\thalt\n" else s in
+  buffer_ref := List.map trap !buffer_ref
+
+let flush_buffer oc name =
+  List.iter
+    (fun s ->
+     fprintf oc "%s" s)
+    (List.rev !buffer_ref);
   buffer_ref := []
 
 let reg_alloc _ =
@@ -109,9 +113,9 @@ let resolve_union u =
 let rec sizeof = function
   | TInt | TShort | TLong | TUnsigned | TChar | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (sizeof ty)
-  | TFun _ -> raise (EmitError "sizeof function")
   | TStruct s_id -> fst (resolve_struct s_id)
   | TUnion u_id -> fst (resolve_union u_id)
+  | TFun _ -> raise (EmitError "sizeof function")
   | TVoid -> raise (EmitError "sizeof void")
 
 let sizeof_decl (Decl (_,ty,_,_)) =
@@ -298,7 +302,7 @@ let rec ex ret_reg = function
       | PostInc
       | PostDec ->
          let areg = reg_alloc () in
-         lv_addr areg e;
+         emit_lv_addr areg e;
          let reg = reg_alloc () in
          emit "mov r%d, [r%d]" ret_reg areg;
          if op = PostInc then
@@ -310,7 +314,7 @@ let rec ex ret_reg = function
          reg_free reg)
   | EPPost (ty, op, e) ->
      let areg = reg_alloc () in
-     lv_addr areg e;
+     emit_lv_addr areg e;
      let reg = reg_alloc () in
      emit "mov r%d, [r%d]" ret_reg areg;
      if op = Inc then
@@ -355,27 +359,28 @@ let rec ex ret_reg = function
   | EVar (t, Name name) ->
      (match resolve_var name with
       | TArray _, _ | TFun _, _ ->
-         raise (EmitError "logic flaw: EVar at Emitter.ex")
+         raise (EmitError "logic flaw: EVar")
       | TStruct _, _ | TUnion _, _ ->
-         lv_addr ret_reg (EVar (t, Name name));
+         raise (EmitError "EVar: struct as value is unsupported")
       | _ ->
-         lv_addr ret_reg (EVar (t, Name name));
+         emit_lv_addr ret_reg (EVar (t, Name name));
          emit "mov r%d, [r%d]" ret_reg ret_reg)
   | EAssign (_, e1, e2) ->
      let reg = reg_alloc () in
-     lv_addr reg e1;
+     emit_lv_addr reg e1;
      ex ret_reg e2;
      emit "mov [r%d], r%d" reg ret_reg;
      reg_free reg
   | EAddr (_, e) ->
-     lv_addr ret_reg e
+     emit_lv_addr ret_reg e
   | EPtr (_, e) ->
      ex ret_reg e;
      emit "mov r%d, [r%d]" ret_reg ret_reg
   | EDot (t, e, Name name) ->
-     lv_addr ret_reg (EDot (t, e, Name name));
+     emit_lv_addr ret_reg (EDot (t, e, Name name));
      (match t with
-      | TArray _ | TStruct _ | TUnion _ -> ()
+      | TArray _ | TStruct _ | TUnion _ ->
+         raise (EmitError "EDot")
       | _ ->
          emit "mov r%d, [r%d]" ret_reg ret_reg)
   | ECast (t1, t2, e) ->
@@ -394,7 +399,7 @@ and emit_bin ret_reg op e1 e2 =
   emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
   reg_free reg
 
-and lv_addr ret_reg = function
+and emit_lv_addr ret_reg = function
   | EVar (_, Name name) ->
      (match resolve_var name with
       | (_, Mem offset) ->
@@ -410,11 +415,11 @@ and lv_addr ret_reg = function
            | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
          let memlist = snd (resolve_struct s_id) in
          let mem_offset = go 0 mem memlist in
-         lv_addr ret_reg expr;
+         emit_lv_addr ret_reg expr;
          emit "add r%d, r%d, %d" ret_reg ret_reg mem_offset
       | TUnion _ ->
-         lv_addr ret_reg expr
-      | _ -> raise (EmitError "lv_addr dot"))
+         emit_lv_addr ret_reg expr
+      | _ -> raise (EmitError "emit_lv_addr dot"))
   | EPtr (_, e) ->
      ex ret_reg e
   | EConst (_, VStr s) ->
@@ -604,22 +609,22 @@ let rec st = function
      ex temp exp;
      reg_free temp
 
-let emit_global_var oc name init =
+let emit_global_var name init =
   let contents = ref [] in
-  fprintf oc "%s:\n" name;
+  emit_raw "%s:\n" name;
   List.iter
     (fun e ->
      match e with
-     | EConst (TInt, (VInt v)) -> fprintf oc "\t.int %d\n" v
+     | EConst (TInt, (VInt v)) -> emit ".int %d" v
      | EAddr (TPtr TInt, EConst (TArray (TInt, sz), VStr s)) ->
         contents := s :: !contents;
-        fprintf oc "\t.int %s_contents_%d\n" name (List.length !contents)
+        emit ".int %s_contents_%d" name (List.length !contents)
      | _ -> raise (EmitError "global initializer must be constant")
     ) init;
   List.iteri
     (fun i c ->
-     fprintf oc "%s_contents_%d:\n" name (i + 1);
-     List.iter (fun n -> fprintf oc "\t.int %d\n" n) c
+     emit_raw "%s_contents_%d:\n" name (i + 1);
+     List.iter (fun n -> emit ".int %d" n) c
     ) (List.rev !contents)
 
 let rec emitter oc = function
@@ -635,29 +640,34 @@ let rec emitter oc = function
      free_reg_stack := free_regs;
      env_ref := old_env;
      senv_ref := old_senv;
+     insert_prologue ();
+     if name = "main" then
+       insert_halt ();
      (match ln with
       | NoLink
       | Extern ->
          fprintf oc ".global %s\n%s:\n" name name;
       | Static ->
          ());
-     print_buffer oc name
+     flush_buffer oc name
   | DefVar (Decl (ln, ty, Name name, init)) ->
      stack_push env_ref (name, (ty, Global name));
      (match (ln, init) with
       | NoLink, [] when not (is_funty ty) ->
-         fprintf oc ".global %s\n" name;
-         fprintf oc "%s:\n" name;
-         fprintf oc "\t.int 0, %d\n" (sizeof ty)
+         emit_raw ".global %s\n" name;
+         emit_raw "%s:\n" name;
+         emit ".int 0, %d\n" (sizeof ty)
       | NoLink, []
-      | Extern, [] ->
+      | Extern, []
+      | Static, [] ->
          ()                     (* ignore *)
       | NoLink, xs
       | Extern, xs ->
-         fprintf oc ".global %s\n" name;
-         emit_global_var oc name xs
+         emit_raw ".global %s\n" name;
+         emit_global_var name xs
       | Static, xs ->
-         emit_global_var oc name xs)
+         emit_global_var name xs);
+     flush_buffer oc name
 
 (*emit main*)
 let rec main oc defs =
