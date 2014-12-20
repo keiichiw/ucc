@@ -40,7 +40,7 @@ let typeof = function
   | Type.EConst  (t, _) -> t
   | Type.EVar    (t, _) -> t
   | Type.EComma  (t, _, _) -> t
-  | Type.EAssign (t, _, _) -> t
+  | Type.EAssign (t, _, _, _) -> t
   | Type.ECall   (t, _, _) -> t
   | Type.EAddr   (t, _) -> t
   | Type.EPtr    (t, _) -> t
@@ -279,10 +279,44 @@ and ex' = function
      | _ ->
         raise (TypingError "unary")
      end
-  | Syntax.EAssign (e1, e2) ->
+  | Syntax.EAssign (op, e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     Type.EAssign (typeof ex1, ex1, ex2)
+     begin match op with
+     | None ->
+        Type.EAssign (typeof ex1, op, ex1, ex2)
+     | Some Add ->
+        begin match (typeof ex1, typeof ex2) with
+        | (TPtr ty, i) when is_integral i ->
+           Type.EAssign (TPtr ty, op, ex1, ex2)
+        | (i, TPtr ty) when is_integral i ->
+           Type.EAssign (TPtr ty, op, ex2, ex1)
+        | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
+           let ty = int_conv (ty1, ty2) in
+           Type.EAssign (ty, op, ex1, ex2)
+        | _ -> raise (TypingError "EAssign: add")
+        end
+     | Some Sub ->
+        begin match (typeof ex1, typeof ex2) with
+        | (TPtr ty1, TPtr ty2) ->
+           raise (TypingError "EAssign")
+        | (TPtr ty1, i) when is_integral i ->
+           let m_ex2 = ex (Syntax.EUnary(Minus, e2)) in
+           assert (is_integral (typeof m_ex2));
+           Type.EAssign (TPtr ty1, Some Add, ex1, m_ex2)
+        | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
+           let ty = int_conv (ty1,ty2) in
+           Type.EAssign (ty, op, ex1, ex2)
+        | _ -> raise (TypingError "EAssign: sub")
+        end
+     | _ ->
+        begin match (typeof ex1, typeof ex2) with
+        | (t1, t2) when is_integral t1 && is_integral t2->
+           let ty = int_conv (t1, t2) in
+           Type.EAssign (ty, op, ex1, ex2)
+        | _ -> raise (TypingError "EAssign")
+        end
+     end
   | Syntax.ECall (e1, elist) ->
      let ex1 = ex e1 in
      begin match typeof ex1 with

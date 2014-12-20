@@ -186,6 +186,19 @@ let emit_global_var name init =
      List.iter (fun n -> emit ".int %d" n) c)
     (List.rev !contents)
 
+let emit_native_call ret_reg func arg1 arg2 =
+  let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
+  List.iter (emit "push r%d") used_reg;
+  emit "push r%d" arg2;
+  emit "push r%d" arg1;
+  reg_free_all ();
+  emit "call %s" func;
+  reg_use ret_reg;
+  if ret_reg != 1 then
+    emit "mov r%d, r1" ret_reg;
+  emit "add rsp, rsp, 8";
+  List.iter (fun i -> reg_use i; emit "pop r%d" i) (List.rev used_reg)
+
 let rec ex ret_reg = function
   | EComma(_, ex1, ex2) ->
      ex ret_reg ex1;
@@ -368,15 +381,9 @@ let rec ex ret_reg = function
                        ex reg e;
                        reg) exlst in
      (* save registers *)
-     List.iter (fun reg ->
-                reg_free reg;
-                emit "push r%d" reg)
-               used_reg;
+     List.iter (fun reg -> emit "push r%d" reg) used_reg;
      (* push arguments *)
-     List.iter (fun reg ->
-                reg_free reg;
-                emit "push r%d" reg)
-               (List.rev arg_list);
+     List.iter (fun reg -> emit "push r%d" reg) (List.rev arg_list);
      reg_free_all ();
      let fun_reg = reg_alloc () in
      ex fun_reg f;
@@ -402,11 +409,47 @@ let rec ex ret_reg = function
         emit_lv_addr ret_reg (EVar (t, Name name));
         emit "mov r%d, [r%d]" ret_reg ret_reg
      end
-  | EAssign (_, e1, e2) ->
+  | EAssign (_, op, e1, e2) ->
      let reg = reg_alloc () in
      emit_lv_addr reg e1;
      ex ret_reg e2;
+     let tmp_reg = reg_alloc () in
+     emit "mov r%d, [r%d]" tmp_reg reg;
+     begin match op, Typing.typeof e1 with
+     | None, _ ->
+        ()
+     | Some Add, TPtr ty ->
+        if sizeof ty != 0 then begin
+          let size_reg = reg_alloc () in
+          emit "mov r%d, %d" size_reg (sizeof ty);
+          emit_native_call ret_reg "__mul" ret_reg size_reg;
+          reg_free size_reg
+        end;
+        emit "shl r%d, r%d, 2" ret_reg ret_reg;
+        emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+     | Some Add, _ ->
+        emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+     | Some Sub, _ ->
+        emit "sub r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+     | Some LShift, _ ->
+        emit "shl r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+     | Some RShift, _ ->
+        emit "shr r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+     | Some BitAnd, _ ->
+        emit "and r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+     | Some BitXor, _ ->
+        emit "xor r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+     | Some BitOr, _ ->
+        emit "or r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+     | Some Mul, _ ->
+        emit_native_call ret_reg "__mul" tmp_reg ret_reg
+     | Some Div, _ ->
+        emit_native_call ret_reg "__div" tmp_reg ret_reg
+     | Some Mod, _ ->
+        emit_native_call ret_reg "__mod" tmp_reg ret_reg
+     end;
      emit "mov [r%d], r%d" reg ret_reg;
+     reg_free tmp_reg;
      reg_free reg
   | EAddr (_, e) ->
      emit_lv_addr ret_reg e

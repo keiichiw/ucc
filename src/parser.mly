@@ -339,27 +339,27 @@ assign_expr:
 | cond_expr
   { $1 }
 | unary_expr ASSIGN assign_expr
-  { EAssign($1, $3) }
+  { EAssign(None, $1, $3) }
 | unary_expr PLUS_ASSIGN assign_expr
-  { EAssign($1, EArith(Add, $1, $3)) }
+  { EAssign(Some Add, $1, $3) }
 | unary_expr MINUS_ASSIGN assign_expr
-  { EAssign($1, EArith(Sub, $1, $3)) }
+  { EAssign(Some Sub, $1, $3) }
 | unary_expr STAR_ASSIGN assign_expr
-  { EAssign($1, EArith(Mul, $1, $3)) }
+  { EAssign(Some Mul, $1, $3) }
 | unary_expr SLASH_ASSIGN assign_expr
-  { EAssign($1, EArith(Div, $1, $3)) }
+  { EAssign(Some Div, $1, $3) }
 | unary_expr MOD_ASSIGN assign_expr
-  { EAssign($1, EArith(Mod, $1, $3)) }
+  { EAssign(Some Mod, $1, $3) }
 | unary_expr LSHIFT_ASSIGN assign_expr
-  { EAssign($1, EArith(LShift, $1, $3)) }
+  { EAssign(Some LShift, $1, $3) }
 | unary_expr RSHIFT_ASSIGN assign_expr
-  { EAssign($1, EArith(RShift, $1, $3)) }
+  { EAssign(Some RShift, $1, $3) }
 | unary_expr AMP_ASSIGN assign_expr
-  { EAssign($1, EArith(BitAnd, $1, $3)) }
+  { EAssign(Some BitAnd, $1, $3) }
 | unary_expr HAT_ASSIGN assign_expr
-  { EAssign($1, EArith(BitXor, $1, $3)) }
+  { EAssign(Some BitXor, $1, $3) }
 | unary_expr BAR_ASSIGN assign_expr
-  { EAssign($1, EArith(BitOr, $1, $3)) }
+  { EAssign(Some BitOr, $1, $3) }
 
 cond_expr:
 | logor_expr
@@ -457,9 +457,9 @@ unary_expr:
 | postfix_expr
   { $1 }
 | INC unary_expr
-  { EAssign($2, EArith(Add, $2, EConst(VInt(1)))) }
+  { EAssign(None, $2, EArith(Add, $2, EConst(VInt(1)))) }
 | DEC unary_expr
-  { EAssign($2, EArith(Sub, $2, EConst(VInt(1)))) }
+  { EAssign(None, $2, EArith(Sub, $2, EConst(VInt(1)))) }
 | NOT unary_expr
   { EUnary (LogNot, $2) }
 | PLUS unary_expr
