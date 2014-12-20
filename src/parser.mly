@@ -55,12 +55,29 @@ let lookup_structty name =
      struct_env := [] :: !struct_env; (* push a dummy *)
      sid
 
+let lookup_unionty name =
+  try
+    List.assoc name !union_table
+  with
+  | Not_found ->
+     let uid = List.length !union_env in
+     union_table := (name, uid) :: !union_table;
+     union_env := [] :: !union_env; (* push a dummy *)
+     uid
+
 let insert_struct_decl sid decl =
   let rec go = function
     | [], _ -> failwith "insert_struct_decl"
     | (_::xs), i when i = sid -> decl::xs
     | (x::xs), i -> x :: go (xs, (i-1)) in
   struct_env := go (!struct_env, List.length !struct_env - 1)
+
+let insert_union_decl uid decl =
+  let rec go = function
+    | [], _ -> failwith "insert_union_decl"
+    | (_::xs), i when i = uid -> decl::xs
+    | (x::xs), i -> x :: go (xs, (i-1)) in
+  union_env := go (!union_env, List.length !union_env - 1)
 
 let make_structty name_opt decl =
   match name_opt with
@@ -74,14 +91,15 @@ let make_structty name_opt decl =
      TStruct sid
 
 let make_unionty name_opt decl =
-  let uid = List.length !union_env in
-  begin match name_opt with
-    | Some name ->
-      union_table := (name, uid) :: !union_table
-    | None -> ()
-  end;
-  union_env := decl :: !union_env;
-  TUnion uid
+  match name_opt with
+  | Some name ->
+     let uid = lookup_unionty name in
+     insert_union_decl uid decl;
+     TUnion uid
+  | None ->
+     let uid = List.length !union_env in
+     union_env := decl :: !union_env;
+     TUnion uid
 
 let make_enumty enums =
   let go num = function
@@ -207,7 +225,7 @@ struct_spec:
 | UNION ID? LBRACE struct_decl+ RBRACE
   { make_unionty $2 (List.concat $4) }
 | UNION ID
-  { TUnion (List.assoc $2 !union_table) }
+  { TUnion (lookup_unionty $2) }
 
 struct_decl:
 | decl
