@@ -413,43 +413,46 @@ let rec ex ret_reg = function
      let reg = reg_alloc () in
      emit_lv_addr reg e1;
      ex ret_reg e2;
-     let tmp_reg = reg_alloc () in
-     emit "mov r%d, [r%d]" tmp_reg reg;
-     begin match op, Typing.typeof e1 with
-     | None, _ ->
+     begin match op with
+     | None ->
         ()
-     | Some Add, TPtr ty ->
-        if sizeof ty != 0 then begin
-          let size_reg = reg_alloc () in
-          emit "mov r%d, %d" size_reg (sizeof ty);
-          emit_native_call ret_reg "__mul" ret_reg size_reg;
-          reg_free size_reg
+     | Some op ->
+        let tmp_reg = reg_alloc () in
+        emit "mov r%d, [r%d]" tmp_reg reg;
+        begin match op, Typing.typeof e1 with
+        | Add, TPtr ty ->
+           if sizeof ty != 0 then begin
+             let size_reg = reg_alloc () in
+             emit "mov r%d, %d" size_reg (sizeof ty);
+             emit_native_call ret_reg "__mul" ret_reg size_reg;
+             reg_free size_reg
+           end;
+          emit "shl r%d, r%d, 2" ret_reg ret_reg;
+          emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+        | Add, _ ->
+           emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+        | Sub, _ ->
+           emit "sub r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+        | LShift, _ ->
+           emit "shl r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+        | RShift, _ ->
+           emit "shr r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+        | BitAnd, _ ->
+           emit "and r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+        | BitXor, _ ->
+           emit "xor r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+        | BitOr, _ ->
+           emit "or r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+        | Mul, _ ->
+           emit_native_call ret_reg "__mul" tmp_reg ret_reg
+        | Div, _ ->
+           emit_native_call ret_reg "__div" tmp_reg ret_reg
+        | Mod, _ ->
+           emit_native_call ret_reg "__mod" tmp_reg ret_reg
         end;
-        emit "shl r%d, r%d, 2" ret_reg ret_reg;
-        emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-     | Some Add, _ ->
-        emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-     | Some Sub, _ ->
-        emit "sub r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-     | Some LShift, _ ->
-        emit "shl r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-     | Some RShift, _ ->
-        emit "shr r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-     | Some BitAnd, _ ->
-        emit "and r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-     | Some BitXor, _ ->
-        emit "xor r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-     | Some BitOr, _ ->
-        emit "or r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-     | Some Mul, _ ->
-        emit_native_call ret_reg "__mul" tmp_reg ret_reg
-     | Some Div, _ ->
-        emit_native_call ret_reg "__div" tmp_reg ret_reg
-     | Some Mod, _ ->
-        emit_native_call ret_reg "__mod" tmp_reg ret_reg
+        reg_free tmp_reg;
      end;
      emit "mov [r%d], r%d" reg ret_reg;
-     reg_free tmp_reg;
      reg_free reg
   | EAddr (_, e) ->
      emit_lv_addr ret_reg e
