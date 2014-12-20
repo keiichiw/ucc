@@ -152,7 +152,7 @@ and st = function
      let st2 = st s2 in
      Type.SIfElse (ex1, st1, st2)
   | Syntax.SReturn e ->
-     let ex1 = ex e in
+     let ex1 = opex e in
      Type.SReturn (ex1)
   | Syntax.SContinue ->
      Type.SContinue

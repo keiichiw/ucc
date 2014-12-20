@@ -17,7 +17,7 @@ and stmt =
   | SDoWhile of stmt * expr
   | SFor of (expr option) * (expr option) * (expr option) * stmt
   | SIfElse of expr * stmt * stmt
-  | SReturn of expr
+  | SReturn of expr option
   | SContinue
   | SBreak
   | SLabel of string * stmt

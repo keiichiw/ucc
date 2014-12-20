@@ -307,13 +307,17 @@ and st = function
      st b2;
      emit_label endlnum
   | SReturn exp ->
-     let reg = reg_alloc () in
-     ex reg exp;
-     if reg != 1 then
-       emit "mov r1, r%d" reg;
+     (match exp with
+      | Some exp ->
+         let reg = reg_alloc () in
+         ex reg exp;
+         if reg != 1 then
+           emit "mov r1, r%d" reg;
+         reg_free reg
+      | None ->
+         ());
      emit "leave";
      emit "ret";
-     reg_free reg
   | SContinue ->
      let lbl = (List.hd !con_stack) in
      emit "br L%d" lbl;

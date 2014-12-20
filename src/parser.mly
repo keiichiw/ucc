@@ -270,7 +270,7 @@ jump_stat:
   { SBreak }
 | CONTINUE SEMICOLON
   { SContinue }
-| RETURN expr SEMICOLON
+| RETURN expr? SEMICOLON
   { SReturn $2 }
 
 labeled_stat:
