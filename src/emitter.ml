@@ -42,16 +42,16 @@ let emit_raw fmt =
 let emit_label num =
   stack_push buffer_ref (sprintf "L%d:\n" num)
 
-let print_buffer oc name =
+let flush_buffer oc name =
   let buf' = List.rev !buffer_ref in
-  (* don't insert halt directly. the way of handling halt can be changed in the future *)
+  (* don't insert halt directly. the way of handling halt is subject to change in the future *)
   let buf = buf' @ [ "\tmov r1, r0\n"; "\tleave\n"; "\tret\n" ] in
-  let _ = List.map
-            (fun s -> if name = "main" && s = "\tret\n" then
-                        fprintf oc "\thalt\n"
-                      else
-                        fprintf oc "%s" s)
-            buf in
+  List.iter
+    (fun s -> if name = "main" && s = "\tret\n" then
+                fprintf oc "\thalt\n"
+              else
+                fprintf oc "%s" s)
+    buf;
   buffer_ref := []
 
 let reg_alloc _ =
@@ -605,7 +605,7 @@ let rec emitter oc = function
          fprintf oc ".global %s\n%s:\n" name name;
       | Static ->
          ());
-     print_buffer oc name
+     flush_buffer oc name
   | DefVar (Decl (ln, ty, Name name, init)) ->
      stack_push env_ref (name, (ty, Global name));
      (match (ln, init) with
