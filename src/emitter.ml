@@ -319,9 +319,9 @@ let rec ex ret_reg = function
   | EVar (t, Name name) ->
      (match resolve_var name with
       | TArray _, _ | TFun _, _ ->
-         raise (EmitError "logic flaw: EVar at Emitter.ex")
+         raise (EmitError "logic flaw: EVar")
       | TStruct _, _ | TUnion _, _ ->
-         emit_lv_addr ret_reg (EVar (t, Name name));
+         raise (EmitError "EVar: struct as value is unsupported")
       | _ ->
          emit_lv_addr ret_reg (EVar (t, Name name));
          emit "mov r%d, [r%d]" ret_reg ret_reg)
@@ -339,7 +339,8 @@ let rec ex ret_reg = function
   | EDot (t, e, Name name) ->
      emit_lv_addr ret_reg (EDot (t, e, Name name));
      (match t with
-      | TArray _ | TStruct _ | TUnion _ -> ()
+      | TArray _ | TStruct _ | TUnion _ ->
+         raise (EmitError "EDot")
       | _ ->
          emit "mov r%d, [r%d]" ret_reg ret_reg)
   | ECast (t1, t2, e) ->
