@@ -9,6 +9,7 @@ type expr =
   | EPAdd   of ctype * expr * expr
   | EPDiff  of ctype * expr * expr
   | ERel    of ctype * rel_bin     * expr * expr
+  | EURel   of ctype * rel_bin     * expr * expr
   | EEq     of ctype * eq_bin      * expr * expr
   | ELog    of ctype * logical_bin * expr * expr
   | EUnary  of ctype * unary * expr

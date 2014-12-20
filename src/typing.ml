@@ -30,6 +30,7 @@ let resolve_member_type ty mem_name =
 let typeof = function
   | Type.EArith  (t, _, _, _) -> t
   | Type.ERel    (t, _, _, _) -> t
+  | Type.EURel   (t, _, _, _) -> t
   | Type.EPAdd   (t, _, _) -> t
   | Type.EPDiff  (t, _, _) -> t
   | Type.EEq     (t, _, _, _) -> t
@@ -193,7 +194,7 @@ and ex' = function
       | (t1, t2) when is_integral t1 && is_integral t2 ->
          (match int_conv (t1, t2) with
           | TUnsigned ->
-             raise (TypingError "relation: unsigned")
+             Type.EURel (TInt, op, ex1, ex2)
           | _ ->
              Type.ERel (TInt, op, ex1, ex2))
       | (TPtr _, TPtr _) ->
