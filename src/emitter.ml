@@ -43,7 +43,7 @@ let emit_raw fmt =
 let emit_label num =
   stack_push buffer_ref (sprintf "L%d:\n" num)
 
-let insert_prologue () =
+let insert_epilogue () =
   emit "mov r1, r0";
   emit "leave";
   emit "ret"
@@ -614,7 +614,7 @@ let rec emitter oc = function
      free_reg_stack := free_regs;
      env_ref := old_env;
      senv_ref := old_senv;
-     insert_prologue ();
+     insert_epilogue ();
      if name = "main" then
        insert_halt ();
      (match ln with
