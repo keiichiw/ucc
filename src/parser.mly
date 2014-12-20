@@ -203,7 +203,7 @@ initializer_: /* 'initializer' is an OCaml's keyword! */
 | assign_expr
   { IScal $1 }
 | LBRACE l=separated_list(COMMA, initializer_) RBRACE
-  { IList l }
+  { IVect l }
 
 type_name:
 | type_spec

@@ -93,22 +93,22 @@ let int_conv = function
 
 let initialize ty init =
   let scaler = function
-    | Syntax.IList ((Syntax.IList _)::_) ->
+    | Syntax.IVect ((Syntax.IVect _)::_) ->
       raise (TypingError "too many braces around scalar initializer")
-    | Syntax.IList [Syntax.IScal e] -> [e]
-    | Syntax.IList _ ->
+    | Syntax.IVect [Syntax.IScal e] -> [e]
+    | Syntax.IVect _ ->
       raise (TypingError "invalid scaler initializer")
     | Syntax.IScal e -> [e] in
   let rec compound ty init idx =
     match ty, init with
-    | TStruct s_id, Syntax.IList ilist ->
+    | TStruct s_id, Syntax.IVect ilist ->
       let s = List.assoc s_id !senv_ref in
       if List.length s = idx then [], init
       else
         let l, rem  = inner (snd (List.nth s idx)) ty ilist in
         let r, tail = compound ty rem (idx + 1) in
         l @ r, tail
-    | TArray (inner_ty, sz), Syntax.IList ilist ->
+    | TArray (inner_ty, sz), Syntax.IVect ilist ->
       if sz = idx then [], init
       else
         let l, rem  = inner inner_ty ty ilist in
@@ -116,7 +116,7 @@ let initialize ty init =
         l @ r, tail
     | TArray (TChar, _), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
       let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
-      let ilist = Syntax.IList (List.map f str) in
+      let ilist = Syntax.IVect (List.map f str) in
       compound ty ilist 0
     | _ -> raise (TypingError "requied initializer list")
   and inner inner_ty ty ilist =
@@ -126,21 +126,21 @@ let initialize ty init =
       else
         List.hd ilist, List.tl ilist in
     match inner_ty, i with
-    | TStruct _, Syntax.IList _ | TArray _, Syntax.IList _ ->
+    | TStruct _, Syntax.IVect _ | TArray _, Syntax.IVect _ ->
       let res, tail = compound inner_ty i 0 in
-      if tail <> Syntax.IList [] then
+      if tail <> Syntax.IVect [] then
         raise (TypingError "initializer eccess elements");
-      res, Syntax.IList is
+      res, Syntax.IVect is
     | TStruct _, _ | TArray _, _ ->
-      compound inner_ty (Syntax.IList ilist) 0
-    | _, _ -> scaler i, Syntax.IList is in
+      compound inner_ty (Syntax.IVect ilist) 0
+    | _, _ -> scaler i, Syntax.IVect is in
   match init with
   | None -> []
   | Some init ->
     match ty with
     | TStruct _ | TArray _ ->
       let res, tail = compound ty init 0 in
-      if tail <> Syntax.IList [] then
+      if tail <> Syntax.IVect [] then
         raise (TypingError "initializer eccess elements");
       res
     | _ -> scaler init

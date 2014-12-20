@@ -30,7 +30,7 @@ type expr =
 
 type init =
   | IScal of expr
-  | IList of init list
+  | IVect of init list
 
 type decl =
   | Decl of linkage * ctype * name * (init option)
