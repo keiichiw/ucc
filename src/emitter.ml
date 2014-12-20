@@ -427,8 +427,8 @@ let rec ex ret_reg = function
              emit_native_call ret_reg "__mul" ret_reg size_reg;
              reg_free size_reg
            end;
-          emit "shl r%d, r%d, 2" ret_reg ret_reg;
-          emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
+           emit "shl r%d, r%d, 2" ret_reg ret_reg;
+           emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
         | Add, _ ->
            emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
         | Sub, _ ->
