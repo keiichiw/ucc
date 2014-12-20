@@ -17,7 +17,7 @@ type expr =
   | EConst  of ctype * value
   | EVar    of ctype * name
   | EComma  of ctype * expr * expr
-  | EAssign of ctype * expr * expr
+  | EAssign of ctype * arith_bin option * expr * expr
   | ECall   of ctype * expr * (expr list)
   | EAddr   of ctype * expr
   | EPtr    of ctype * expr

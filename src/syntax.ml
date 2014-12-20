@@ -8,7 +8,7 @@ type expr =
   | EConst  of value
   | EVar    of name
   | EComma  of expr * expr
-  | EAssign of expr * expr
+  | EAssign of arith_bin option * expr * expr
   | EUnary  of unary * expr
   | EArith  of arith_bin * expr * expr
   | ERel    of rel_bin   * expr * expr
