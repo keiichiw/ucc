@@ -53,6 +53,16 @@ let make_structty name_opt decl =
   struct_env := (snum, decl)::!struct_env;
   TStruct(snum)
 
+let make_enumty _ enums =
+  let go num = function
+    | (enum, Some cnst) ->
+       enum_def enum cnst;
+       cnst+1
+    | (enum, None) ->
+       enum_def enum num;
+       num+1 in
+  let _ = List.fold_left go 0 enums in ()
+
 let rec fold_expr = function
   | EConst (VInt i) -> i
   | EArith(Add ,e1, e2) -> (fold_expr e1) + (fold_expr e2)
@@ -64,16 +74,6 @@ let rec fold_expr = function
   | ELog (And, e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
   | ELog (Or, e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
   | _ -> raise (ParserError "fold_expr")
-
-let make_enumty _ enums =
-  let go num = function
-    | (enum, Some cnst) ->
-       enum_def enum cnst;
-       cnst+1
-    | (enum, None) ->
-       enum_def enum num;
-       num+1 in
-  let _ = List.fold_left go 0 enums in ()
 
 %}
 
