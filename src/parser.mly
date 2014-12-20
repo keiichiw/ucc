@@ -1,61 +1,69 @@
 %{
-  open Syntax
-  open Ctype
-  open Parser_helper
-  exception ParserError of string
-  exception Unreachable of string
-  let struct_num = ref 0;;
-  type declarator =
-    | DeclPtr of declarator
-    | DeclIdent  of name
-    | DeclArray  of declarator * size
-    | DeclFun of declarator * (decl list)
-  let get_ty = function
-    | Decl (_, ty, _, _) -> ty
-  let rec make_decl ln ty (decl, exp) =
-    let name = ref (Name "") in
-    let ty =
-      let rec go k = function
-        | DeclIdent n ->
-           name := n;
-           k ty
-        | DeclPtr d ->
-           go (fun x -> TPtr (k x)) d
-        | DeclArray (d, sz) ->
-           go (fun x -> TArray (k x, sz)) d
-        | DeclFun (d, dvs) ->
-           go (fun x -> TFun (k x, List.map get_ty dvs)) d in
-      go (fun x -> x) decl in
-    Decl (ln, ty, !name, exp)
-  let get_params = function
-    | DeclFun (_, dvs) -> dvs
-    | _ -> raise (ParserError "get_params")
-  let make_type ty decl =
-    (match make_decl NoLink ty (decl, None) with
-     | Decl (_, ty, Name "", None) ->
-        ty
-     | _ ->
-        raise (ParserError "make_type"))
-  let make_structty name_opt decl =
-    let snum = !struct_num in
-    struct_num := !struct_num + 1;
-    (match name_opt with
-     | Some name ->
-        struct_table := (name, snum)::!struct_table
-     | None -> ());
-    struct_env := (snum, decl)::!struct_env;
-    TStruct(snum)
-  let rec fold_expr = function
-    | EConst (VInt i) -> i
-    | EArith(Add ,e1, e2) -> (fold_expr e1) + (fold_expr e2)
-    | EArith(Sub, e1, e2) -> (fold_expr e1) - (fold_expr e2)
-    | ERel (Lt, e1, e2) -> if (fold_expr e1) < (fold_expr e2) then 1 else 0
-    | EEq (Eq, e1, e2) -> if (fold_expr e1) = (fold_expr e2) then 1 else 0
-    | EEq (Ne, e1, e2) -> if (fold_expr e1) != (fold_expr e2) then 1 else 0
-    | ECond (e1, e2, e3) -> if fold_expr e1 != 0 then fold_expr e2 else fold_expr e3
-    | ELog (And, e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
-    | ELog (Or, e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
-    | _ -> raise (ParserError "fold_expr")
+open Syntax
+open Ctype
+open Parser_helper
+
+exception ParserError of string
+
+type declarator =
+  | DeclPtr of declarator
+  | DeclIdent of name
+  | DeclArray of declarator * size
+  | DeclFun of declarator * (decl list)
+
+let struct_num = ref 0
+
+let get_ty = function
+  | Decl (_, ty, _, _) -> ty
+
+let rec make_decl ln ty (decl, exp) =
+  let name = ref (Name "") in
+  let ty =
+    let rec go k = function
+      | DeclIdent n ->
+         name := n;
+         k ty
+      | DeclPtr d ->
+         go (fun x -> TPtr (k x)) d
+      | DeclArray (d, sz) ->
+         go (fun x -> TArray (k x, sz)) d
+      | DeclFun (d, dvs) ->
+         go (fun x -> TFun (k x, List.map get_ty dvs)) d in
+    go (fun x -> x) decl in
+  Decl (ln, ty, !name, exp)
+
+let get_params = function
+  | DeclFun (_, dvs) -> dvs
+  | _ -> raise (ParserError "get_params")
+
+let make_type ty decl =
+  (match make_decl NoLink ty (decl, None) with
+   | Decl (_, ty, Name "", None) ->
+      ty
+   | _ ->
+      raise (ParserError "make_type"))
+
+let make_structty name_opt decl =
+  let snum = !struct_num in
+  struct_num := !struct_num + 1;
+  (match name_opt with
+   | Some name ->
+      struct_table := (name, snum)::!struct_table
+   | None -> ());
+  struct_env := (snum, decl)::!struct_env;
+  TStruct(snum)
+
+let rec fold_expr = function
+  | EConst (VInt i) -> i
+  | EArith(Add ,e1, e2) -> (fold_expr e1) + (fold_expr e2)
+  | EArith(Sub, e1, e2) -> (fold_expr e1) - (fold_expr e2)
+  | ERel (Lt, e1, e2) -> if (fold_expr e1) < (fold_expr e2) then 1 else 0
+  | EEq (Eq, e1, e2) -> if (fold_expr e1) = (fold_expr e2) then 1 else 0
+  | EEq (Ne, e1, e2) -> if (fold_expr e1) != (fold_expr e2) then 1 else 0
+  | ECond (e1, e2, e3) -> if fold_expr e1 != 0 then fold_expr e2 else fold_expr e3
+  | ELog (And, e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
+  | ELog (Or, e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
+  | _ -> raise (ParserError "fold_expr")
 %}
 
 %token <int> INT
@@ -444,8 +452,10 @@ postfix_expr:
   { EDot(EPtr $1, Name $3) }
 
 primary_expr:
-| constant_expr
-  { $1 }
+| INT
+  { EConst (VInt $1) }
+| STR
+  { EConst (VStr $1) }
 | ID
   { EVar (Name $1)}
 | LPAREN expr RPAREN
@@ -454,9 +464,3 @@ primary_expr:
 arg_expr_list:
 | args=separated_list(COMMA, assign_expr)
   { args }
-
-constant_expr:
-| INT
-  { EConst(VInt $1) }
-| STR
-  { EConst(VStr $1) }

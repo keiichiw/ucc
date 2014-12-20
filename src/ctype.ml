@@ -18,3 +18,13 @@ type linkage =
 let is_funty = function
   | TFun _ -> true
   | _ -> false
+
+(* operator definitions *)
+type arith_bin =
+  | Add | Sub | Mul | Div | Mod
+  | LShift | RShift | BitAnd (* & *) | BitXor (* ^ *) | BitOr (* | *)
+type logical_bin = And (* && *) | Or (* || *)
+type rel_bin = Lt | Le | Gt | Ge
+type eq_bin = Eq | Ne
+type unary = Plus | Minus | BitNot (* ~ *) | LogNot (* ! *) | PostInc | PostDec
+type inc = Inc | Dec

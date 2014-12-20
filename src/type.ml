@@ -1,62 +1,14 @@
 open Ctype
+
 type name = Name of string
 type struct_id = int
 type size = int
 
-type def =
-  | DefFun of decl * (decl list) * stmt
-  | DefVar of decl
-and decl =
-  | Decl of linkage * ctype * name * (expr list)
-and stmt =
-  | SNil
-  | SBlock of decl list * stmt list
-  | SWhile of expr * stmt
-  | SDoWhile of stmt * expr
-  | SFor of (expr option) * (expr option) * (expr option) * stmt
-  | SIfElse of expr * stmt * stmt
-  | SReturn of expr option
-  | SContinue
-  | SBreak
-  | SLabel of string * stmt
-  | SGoto of string
-  | SSwitch of expr * stmt
-  | SCase of int
-  | SDefault
-  | SExpr of expr
-and arith_bin =
-  | Add
-  | Sub
-  | Mul
-  | Div
-  | Mod
-  | LShift
-  | RShift
-  | BitAnd (* & *)
-  | BitXor (* ^ *)
-  | BitOr  (* | *)
-and logical_bin =
-  | And (* && *)
-  | Or  (* || *)
-and rel_bin =
-  | Lt
-  | Le
-  | Gt
-  | Ge
-and eq_bin =
-  | Eq
-  | Ne
-and unary =
-  | Plus
-  | Minus
-  | BitNot (* ~ *)
-  | LogNot (* ! *)
-  | PostInc
-  | PostDec
-and inc =
-  | Inc
-  | Dec
-and expr =
+type value =
+  | VInt of int
+  | VStr of int list
+
+type expr =
   | EArith  of ctype * arith_bin   * expr * expr
   | EPAdd   of ctype * expr * expr
   | EPDiff  of ctype * expr * expr
@@ -75,6 +27,27 @@ and expr =
   | ECond   of ctype * expr * expr * expr
   | EDot    of ctype * expr * name
   | ECast   of ctype * ctype * expr
-and value =
-  | VInt of int
-  | VStr of int list
+
+type decl =
+  | Decl of linkage * ctype * name * (expr list)
+
+type stmt =
+  | SNil
+  | SBlock of decl list * stmt list
+  | SWhile of expr * stmt
+  | SDoWhile of stmt * expr
+  | SFor of (expr option) * (expr option) * (expr option) * stmt
+  | SIfElse of expr * stmt * stmt
+  | SReturn of expr option
+  | SContinue
+  | SBreak
+  | SLabel of string * stmt
+  | SGoto of string
+  | SSwitch of expr * stmt
+  | SCase of int
+  | SDefault
+  | SExpr of expr
+
+type def =
+  | DefFun of decl * (decl list) * stmt
+  | DefVar of decl

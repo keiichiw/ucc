@@ -1,3 +1,6 @@
+
+(* This program is NOT USED now!! *)
+
 open Syntax
 open Printf
 exception Unreachable
