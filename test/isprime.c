@@ -6,6 +6,8 @@
 11
 13
 */
+#include "test.h"
+
 int isPrime (int p) {
   int i, flg;
   flg = 1;
@@ -23,7 +25,8 @@ int isPrime (int p) {
 int main () {
   int i;
   for (i=2;i<15;++i) {
-    isPrime(i)?print_int(i):0;
+    if (isPrime(i))
+      print_int(i);
   }
   return 0;
 }

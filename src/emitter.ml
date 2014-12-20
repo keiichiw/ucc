@@ -18,7 +18,6 @@ let switch_counter = ref (-1);;
 let switch_stack = ref [];;
 let switch_cases = ref [];;
 let switch_defaults = ref [];;
-let sp_move_stack : int list ref = ref [];;
 let for_continue_flg_ref = ref 0;;
 let fun_name_ref = ref "";;
 let env_ref : (string * (ctype * storageplace)) list ref = ref [];;
@@ -133,7 +132,7 @@ let push_local_vars vars =
     | Decl (NoLink, ty, Name name, _) ->
        let sz = size_of ty in
        sp_offset_ref := !sp_offset_ref + sz*4;
-       stack_push env_ref (name, (ty, Mem (!sp_offset_ref+4)))
+       stack_push env_ref (name, (ty, Mem !sp_offset_ref))
     | _ -> raise (EmitError "push_local_vars") in
   List.iter go vars
 (*emit main*)
@@ -152,7 +151,7 @@ and emitter oc = function
      let old_env = !env_ref in
      let old_senv = !struct_env_ref in
      push_args args;
-     emit "enter 0";
+     emit "enter %d" (List.assoc name !Typing.stack_info);
      st b;
      free_reg_stack := free_regs;
      env_ref := old_env;
@@ -218,18 +217,11 @@ and st = function
      let old_env = !env_ref in
      let old_senv = !struct_env_ref in
      push_local_vars vars;
-     let sp_move = !sp_offset_ref - old_sp in
-     stack_push sp_move_stack sp_move;
-     if sp_move != 0 then
-       emit "sub rsp, rsp, %d" sp_move;
      init_local_vars vars;
      List.iter st stmts;
      sp_offset_ref := old_sp;
      env_ref := old_env;
      struct_env_ref := old_senv;
-     stack_pop sp_move_stack;
-     if sp_move != 0 then
-       emit "add rsp, rsp, %d" sp_move
   | SWhile (cond, b) ->
      let beginlabel = label_create () in
      let endlabel = label_create () in
@@ -317,8 +309,6 @@ and st = function
   | SReturn exp ->
      let reg = reg_alloc () in
      ex reg exp;
-     if !sp_offset_ref != 0 then
-       emit "add rsp, rsp, %d" !sp_offset_ref;
      if reg != 1 then
        emit "mov r1, r%d" reg;
      emit "leave";
@@ -330,8 +320,6 @@ and st = function
      for_continue_flg_ref := 1
   | SBreak ->
      let lbl = (List.hd !brk_stack) in
-     let sp_d = (List.hd !sp_move_stack) in
-     emit "add rsp, rsp, %d" sp_d;
      emit "br L%d" lbl
   | SLabel (label, s) ->
      emit_raw "%s:\n" (escape_label label);

@@ -24,6 +24,22 @@ let resolve_member_type stct mem_name =
      List.assoc mem_name dvs
   | _ -> raise Unreachable
 
+let sp_ref = ref 0;;
+let sp_max = ref 0;;
+
+let enter_block size =
+  sp_ref := !sp_ref + size;
+  sp_max := max !sp_ref !sp_max
+let leave_block size =
+  sp_ref := !sp_ref - size
+
+let stack_info = ref [];;
+
+let append_info x =
+  stack_info := x :: !stack_info
+
+let sum = List.fold_left (+) 0
+
 let rec main defs =
   let go x =
     match dv x with
@@ -38,7 +54,10 @@ and def = function
      let old_venv = !venv_ref in
      let old_senv = !senv_ref in
      let a1 = List.map dv dlist in
+     sp_max := 0;
      let b1 = st b in
+     let Type.Decl (_,_,Type.Name name,_) = d1 in
+     append_info (name, !sp_max);
      let ret = Type.DefFun (d1, a1, b1) in
      venv_ref := old_venv;
      senv_ref := old_senv;
@@ -108,7 +127,11 @@ and st = function
   | Syntax.SBlock(x, y) ->
      let x1 = List.map dv x in
      let y1 = List.map st y in
-     Type.SBlock(x1, y1)
+     let size = sum (List.map (fun (Syntax.Decl (_,ty,_,_)) -> size_of ty * 4) x) in
+     enter_block size;
+     let s = Type.SBlock(x1, y1) in
+     leave_block size;
+     s
   | Syntax.SWhile (e, stmt) ->
      let e1 = ex e in
      let s1 = st stmt in
