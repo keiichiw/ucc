@@ -175,11 +175,11 @@ let rec ex ret_reg = function
      let t_ptr = TPtr t in
      (match op with
       | Mul ->
-         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "_mul")), [e1;e2]))
+         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__mul")), [e1;e2]))
       | Div ->
-         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "_div")), [e1;e2]))
+         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__div")), [e1;e2]))
       | Mod ->
-         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "_mod")), [e1;e2]))
+         ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__mod")), [e1;e2]))
       | _ ->
          let op = match op with
            | Add    -> "add"
