@@ -42,16 +42,20 @@ let emit_raw fmt =
 let emit_label num =
   stack_push buffer_ref (sprintf "L%d:\n" num)
 
+let insert_prologue () =
+  emit "mov r1, r0";
+  emit "leave";
+  emit "ret"
+
+let insert_halt () =
+  let trap s = if s = "\tret\n" then "\thalt\n" else s in
+  buffer_ref := List.map trap !buffer_ref
+
 let flush_buffer oc name =
-  let buf' = List.rev !buffer_ref in
-  (* don't insert halt directly. the way of handling halt is subject to change in the future *)
-  let buf = buf' @ [ "\tmov r1, r0\n"; "\tleave\n"; "\tret\n" ] in
   List.iter
-    (fun s -> if name = "main" && s = "\tret\n" then
-                fprintf oc "\thalt\n"
-              else
-                fprintf oc "%s" s)
-    buf;
+    (fun s ->
+     fprintf oc "%s" s)
+    (List.rev !buffer_ref);
   buffer_ref := []
 
 let reg_alloc _ =
@@ -569,22 +573,22 @@ let rec st = function
      ex temp exp;
      reg_free temp
 
-let emit_global_var oc name init =
+let emit_global_var name init =
   let contents = ref [] in
-  fprintf oc "%s:\n" name;
+  emit_raw "%s:\n" name;
   List.iter
     (fun e ->
      match e with
-     | EConst (TInt, (VInt v)) -> fprintf oc "\t.int %d\n" v
+     | EConst (TInt, (VInt v)) -> emit ".int %d" v
      | EAddr (TPtr TInt, EConst (TArray (TInt, sz), VStr s)) ->
         contents := s :: !contents;
-        fprintf oc "\t.int %s_contents_%d\n" name (List.length !contents)
+        emit ".int %s_contents_%d" name (List.length !contents)
      | _ -> raise (EmitError "global initializer must be constant")
     ) init;
   List.iteri
     (fun i c ->
-     fprintf oc "%s_contents_%d:\n" name (i + 1);
-     List.iter (fun n -> fprintf oc "\t.int %d\n" n) c
+     emit_raw "%s_contents_%d:\n" name (i + 1);
+     List.iter (fun n -> emit ".int %d" n) c
     ) (List.rev !contents)
 
 let rec emitter oc = function
@@ -600,6 +604,9 @@ let rec emitter oc = function
      free_reg_stack := free_regs;
      env_ref := old_env;
      senv_ref := old_senv;
+     insert_prologue ();
+     if name = "main" then
+       insert_halt ();
      (match ln with
       | NoLink
       | Extern ->
@@ -611,19 +618,20 @@ let rec emitter oc = function
      stack_push env_ref (name, (ty, Global name));
      (match (ln, init) with
       | NoLink, [] when not (is_funty ty) ->
-         fprintf oc ".global %s\n" name;
-         fprintf oc "%s:\n" name;
-         fprintf oc "\t.int 0, %d\n" (sizeof ty)
+         emit_raw ".global %s\n" name;
+         emit_raw "%s:\n" name;
+         emit ".int 0, %d\n" (sizeof ty)
       | NoLink, []
       | Extern, []
       | Static, [] ->
          ()                     (* ignore *)
       | NoLink, xs
       | Extern, xs ->
-         fprintf oc ".global %s\n" name;
-         emit_global_var oc name xs
+         emit_raw ".global %s\n" name;
+         emit_global_var name xs
       | Static, xs ->
-         emit_global_var oc name xs)
+         emit_global_var name xs);
+     flush_buffer oc name
 
 (*emit main*)
 let rec main oc defs =
