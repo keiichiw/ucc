@@ -1,4 +1,4 @@
 #!/bin/bash
 dir=`dirname "$0"`
 $dir/ucc -o ${1%.*}.out $1
-$dir/sim ${1%.*}.out -write raw
+$dir/sim ${1%.*}.out

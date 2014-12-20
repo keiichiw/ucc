@@ -30,7 +30,7 @@ if ($? != 0) {
     exit;
 }
 
-open PIPE, "$bin/sim $outfile -write raw 2> /dev/null |"
+open PIPE, "$bin/sim $outfile 2> /dev/null |"
     or die "could not run simulator with $outfile";
 
 undef $/;
