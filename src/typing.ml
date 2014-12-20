@@ -2,8 +2,6 @@ open Ctype
 open Format
 
 exception TypingError of string
-exception TODO of string
-exception Unreachable
 
 let venv_ref : (string * ctype) list ref = ref [];;
 
@@ -23,7 +21,7 @@ let resolve_member_type stct mem_name =
   | TStruct s_id ->
      let dvs = List.assoc s_id !senv_ref in
      List.assoc mem_name dvs
-  | _ -> raise Unreachable
+  | _ -> failwith "resolve_member_type"
 
 let sp_ref = ref 0
 let sp_max = ref 0

@@ -3,7 +3,7 @@
 
 open Syntax
 open Printf
-exception Unreachable
+
 let rec print_program fmt p =
   fprintf fmt "[\n";
   pp_defs fmt p;

@@ -1,8 +1,5 @@
 open Ctype
 
-exception NotMatch
-exception TODO of string
-
 type value =
   | VInt of int
   | VStr of int list

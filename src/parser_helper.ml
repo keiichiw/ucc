@@ -1,4 +1,5 @@
 open Ctype
+
 let rec assoc t = function
   | [] -> false
   | (x,_)::_ when x=t -> true

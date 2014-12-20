@@ -1,6 +1,7 @@
 {
 open Parser
 open Parser_helper
+
 exception LexerError of string
 
 let cast_char_to_int s =

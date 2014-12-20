@@ -3,8 +3,6 @@ open Type
 open Printf
 
 exception EmitError of string
-exception TODO of string
-exception Unreachable of string
 
 type storageplace =
   | Mem of int (*memory*)
@@ -208,7 +206,7 @@ let rec ex ret_reg = function
          emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
          reg_free reg
       | _ ->
-         raise (Unreachable "EPAdd"))
+         failwith "EPAdd")
   | EPDiff (t1, e1, e2) ->
      raise (TODO "EPDiff")
   | ELog (_, op, e1, e2) ->
@@ -361,7 +359,7 @@ and lv_addr ret_reg = function
      (match Typing.typeof expr with
       | TStruct s_id ->
          let rec go i s = function
-           | [] -> raise (Unreachable "edot")
+           | [] -> failwith "edot"
            | (v, _)::_ when v=s -> i
            | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
          let (_, memlist) = resolve_struct s_id in
@@ -393,7 +391,7 @@ let init_local_vars vars =
               emit "mov [rbp - %d], r%d" (offset - i * 4) reg
            ) xs;
            reg_free reg
-        |_ -> raise (Unreachable "init_local_var")) in
+        |_ -> failwith "init_local_vars") in
   List.iter go vars
 
 let rec st = function

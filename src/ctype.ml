@@ -1,3 +1,5 @@
+exception TODO of string
+
 type size = int
 
 type name =
