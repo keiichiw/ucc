@@ -11,7 +11,7 @@ type declarator =
   | DeclArray of declarator * size
   | DeclFun of declarator * (decl list)
 
-let struct_num = ref 0
+let struct_table : (string * int) list ref = ref []
 
 let get_ty = function
   | Decl (_, ty, _, _) -> ty
@@ -44,14 +44,14 @@ let make_type ty decl =
       raise (ParserError "make_type"))
 
 let make_structty name_opt decl =
-  let snum = !struct_num in
-  struct_num := !struct_num + 1;
-  (match name_opt with
-   | Some name ->
-      struct_table := (name, snum)::!struct_table
-   | None -> ());
-  struct_env := (snum, decl)::!struct_env;
-  TStruct(snum)
+  let sid = List.length !struct_env in
+  begin match name_opt with
+    | Some name ->
+      struct_table := (name, sid) :: !struct_table
+    | None -> ()
+  end;
+  struct_env := decl :: !struct_env;
+  TStruct sid
 
 let make_enumty _ enums =
   let go num = function
@@ -173,7 +173,7 @@ struct_spec:
 | STRUCT ID? LBRACE struct_decl+ RBRACE
   { make_structty $2 (List.concat $4) }
 | STRUCT ID
-  { TStruct (List.assoc $2 !struct_table)}
+  { TStruct (List.assoc $2 !struct_table) }
 
 struct_decl:
 | decl

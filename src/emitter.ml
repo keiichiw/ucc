@@ -24,8 +24,7 @@ let fun_name_ref = ref ""
 let env_ref : (string * (ctype * storageplace)) list ref = ref []
 
 (* This is initialized in main *)
-let struct_env_ref :
-  (struct_id * (size * ((string * ctype) list))) list ref = ref []
+let struct_env_ref : (size * ((string * ctype) list)) list ref = ref []
 
 (* Access ref values*)
 let stack_push stack i =
@@ -101,11 +100,7 @@ let resolve_var name =
   | Not_found -> raise (EmitError (sprintf "not found %s" name))
 
 let resolve_struct s =
-  let rec go s_id = function
-    | [] -> raise (EmitError (sprintf "struct %d not found" s_id))
-    | (s, x)::_ when s_id = s -> x
-    | _::xs -> go s_id xs in
-  go s !struct_env_ref
+  List.nth !struct_env_ref s
 
 let rec sizeof = function
   | TInt
@@ -381,7 +376,7 @@ and lv_addr ret_reg = function
            | [] -> failwith "edot"
            | (v, _)::_ when v=s -> i
            | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
-         let (_, memlist) = resolve_struct s_id in
+         let memlist = snd (resolve_struct s_id) in
          let mem_offset = go 0 mem memlist in
          lv_addr ret_reg expr;
          emit "add r%d, r%d, %d" ret_reg ret_reg mem_offset
@@ -632,9 +627,8 @@ let rec emitter oc = function
 
 (*emit main*)
 let rec main oc defs =
-  let go (i, l) =
+  let go l =
     let sz = List.fold_left (fun num (_, ty) -> num + (sizeof ty)) 0 l in
-    let tuple = (i, (sz, l)) in
-    struct_env_ref := tuple::!struct_env_ref in
+    struct_env_ref := !struct_env_ref @ [(sz, l)] in
   List.iter go !Typing.senv_ref;
   List.iter (emitter oc) defs

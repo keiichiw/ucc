@@ -50,5 +50,4 @@ type def =
   | DefFun of decl * (decl list) * stmt
   | DefVar of decl
 
-let struct_table : (string * int) list ref = ref []
-let struct_env : (int * (decl list)) list ref = ref []
+let struct_env : decl list list ref = ref []

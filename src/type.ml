@@ -1,7 +1,5 @@
 open Ctype
 
-type struct_id = int
-
 type value =
   | VInt of int
   | VStr of int list

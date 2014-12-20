@@ -6,7 +6,7 @@ exception TypingError of string
 let venv_ref : (string * ctype) list ref = ref [];;
 
 (* This is initialized in main *)
-let senv_ref : (int * ((string * ctype) list)) list ref = ref [];;
+let senv_ref : (string * ctype) list list ref = ref [];;
 
 let push_stack x env =
   env := x::!env
@@ -19,7 +19,7 @@ let resolve_var_type nm =
 let resolve_member_type stct mem_name =
   match stct with
   | TStruct s_id ->
-     let dvs = List.assoc s_id !senv_ref in
+     let dvs = List.nth !senv_ref s_id in
      List.assoc mem_name dvs
   | _ -> failwith "resolve_member_type"
 
@@ -53,14 +53,10 @@ let rec sizeof = function
   | TArray (ty, sz) -> sz * (sizeof ty)
   | TFun _ -> raise (TypingError "sizeof function")
   | TStruct sid ->
-     let sz fs = List.fold_left (fun num (_, ty) -> num + (sizeof ty)) 0 fs in
-     let rec go = function
-       | [] -> raise (TypingError (sprintf "struct %d not found" sid))
-       | (s, ms)::_ when s = sid -> sz ms
-       | _::zs -> go zs in
-     go !senv_ref
+    let sz fs = List.fold_left (fun num (_, ty) -> num + sizeof ty) 0 fs in
+    sz (List.nth !senv_ref sid)
   | TVoid ->
-     raise (TypingError "sizeof void")
+    raise (TypingError "sizeof void")
 
 let is_integral = function
   | TInt | TShort | TLong | TUnsigned | TChar -> true
@@ -83,7 +79,7 @@ let initialize ty init =
   let rec compound ty init idx =
     match ty, init with
     | TStruct s_id, Syntax.IVect ilist ->
-      let s = List.assoc s_id !senv_ref in
+      let s = List.nth !senv_ref s_id in
       if List.length s = idx then [], init
       else
         let l, rem  = inner (snd (List.nth s idx)) ty ilist in
@@ -360,9 +356,6 @@ let rec def = function
      Type.DefVar (dv decl)
 
 let main defs =
-  let go x =
-    let Type.Decl (_, ty, Name n, _) = dv x in (n, ty) in
-  senv_ref := List.map
-                (fun (mem,ds) -> (mem, List.map go ds))
-                (List.rev !Syntax.struct_env);
+  let go x = let Type.Decl (_, ty, Name n, _) = dv x in (n, ty) in
+  senv_ref := List.map (List.map go) (List.rev !Syntax.struct_env);
   List.map (fun x -> def x) defs
