@@ -9,7 +9,7 @@ let typedef_env:(string * ctype) list ref = ref [];;
 
 let is_typedef_name t =
   assoc t !typedef_env
-let typedef (Syntax.Decl (_, typ, Syntax.Name name, _)) =
+let typedef (Syntax.Decl (_, typ, Name name, _)) =
   typedef_env := (name, typ) :: !typedef_env
 
 

@@ -1,3 +1,8 @@
+type size = int
+
+type name =
+  | Name of string
+
 type ctype =
   | TInt
   | TShort

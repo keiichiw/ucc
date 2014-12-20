@@ -1,10 +1,7 @@
 open Ctype
+
 exception NotMatch
 exception TODO of string
-
-type name = Name of string
-type size = int
-type id = int
 
 type value =
   | VInt of int

@@ -1,8 +1,6 @@
 open Ctype
 
-type name = Name of string
 type struct_id = int
-type size = int
 
 type value =
   | VInt of int

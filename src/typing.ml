@@ -161,8 +161,8 @@ and ex' = function
        | Syntax.VInt i -> TInt, Type.VInt i
        | Syntax.VStr s -> TArray (TInt, List.length s), Type.VStr s in
      Type.EConst (ty, v)
-  | Syntax.EVar (Syntax.Name n)->
-     Type.EVar (resolve_var_type n, Type.Name n)
+  | Syntax.EVar (Name n)->
+     Type.EVar (resolve_var_type n, Name n)
   | Syntax.EComma (e1, e2) ->
      let e = ex e2 in
      Type.EComma(typeof e, ex e1, e)
@@ -290,10 +290,10 @@ and ex' = function
        Type.ECond (typeof ex2, ex1, ex2, ex3)
      else
        raise (TypingError "cond")
-  | Syntax.EDot (e1, Syntax.Name nm) ->
+  | Syntax.EDot (e1, Name nm) ->
      let ex1 = ex e1 in
      let ty =  resolve_member_type (typeof ex1) nm in
-     Type.EDot(ty, ex1, Type.Name nm)
+     Type.EDot(ty, ex1, Name nm)
   | Syntax.ECast (ty, e) ->
      let e = ex e in
      let ty2 = typeof e in
@@ -309,10 +309,10 @@ let ex_opt = function
      None
 
 let dv = function
-  | Syntax.Decl(ln, ty, Syntax.Name n, x) ->
+  | Syntax.Decl(ln, ty, Name n, x) ->
      push_stack (n, ty) venv_ref;
      let init = initialize ty x in
-     Type.Decl(ln, ty, Type.Name n, List.map ex init)
+     Type.Decl(ln, ty, Name n, List.map ex init)
 
 let rec st = function
   | Syntax.SNil -> Type.SNil
@@ -375,7 +375,7 @@ let rec def = function
      let a1 = List.map dv dlist in
      sp_max := 0;
      let b1 = st b in
-     let Type.Decl (_,_,Type.Name name,_) = d1 in
+     let Type.Decl (_,_,Name name,_) = d1 in
      append_info (name, !sp_max);
      let ret = Type.DefFun (d1, a1, b1) in
      venv_ref := old_venv;
@@ -386,7 +386,7 @@ let rec def = function
 
 let main defs =
   let go x =
-    let Type.Decl (_, ty, Type.Name n, _) = dv x in (n, ty) in
+    let Type.Decl (_, ty, Name n, _) = dv x in (n, ty) in
   senv_ref := List.map
                 (fun (mem,ds) -> (mem, List.map go ds))
                 (List.rev !Syntax.struct_env);
