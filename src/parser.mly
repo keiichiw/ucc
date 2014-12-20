@@ -457,9 +457,9 @@ unary_expr:
 | postfix_expr
   { $1 }
 | INC unary_expr
-  { EAssign(None, $2, EArith(Add, $2, EConst(VInt(1)))) }
+  { EAssign(Some Add, $2, EConst(VInt(1))) }
 | DEC unary_expr
-  { EAssign(None, $2, EArith(Sub, $2, EConst(VInt(1)))) }
+  { EAssign(Some Sub, $2, EConst(VInt(1))) }
 | NOT unary_expr
   { EUnary (LogNot, $2) }
 | PLUS unary_expr
