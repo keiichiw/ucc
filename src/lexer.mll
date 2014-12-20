@@ -1,24 +1,24 @@
 {
-  open Parser
-  open Parser_helper
-  exception Error of string
+open Parser
+open Parser_helper
+exception LexerError of string
 
-  let cast_char_to_int s =
-    let table = [
-      ('a', 7); ('b', 8); ('t', 9); ('n', 10);
-      ('v', 11); ('f', 12); ('r', 13); ('"', 34);
-      ('\'', 39); ('?', 63); ('\\', 92);
-    ] in
-    if s.[0] <> '\\' then
-      Char.code(s.[0])
-    else try
-      List.assoc s.[1] table
-    with Not_found ->
-      let len = String.length s in
-      if s.[1] = 'x' then
-        int_of_string ("0x" ^ String.sub s 2 (len - 2))
-      else
-        int_of_string ("0o" ^ String.sub s 1 (len - 1))
+let cast_char_to_int s =
+  let table = [
+    ('a', 7); ('b', 8); ('t', 9); ('n', 10);
+    ('v', 11); ('f', 12); ('r', 13); ('"', 34);
+    ('\'', 39); ('?', 63); ('\\', 92);
+  ] in
+  if s.[0] <> '\\' then
+    Char.code s.[0]
+  else try
+    List.assoc s.[1] table
+  with Not_found ->
+    let len = String.length s in
+    if s.[1] = 'x' then
+      int_of_string ("0x" ^ String.sub s 2 (len - 2))
+    else
+      int_of_string ("0o" ^ String.sub s 1 (len - 1))
 }
 
 let digit = ['0'-'9']
@@ -26,7 +26,7 @@ let dec = ['1'-'9'] digit*
 let oct = '0' ['0'-'7']*
 let hex = '0' ['x' 'X'] ['0'-'9' 'a'-'f' 'A'-'F']+
 let bin = '0' ['b' 'B'] ['0' '1']+
-let space = ' ' | '\t'
+let space = [' ' '\t' '\r']
 let alpha = ['a'-'z' 'A'-'Z' '_' ]
 let ident = alpha (alpha | digit)*
 let escapes = ['a' 'b' 't' 'n' 'v' 'f' 'r' '"' '\'' '?' '\\']
@@ -34,204 +34,203 @@ let char = [^'\\'] | '\\' (escapes | ['0'-'7']+ | 'x' ['0'-'9' 'a'-'f' 'A'-'F']+
 
 rule token = parse
 | space
-    { token lexbuf }
-| ['\r' '\n']
-    { Lexing.new_line lexbuf; token lexbuf }
+  { token lexbuf }
+| '\n'
+  { Lexing.new_line lexbuf; token lexbuf }
 | ';'
-    { SEMICOLON }
+  { SEMICOLON }
 | ','
-    { COMMA}
+  { COMMA }
 | "int"
-    { TINT }
+  { TINT }
 | "long"
-    { TLONG }
+  { TLONG }
 | "short"
-    { TSHORT }
+  { TSHORT }
 | "unsigned"
-    { TUNSIGNED }
+  { TUNSIGNED }
 | "char"
-    { TCHAR }
+  { TCHAR }
 | "void"
-    { TVOID }
+  { TVOID }
 | "struct"
-    { STRUCT }
+  { STRUCT }
 | "enum"
-    { ENUM }
+  { ENUM }
 | "typedef"
-    { TYPEDEF }
+  { TYPEDEF }
 | "static"
-    { STATIC }
+  { STATIC }
 | "extern"
-    { EXTERN }
+  { EXTERN }
 | "const"
-    { token lexbuf }
+  { token lexbuf }
 | "volatile"
-    { token lexbuf }
+  { token lexbuf }
 | "if"
-    { IF }
+  { IF }
 | "else"
-    { ELSE }
+  { ELSE }
 | "while"
-    { WHILE }
+  { WHILE }
 | "do"
-    { DO }
+  { DO }
 | "for"
-    { FOR }
+  { FOR }
 | "return"
-    { RETURN }
+  { RETURN }
 | "continue"
-    { CONTINUE }
+  { CONTINUE }
 | "break"
-    { BREAK }
+  { BREAK }
 | "goto"
-    { GOTO }
+  { GOTO }
 | "switch"
-    { SWITCH }
+  { SWITCH }
 | "case"
-    { CASE }
+  { CASE }
 | "default"
-    { DEFAULT }
+  { DEFAULT }
 | '+'
-    { PLUS }
+  { PLUS }
 | "++"
-    { INC }
+  { INC }
 | '-'
-    { MINUS }
+  { MINUS }
 | '!'
-    { NOT }
+  { NOT }
 | '?'
-    { COND }
+  { COND }
 | ':'
-    { COLON }
+  { COLON }
 | "--"
-    { DEC }
+  { DEC }
 | '*'
-    { STAR }
+  { STAR }
 | '/'
-    { SLASH }
+  { SLASH }
 | '%'
-    { MOD }
+  { MOD }
 | "<<"
-    { LSHIFT }
+  { LSHIFT }
 | ">>"
-    { RSHIFT }
+  { RSHIFT }
 | '.'
-    { DOT }
+  { DOT }
 | "->"
-    { ARROW }
+  { ARROW }
 | '&'
-    { AMP }
+  { AMP }
 | '^'
-    { HAT }
+  { HAT }
 | '|'
-    { BAR }
+  { BAR }
 | "&&"
-    { AND }
+  { AND }
 | "||"
-    { OR }
+  { OR }
 | '~'
-    { TILDE }
+  { TILDE }
 | "=="
-    { EQ }
+  { EQ }
 | "!="
-    { NEQ }
+  { NEQ }
 | "="
-    { ASSIGN }
+  { ASSIGN }
 | "+="
-    { PLUS_ASSIGN }
+  { PLUS_ASSIGN }
 | "-="
-    { MINUS_ASSIGN }
+  { MINUS_ASSIGN }
 | "*="
-    { STAR_ASSIGN }
+  { STAR_ASSIGN }
 | "/="
-    { SLASH_ASSIGN }
+  { SLASH_ASSIGN }
 | "%="
-    { MOD_ASSIGN }
+  { MOD_ASSIGN }
 | "<<="
-    { LSHIFT_ASSIGN }
+  { LSHIFT_ASSIGN }
 | ">>="
-    { RSHIFT_ASSIGN }
+  { RSHIFT_ASSIGN }
 | "&="
-    { AMP_ASSIGN }
+  { AMP_ASSIGN }
 | "^="
-    { HAT_ASSIGN }
+  { HAT_ASSIGN }
 | "|="
-    { BAR_ASSIGN }
+  { BAR_ASSIGN }
 | "<"
-    { LT }
+  { LT }
 | ">"
-    { GT }
+  { GT }
 | "<="
-    { LE }
+  { LE }
 | ">="
-    { GE }
+  { GE }
 | '('
-    { LPAREN }
+  { LPAREN }
 | ')'
-    { RPAREN }
+  { RPAREN }
 | '{'
-    { LBRACE }
+  { LBRACE }
 | '}'
-    { RBRACE }
+  { RBRACE }
 | '['
-    { LBRACKET }
+  { LBRACKET }
 | ']'
-    { RBRACKET }
+  { RBRACKET }
 | "sizeof"
-    { SIZEOF }
+  { SIZEOF }
 | "//"
-    { commentbis lexbuf }
+  { commentbis lexbuf }
 | "#"
-    { commentbis lexbuf }
+  { commentbis lexbuf }
 | "/*"
-    { comment lexbuf }
+  { comment lexbuf }
 | bin as i
-    { INT (int_of_string i) }
+  { INT (int_of_string i) }
 | dec as i
-    { INT (int_of_string i) }
+  { INT (int_of_string i) }
 | oct as i
-    { INT (int_of_string ("0o"^i)) }
+  { INT (int_of_string ("0o"^i)) }
 | hex as i
-    { INT (int_of_string i) }
+  { INT (int_of_string i) }
 | '\'' (char as c) '\''
-    { INT (cast_char_to_int c) }
+  { INT (cast_char_to_int c) }
 | '\"'
-    { STR (string_elements lexbuf) }
+  { STR (string_elements lexbuf) }
 | ident  as n
-    {
-      if is_typedef_name n then
-        TYPEDEF_NAME n
-      else if is_enum_id n then
-        ENUM_ID n
-      else
-        ID n
-    }
+  {
+    if is_typedef_name n then
+      TYPEDEF_NAME n
+    else if is_enum_id n then
+      ENUM_ID n
+    else
+      ID n
+  }
 | eof
-    { EOF }
+  { EOF }
 | _
-    { raise (Error
-               (Printf.sprintf "At offset %d: unexpected character.\n"
-                               (Lexing.lexeme_start lexbuf)))
-    }
+  { raise (LexerError ("illegal token '%s'" ^ Lexing.lexeme lexbuf)) }
 
 and string_elements = parse
 | '\"'
-    { [0] }
+  { [0] }
 | char as c
-    { (cast_char_to_int c)::(string_elements lexbuf) }
+  { (cast_char_to_int c)::(string_elements lexbuf) }
 
 and comment = parse
 | "*/"
-    { token lexbuf }
-| _
-    { comment lexbuf }
+  { token lexbuf }
+| '\n'
+  { Lexing.new_line lexbuf; comment lexbuf }
 | eof
-    { raise (Error "Error: unclosed comment\n") }
+  { raise (LexerError "unterminated comment") }
+| _
+  { comment lexbuf }
 
 and commentbis = parse
 | '\n'
-    { Lexing.new_line lexbuf; token lexbuf }
-| _
-    { commentbis lexbuf }
+  { Lexing.new_line lexbuf; token lexbuf }
 | eof
-    { EOF }
+  { EOF }
+| _
+  { commentbis lexbuf }
