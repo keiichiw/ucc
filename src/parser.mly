@@ -56,10 +56,11 @@ let lookup_structty name =
      sid
 
 let insert_struct_decl sid decl =
-  let rec go (x::xs) = function
-  | 0 -> assert (x = []); decl::xs
-  | i -> go xs (i-1) in
-  struct_env := go !struct_env sid
+  let rec go = function
+    | [], _ -> failwith "insert_struct_decl"
+    | (_::xs), i when i = sid -> decl::xs
+    | (x::xs), i -> x :: go (xs, (i-1)) in
+  struct_env := go (!struct_env, List.length !struct_env - 1)
 
 let make_structty name_opt decl =
   match name_opt with
