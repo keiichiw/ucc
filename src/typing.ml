@@ -199,6 +199,18 @@ and ex' = function
              Type.ERel (TInt, op, ex1, ex2))
       | (TPtr _, TPtr _) ->
          Type.EURel (TInt, op, ex1, ex2)
+      | (t, TPtr _) when is_integral t ->
+         (match ex1 with
+          | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
+             Type.EURel (TInt, op, ex1, ex2)
+          | _ ->
+             raise (TypingError "rel: pointer and non-zero integer"))
+      | (TPtr _, t) when is_integral t ->
+         (match ex2 with
+          | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
+             Type.EURel (TInt, op, ex1, ex2)
+          | _ ->
+             raise (TypingError "rel: pointer and non-zero integer"))
       | _ ->
          raise (TypingError "relation"))
   | Syntax.EEq (op, e1, e2) ->

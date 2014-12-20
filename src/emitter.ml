@@ -225,10 +225,10 @@ let rec ex ret_reg = function
      emit "shr r%d, r%d, 16" a_low a_low;
      emit "shl r%d, r%d, 16" b_low b_low;
      emit "shr r%d, r%d, 16" b_low b_low;
-     emit "%s r%d, r%d, r%d" op_h ret_reg a_high b_high;
      let reg1 = reg_alloc () in
      let reg2 = reg_alloc () in
-     emit "cmpeq r%d, r%d, r%d"   reg1 a_low b_low;
+     emit "%s r%d, r%d, r%d" op_h ret_reg a_high b_high;
+     emit "cmpeq r%d, r%d, r%d"   reg1 a_high b_high;
      emit "%s r%d, r%d, r%d" op_l reg2 a_low b_low;
      emit "and r%d, r%d, r%d" reg1 reg1 reg2;
      emit "or r%d, r%d, r%d" ret_reg ret_reg reg1;
