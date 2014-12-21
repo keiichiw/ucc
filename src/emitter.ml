@@ -117,7 +117,7 @@ let rec sizeof = function
 
 and resolve_struct s = match List.nth !senv_ref s with
   | (-1, d) ->
-     let sz = sum_of (List.map (snd >>> sizeof) d) in
+     let sz = sum_of (List.map (snd >> sizeof) d) in
      let go i (k, l) = if i = s then (sz, l) else (k, l) in
      senv_ref := List.mapi go !senv_ref;
      (sz, d)
@@ -125,7 +125,7 @@ and resolve_struct s = match List.nth !senv_ref s with
 
 and resolve_union u = match List.nth !uenv_ref u with
   | (-1, d) ->
-     let sz = max_of (List.map (snd >>> sizeof) d) in
+     let sz = max_of (List.map (snd >> sizeof) d) in
      let go i (k, l) = if i = u then (sz, l) else (k, l) in
      uenv_ref := List.mapi go !uenv_ref;
      (sz, d)
