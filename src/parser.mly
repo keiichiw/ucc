@@ -275,6 +275,10 @@ param_decl_list:
 param_decl:
 | decl_specs declarator
   { make_decl NoLink $1 ($2, None) }
+| decl_specs abstract_declarator
+  { make_decl NoLink $1 ($2, None) }
+| decl_specs
+  { make_decl NoLink $1 (DeclIdent (Name ""), None) }
 
 initializer_: /* 'initializer' is an OCaml's keyword! */
 | assign_expr

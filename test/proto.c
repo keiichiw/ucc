@@ -3,7 +3,7 @@
 */
 #include "test.h"
 
-int foo(int a, int b);
+int foo(int, int);
 
 int foo(int a, int b)
 {
