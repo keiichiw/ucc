@@ -259,7 +259,7 @@ let rec ex ret_reg = function
      let reg  = reg_alloc () in
      ex reg e2;
      let sreg = reg_alloc () in
-     emit "ldh r%d, r0, -0x8000" sreg;
+     emit "ldh r%d, r0, 0x8000" sreg;
      emit "xor r%d, r%d, r%d" ret_reg ret_reg sreg;
      emit "xor r%d, r%d, r%d" reg reg sreg;
      emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
