@@ -44,7 +44,7 @@ void _putc (char c) {
   __gaia_write(c);
 }
 
-void _printint(int xx, int base, int sgn) {
+static void _printint(int xx, int base, int sgn) {
   char digits[20] = "0123456789ABCDEF";
   char buf[16];
   int i, neg;
