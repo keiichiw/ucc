@@ -1,6 +1,7 @@
 open Ctype
 open Type
 open Printf
+open Util
 
 exception EmitError of string
 
@@ -117,7 +118,7 @@ let rec sizeof = function
 and resolve_struct s =
   match List.nth !senv_ref s with
   | (-1, d) ->
-     let sz = List.fold_left (+) (0) (List.map (fun (_, ty) -> sizeof ty) d) in
+     let sz = sum_of (List.map (fun (_, ty) -> sizeof ty) d) in
      let go i (k, l) = if i = s then (sz, l) else (k, l) in
      senv_ref := List.mapi go !senv_ref;
      (sz, d)
@@ -126,7 +127,7 @@ and resolve_struct s =
 and resolve_union u =
   match List.nth !uenv_ref u with
   | (-1, d) ->
-     let sz = List.fold_left max (0) (List.map (fun (_, ty) -> sizeof ty) d) in
+     let sz = max_of (List.map (fun (_, ty) -> sizeof ty) d) in
      let go i (k, l) = if i = u then (sz, l) else (k, l) in
      uenv_ref := List.mapi go !uenv_ref;
      (sz, d)
@@ -141,8 +142,8 @@ let sizeof_decl = function
 
 let rec sizeof_block = function
   | SBlock (d, s) ->
-     let s1 = List.fold_left (+) (0) (List.map sizeof_decl d) in
-     let s2 = List.fold_left max (0) (List.map sizeof_block s) in
+     let s1 = sum_of (List.map sizeof_decl d) in
+     let s2 = max_of (List.map sizeof_block s) in
      s1 + s2
   | SWhile (_, s)
   | SDoWhile (s, _)
