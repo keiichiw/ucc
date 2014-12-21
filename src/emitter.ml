@@ -106,33 +106,31 @@ let resolve_var name =
   with
   | Not_found -> raise (EmitError (sprintf "not found %s" name))
 
-let resolve_struct s =
-  List.nth !senv_ref s
-
-let resolve_union u =
-  List.nth !uenv_ref u
-
 let rec sizeof = function
   | TInt | TShort | TLong | TUnsigned | TChar | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (sizeof ty)
-  | TStruct s_id ->
-     let s = resolve_struct s_id in
-     if fst s = -1 then
-       let sz = List.fold_left (fun n (_, ty) -> n + sizeof ty) 0 (snd s) in
-       let go i ((_, l) as e) = if i = s_id then (sz, l) else e in
-       senv_ref := List.mapi go !senv_ref;
-       sz
-     else fst s
-  | TUnion u_id ->
-     let u = resolve_union u_id in
-     if fst u = -1 then
-       let sz = List.fold_left (fun n (_, ty) -> max n (sizeof ty)) 0 (snd u) in
-       let go i ((_, l) as e) = if i = u_id then (sz, l) else e in
-       uenv_ref := List.mapi go !uenv_ref;
-       sz
-     else fst u
+  | TStruct s_id -> fst (resolve_struct s_id)
+  | TUnion u_id -> fst (resolve_union u_id)
   | TFun _ -> raise (EmitError "sizeof function")
   | TVoid -> raise (EmitError "sizeof void")
+
+and resolve_struct s =
+  match List.nth !senv_ref s with
+  | (-1, d) ->
+     let sz = List.fold_left (+) (0) (List.map (fun (_, ty) -> sizeof ty) d) in
+     let go i (k, l) = if i = s then (sz, l) else (k, l) in
+     senv_ref := List.mapi go !senv_ref;
+     (sz, d)
+  | x -> x
+
+and resolve_union u =
+  match List.nth !uenv_ref u with
+  | (-1, d) ->
+     let sz = List.fold_left max (0) (List.map (fun (_, ty) -> sizeof ty) d) in
+     let go i (k, l) = if i = u then (sz, l) else (k, l) in
+     uenv_ref := List.mapi go !uenv_ref;
+     (sz, d)
+  | x -> x
 
 let sizeof_decl = function
   | Decl (NoLink,ty,_,_) ->
