@@ -273,14 +273,13 @@ let rec ex ret_reg = function
   | EPAdd (t1, e1, e2) ->
      begin match (Typing.typeof e1, Typing.typeof e2) with
      | (TPtr ty, i) when Typing.is_integral i ->
-        let ty_size = sizeof ty in
         ex ret_reg e1;
         let reg = reg_alloc () in
-        begin match ty_size with
-        | 1 -> ex reg e2
-        | _ ->
-           let sz = EConst(TInt, VInt ty_size) in
-           ex reg (EArith (TInt, Mul, e2, sz))
+        ex reg e2;
+        if sizeof ty != 1 then begin
+           let sz_reg = reg_alloc () in
+           emit "mov r%d, %d" sz_reg (sizeof ty);
+           emit_native_call reg "__mul" sz_reg reg
         end;
         emit "shl r%d, r%d, 2" reg reg;
         emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
