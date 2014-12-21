@@ -1,4 +1,4 @@
-int asm_write(int n);
+int __gaia_write(int n);
 
 
 int __mul (int a, int b) {
@@ -42,7 +42,7 @@ int __mod (int n, int d) {
 
 
 void _putc (char c) {
-  asm_write(c);
+  __gaia_write(c);
 }
 
 void _printint(int xx, int base, int sgn) {
