@@ -5,7 +5,7 @@ bin/cc: FORCE
 	mv main.native bin/cc
 
 lib/libucc.s: lib/libucc.c lib/intrinsics.s bin/cc
-	bin/cc lib/libucc.c
+	bin/ucc -s lib/libucc.c
 	cat lib/intrinsics.s >> lib/libucc.s
 
 bin/sim:

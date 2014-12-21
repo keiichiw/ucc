@@ -1,5 +1,4 @@
-int __gaia_write(int n);
-
+#include "intrinsics.h"
 
 int __mul (int a, int b) {
   int i, r;
