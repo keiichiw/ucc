@@ -273,14 +273,13 @@ let rec ex ret_reg = function
   | EPAdd (t1, e1, e2) ->
      begin match (Typing.typeof e1, Typing.typeof e2) with
      | (TPtr ty, i) when Typing.is_integral i ->
-        ex ret_reg e1;
         let reg = reg_alloc () in
         ex reg e2;
         if sizeof ty != 1 then begin
-           let sz_reg = reg_alloc () in
-           emit "mov r%d, %d" sz_reg (sizeof ty);
-           emit_native_call reg "__mul" sz_reg reg
+           emit "mov r%d, %d" ret_reg (sizeof ty);
+           emit_native_call reg "__mul" ret_reg reg
         end;
+        ex ret_reg e1;
         emit "shl r%d, r%d, 2" reg reg;
         emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
         reg_free reg
