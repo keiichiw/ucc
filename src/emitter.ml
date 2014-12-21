@@ -706,6 +706,14 @@ let rec emitter oc = function
   | DefFun(Decl(ln, ty, Name name, _), args, b) ->
      stack_push env_ref (name, (ty, Global name));
      fun_name_ref := name;
+     begin match ln with
+     | NoLink
+     | Extern ->
+        emit_raw ".global %s\n" name;
+        emit_raw "%s:\n" name
+     | Static ->
+        emit_raw "%s:\n" name
+     end;
      let free_regs = !free_reg_stack in
      let old_env = !env_ref in
      let old_senv = !senv_ref in
@@ -718,13 +726,6 @@ let rec emitter oc = function
      insert_epilogue ();
      if name = "main" then
        insert_halt ();
-     begin match ln with
-     | NoLink
-     | Extern ->
-        fprintf oc ".global %s\n%s:\n" name name;
-     | Static ->
-        ()
-     end;
      flush_buffer oc name
   | DefVar (Decl (ln, ty, Name name, init)) ->
      stack_push env_ref (name, (ty, Global name));
