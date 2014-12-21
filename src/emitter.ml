@@ -115,8 +115,22 @@ let resolve_union u =
 let rec sizeof = function
   | TInt | TShort | TLong | TUnsigned | TChar | TPtr _ -> 1
   | TArray (ty, sz) -> sz * (sizeof ty)
-  | TStruct s_id -> fst (resolve_struct s_id)
-  | TUnion u_id -> fst (resolve_union u_id)
+  | TStruct s_id ->
+     let s = resolve_struct s_id in
+     if fst s = -1 then
+       let sz = List.fold_left (fun n (_, ty) -> n + sizeof ty) 0 (snd s) in
+       let go i ((_, l) as e) = if i = s_id then (sz, l) else e in
+       senv_ref := List.mapi go !senv_ref;
+       sz
+     else fst s
+  | TUnion u_id ->
+     let u = resolve_union u_id in
+     if fst u = -1 then
+       let sz = List.fold_left (fun n (_, ty) -> max n (sizeof ty)) 0 (snd u) in
+       let go i ((_, l) as e) = if i = u_id then (sz, l) else e in
+       uenv_ref := List.mapi go !uenv_ref;
+       sz
+     else fst u
   | TFun _ -> raise (EmitError "sizeof function")
   | TVoid -> raise (EmitError "sizeof void")
 
@@ -747,12 +761,6 @@ let rec emitter oc = function
 
 (*emit main*)
 let rec main oc defs =
-  let go_struct l =
-    let sz = List.fold_left (fun n (_, ty) -> n + sizeof ty) 0 l in
-    senv_ref := !senv_ref @ [(sz, l)] in
-  let go_union l =
-    let sz = List.fold_left (fun n (_, ty) -> max n (sizeof ty)) 0 l in
-    uenv_ref := !uenv_ref @ [(sz, l)] in
-  List.iter go_struct !Typing.senv_ref;
-  List.iter go_union  !Typing.uenv_ref;
+  senv_ref := List.map (fun l -> (-1, l)) !Typing.senv_ref;
+  uenv_ref := List.map (fun l -> (-1, l)) !Typing.uenv_ref;
   List.iter (emitter oc) defs

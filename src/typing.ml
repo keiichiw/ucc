@@ -430,7 +430,7 @@ let rec def = function
      Type.DefVar (dv decl)
 
 let main defs =
-  let go x = let Type.Decl (_, ty, Name n, _) = dv x in (n, ty) in
+  let go x = let Syntax.Decl (_, ty, Name n, _) = x in (n, ty) in
   senv_ref := List.map (List.map go) (List.rev !Syntax.struct_env);
   uenv_ref := List.map (List.map go) (List.rev !Syntax.union_env);
   List.map (fun x -> def x) defs
