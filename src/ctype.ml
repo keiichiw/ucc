@@ -34,11 +34,17 @@ let union_env  : (string * ctype) list list ref = ref []
 
 let rec sizeof = function
   | TInt | TShort | TLong | TUnsigned | TChar | TPtr _ -> 1
-  | TVoid -> failwith "sizeof void"
-  | TStruct s_id -> sum_of (List.map (snd >> sizeof) (List.nth !struct_env s_id))
-  | TUnion u_id -> max_of (List.map (snd >> sizeof) (List.nth !union_env u_id))
+  | TStruct s_id ->
+     s_id |> List.nth !struct_env
+          |> List.map (snd >> sizeof)
+          |> Util.sum_of
+  | TUnion u_id ->
+     u_id |> List.nth !union_env
+          |> List.map (snd >> sizeof)
+          |> Util.max_of
   | TArray (ty, sz) -> (sizeof ty) * sz
   | TFun _ -> failwith "sizeof function"
+  | TVoid -> failwith "sizeof void"
 
 
 (* operator definitions *)
