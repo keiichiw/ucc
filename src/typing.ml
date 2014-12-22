@@ -352,6 +352,9 @@ and ex' = function
   | Syntax.ESizeof (ty) ->
      let i = sizeof ty in
      Type.EConst (TUnsigned, Type.VInt i)
+  | Syntax.ESizeofExpr (e) ->
+     let i = sizeof (typeof (ex' e)) in
+     Type.EConst (TUnsigned, Type.VInt i)
 
 let ex_opt = function
   | Some e ->

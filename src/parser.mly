@@ -515,6 +515,8 @@ unary_expr:
   { EUnary (BitNot, $2) }
 | SIZEOF LPAREN type_name RPAREN
   { ESizeof $3 }
+| SIZEOF unary_expr
+  { ESizeofExpr $2 }
 
 postfix_expr:
 | primary_expr
