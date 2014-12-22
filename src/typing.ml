@@ -72,16 +72,16 @@ let initialize ty init =
       let s = List.nth !struct_env s_id in
       if List.length s = idx then [], init
       else
-        let l, rem  = inner (snd (List.nth s idx)) ty ilist in
+        let l, rem  = inner (snd (List.nth s idx)) ilist in
         let r, tail = compound ty rem (idx + 1) in
         l @ r, tail
     | TUnion u_id, Syntax.IVect ilist ->
       let u = List.nth !union_env u_id in
-      inner (snd (List.hd u)) ty ilist
+      inner (snd (List.hd u)) ilist
     | TArray (inner_ty, sz), Syntax.IVect ilist ->
       if sz = idx then [], init
       else
-        let l, rem  = inner inner_ty ty ilist in
+        let l, rem  = inner inner_ty ilist in
         let r, tail = compound ty rem (idx + 1) in
         l @ r, tail
     | TArray (TChar, _), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
@@ -89,7 +89,7 @@ let initialize ty init =
       let ilist = Syntax.IVect (List.map f str) in
       compound ty ilist 0
     | _ -> raise (TypingError "requied initializer list")
-  and inner inner_ty ty ilist =
+  and inner inner_ty ilist =
     let i, is =
       if ilist = [] then
         Syntax.IScal (Syntax.EConst (Syntax.VInt 0)), []
@@ -276,7 +276,7 @@ and ex' = function
         end
      | Some Sub ->
         begin match (typeof ex1, typeof ex2) with
-        | (TPtr ty1, TPtr ty2) ->
+        | (TPtr _, TPtr _) ->
            raise (TypingError "EAssign")
         | (TPtr ty1, i) when is_integral i ->
            let m_ex2 = ex (Syntax.EUnary(Minus, e2)) in
@@ -396,7 +396,7 @@ let rec st = function
      let ex1 = ex e in
      Type.SExpr ex1
 
-let rec def = function
+let def = function
   | Syntax.DefFun (d, dlist, b) ->
      let d1 = dv d in
      let old_venv = !venv_ref in

@@ -17,7 +17,7 @@ let union_table  : (string * int) list ref = ref []
 let get_ty = function
   | Decl (_, ty, _, _) -> ty
 
-let rec make_decl ln ty (decl, exp) =
+let make_decl ln ty (decl, exp) =
   let name = ref (Name "") in
   let ty =
     let rec go k = function

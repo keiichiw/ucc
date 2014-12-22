@@ -42,7 +42,7 @@ let insert_halt () =
   let trap s = if s = "\tret\n" then "\thalt\n" else s in
   buffer_ref := List.map trap !buffer_ref
 
-let flush_buffer oc name =
+let flush_buffer oc =
   List.iter
     (fun s ->
      fprintf oc "%s" s)
@@ -76,7 +76,7 @@ let get_used_reg () =
     (fun x -> (List.mem x !free_reg_stack) = false)
     register_list
 
-let label_create _ =
+let label_create () =
   created_label_num := !created_label_num + 1;
   !created_label_num
 
@@ -147,14 +147,13 @@ let emit_global_var name init =
     begin function
     | EConst (TInt, (VInt v)) ->
        emit ".int %d" v
-    | EAddr (TPtr TInt, EConst (TArray (TInt, sz), VStr s)) ->
+    | EAddr (TPtr TInt, EConst (TArray (TInt, _), VStr s)) ->
        contents := s :: !contents;
        emit ".int %s_contents_%d" name (List.length !contents)
     | _ ->
        raise (EmitError "global initializer must be constant")
     end
     init;
-
   List.iteri
     (fun i c ->
      emit_raw "%s_contents_%d:\n" name (i + 1);
@@ -182,7 +181,7 @@ let rec ex ret_reg = function
      begin match v with
      | VInt i ->
         emit "mov r%d, %d" ret_reg i
-     | VStr s ->
+     | VStr _ ->
         raise (EmitError "logic flaw: EConst at Emitter.ex")
      end
   | ECond (_, c, t, e) ->
@@ -195,8 +194,8 @@ let rec ex ret_reg = function
      emit_label lelse;
      ex ret_reg e;
      emit_label lend
-  | EArith (ty, op, e1, e2) ->
-     let t = TFun (TInt, [TInt;TInt]) in
+  | EArith (_, op, e1, e2) ->
+     let t = TFun (TInt, [TInt; TInt]) in
      let t_ptr = TPtr t in
      begin match op with
      | Mul ->
@@ -217,14 +216,14 @@ let rec ex ret_reg = function
           | _ -> assert false in
         emit_bin ret_reg op e1 e2
      end
-  | ERel (ty, op, e1, e2) ->
+  | ERel (_, op, e1, e2) ->
      let op = match op with
        | Le -> "cmple"
        | Lt -> "cmplt"
        | Ge -> "cmpge"
        | Gt -> "cmpgt" in
      emit_bin ret_reg op e1 e2
-  | EURel (ty, op, e1, e2) ->
+  | EURel (_, op, e1, e2) ->
      let op = match op with
        | Le -> "cmple"
        | Lt -> "cmplt"
@@ -240,12 +239,12 @@ let rec ex ret_reg = function
      emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
      reg_free reg;
      reg_free sreg
-  | EEq (ty, op, e1, e2) ->
+  | EEq (_, op, e1, e2) ->
      let op = match op with
        | Eq -> "cmpeq"
        | Ne -> "cmpne" in
      emit_bin ret_reg op e1 e2
-  | EPAdd (t1, e1, e2) ->
+  | EPAdd (_, e1, e2) ->
      begin match (Typing.typeof e1, Typing.typeof e2) with
      | (TPtr ty, i) when Typing.is_integral i ->
         let reg = reg_alloc () in
@@ -261,9 +260,9 @@ let rec ex ret_reg = function
       | _ ->
          failwith "EPAdd"
      end
-  | EPDiff (t1, e1, e2) ->
+  | EPDiff (_, e1, e2) ->
      begin match (Typing.typeof e1, Typing.typeof e2) with
-     | (TPtr t1, TPtr t2) when t1=t2 ->
+     | (TPtr t1, TPtr t2) when t1 = t2 ->
         let sz = 4 * (sizeof t1) in
         ex ret_reg e1;
         let reg = reg_alloc () in
@@ -301,7 +300,7 @@ let rec ex ret_reg = function
         emit "mov r%d, 1" ret_reg;
         emit_label l2
      end
-  | EUnary (ty, op, e) ->
+  | EUnary (_, op, e) ->
      begin match op with
      | Plus ->
         ex ret_reg e
@@ -366,14 +365,14 @@ let rec ex ret_reg = function
                 reg_use i;
                 emit "pop r%d" i)
                (List.rev used_reg)
-  | EVar (t, Name name) ->
+  | EVar (ty, Name name) ->
      begin match resolve_var name with
      | TArray _, _ | TFun _, _ ->
         raise (EmitError "logic flaw: EVar")
      | TStruct _, _ | TUnion _, _ ->
         raise (EmitError "EVar: struct as value is unsupported")
      | _ ->
-        emit_lv_addr ret_reg (EVar (t, Name name));
+        emit_lv_addr ret_reg (EVar (ty, Name name));
         emit "mov r%d, [r%d]" ret_reg ret_reg
      end
   | EAssign (_, op, e1, e2) ->
@@ -426,9 +425,9 @@ let rec ex ret_reg = function
   | EPtr (_, e) ->
      ex ret_reg e;
      emit "mov r%d, [r%d]" ret_reg ret_reg
-  | EDot (t, e, Name name) ->
-     emit_lv_addr ret_reg (EDot (t, e, Name name));
-     begin match t with
+  | EDot (ty, e, Name name) ->
+     emit_lv_addr ret_reg (EDot (ty, e, Name name));
+     begin match ty with
      | TArray _ | TStruct _ | TUnion _ ->
        raise (EmitError "EDot")
      | _ ->
@@ -504,7 +503,7 @@ let init_local_vars vars =
           ()                   (* ignore *)
        | Static, [] ->
           raise (EmitError "local static variable has no initializer")
-       | Extern, xs ->
+       | Extern, _ ->
           raise (EmitError "local extern variable has initializer")
        | Static, xs ->
           emit_global_var label xs in
@@ -674,7 +673,7 @@ let rec st = function
      ex temp exp;
      reg_free temp
 
-let rec emitter oc = function
+let emitter oc = function
   | DefFun(Decl(ln, ty, Name name, _), args, b) ->
      push env_ref (name, (ty, Global name));
      fun_name_ref := name;
@@ -696,7 +695,7 @@ let rec emitter oc = function
      insert_epilogue ();
      if name = "main" then
        insert_halt ();
-     flush_buffer oc name
+     flush_buffer oc
   | DefVar (Decl (ln, ty, Name name, init)) ->
      push env_ref (name, (ty, Global name));
      begin match (ln, init) with
@@ -715,7 +714,7 @@ let rec emitter oc = function
      | Static, xs ->
         emit_global_var name xs
      end;
-     flush_buffer oc name
+     flush_buffer oc
 
-let rec main oc defs =
+let main oc defs =
   List.iter (emitter oc) defs

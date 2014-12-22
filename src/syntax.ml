@@ -50,6 +50,3 @@ type stmt =
 type def =
   | DefFun of decl * (decl list) * stmt
   | DefVar of decl
-
-let struct_env : decl list list ref = ref []
-let union_env  : decl list list ref = ref []
