@@ -10,7 +10,7 @@ int __mul (int a, int b) {
   return r;
 }
 
-int __div_kernel (int n, int d, int *qp, int *rp) {
+static void __div_kernel (int n, int d, int *qp, int *rp) {
   int sign = ((n >> 31) ^ (d >> 31)) & 1;
   int i, q = 0, r = 0;
   if (n < 0) n = -n;
