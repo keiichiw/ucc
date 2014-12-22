@@ -101,6 +101,13 @@ let initialize ty init =
       if tail <> Syntax.IVect [] then
         raise (TypingError "initializer eccess elements");
       res, Syntax.IVect is
+    | TArray (TChar, _), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
+      let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
+      let ilist = Syntax.IVect (List.map f str) in
+      let res, tail = compound inner_ty ilist 0 in
+      if tail <> Syntax.IVect [] then
+        raise (TypingError "initializer eccess elements");
+      res, Syntax.IVect is
     | TStruct _, _ | TArray _, _ ->
       compound inner_ty (Syntax.IVect ilist) 0
     | _, _ -> scaler i, Syntax.IVect is in
