@@ -30,20 +30,12 @@ let switch_defaults = ref []
 let senv_ref : (size * ((string * ctype) list)) list ref = ref []
 let uenv_ref : (size * ((string * ctype) list)) list ref = ref []
 
-(* Access ref values*)
-let stack_push stack i =
-  stack := (i::!stack)
-let stack_append stack l =
-  stack := (l@(!stack))
-let stack_pop stack =
-  stack := (List.tl !stack)
-
 let emit fmt =
-  ksprintf (fun s -> stack_push buffer_ref ("\t"^s^"\n")) fmt
+  ksprintf (fun s -> push buffer_ref ("\t"^s^"\n")) fmt
 let emit_raw fmt =
-  ksprintf (fun s -> stack_push buffer_ref s) fmt
+  ksprintf (fun s -> push buffer_ref s) fmt
 let emit_label num =
-  stack_push buffer_ref (sprintf "L%d:\n" num)
+  push buffer_ref (sprintf "L%d:\n" num)
 
 let insert_epilogue () =
   emit "mov r1, r0";
@@ -96,10 +88,10 @@ let escape_label s =
   sprintf "L_label_%s_%s" !fun_name_ref s
 
 let escape_case i =
-  sprintf "L_case_%s_%d_%d" !fun_name_ref (List.hd !switch_stack) i
+  sprintf "L_case_%s_%d_%d" !fun_name_ref (peek switch_stack) i
 
 let escape_default () =
-  sprintf "L_default_%s_%d" !fun_name_ref (List.hd !switch_stack)
+  sprintf "L_default_%s_%d" !fun_name_ref (peek switch_stack)
 
 let resolve_var name =
   try
@@ -167,13 +159,13 @@ let push_local_vars vars =
     | Decl (NoLink, ty, Name name, _) ->
        let sz = sizeof ty in
        sp_offset_ref := !sp_offset_ref + sz*4;
-       stack_push env_ref (name, (ty, Mem !sp_offset_ref))
+       push env_ref (name, (ty, Mem !sp_offset_ref))
     | Decl (Extern, ty, Name name, _) ->
-       stack_push env_ref (name, (ty, Global name))
+       push env_ref (name, (ty, Global name))
     | Decl (Static, ty, Name name, _) ->
        let label_id = label_create () in
        let label = sprintf "L_%s_%d" name label_id in
-       stack_push env_ref (name, (ty, Global label)) in
+       push env_ref (name, (ty, Global label)) in
   List.iter go vars
 
 let emit_global_var name init =
@@ -561,8 +553,8 @@ let rec st = function
   | SWhile (cond, b) ->
      let beginlabel = label_create () in
      let endlabel = label_create () in
-     stack_push con_stack beginlabel;
-     stack_push brk_stack endlabel;
+     push con_stack beginlabel;
+     push brk_stack endlabel;
      emit_label beginlabel;
      let cond_reg = reg_alloc () in
      ex cond_reg cond;
@@ -571,14 +563,14 @@ let rec st = function
      st b;
      emit "br L%d" beginlabel;
      emit_label endlabel;
-     stack_pop con_stack;
-     stack_pop brk_stack
+     pop con_stack;
+     pop brk_stack
   | SDoWhile (b, cond) ->
      let beginlabel = label_create () in
      let condlabel = label_create () in
      let endlabel = label_create () in
-     stack_push con_stack condlabel;
-     stack_push brk_stack endlabel;
+     push con_stack condlabel;
+     push brk_stack endlabel;
      emit_label beginlabel;
      let continue_flg = !for_continue_flg_ref in
      for_continue_flg_ref := 0;
@@ -592,14 +584,14 @@ let rec st = function
      emit "br L%d" beginlabel;
      emit_label endlabel;
      reg_free cond_reg;
-     stack_pop con_stack;
-     stack_pop brk_stack
+     pop con_stack;
+     pop brk_stack
   | SFor(init, cond, iter, b) ->
      let startlnum = label_create () in
      let iterlnum = label_create () in
      let endlnum = label_create () in
-     stack_push con_stack iterlnum;
-     stack_push brk_stack endlnum;
+     push con_stack iterlnum;
+     push brk_stack endlnum;
      begin match init with
      | Some iex ->
         let temp = reg_alloc () in
@@ -631,8 +623,8 @@ let rec st = function
      end;
      emit "br L%d" startlnum;
      emit_label endlnum;
-     stack_pop con_stack;
-     stack_pop brk_stack
+     pop con_stack;
+     pop brk_stack
   | SIfElse (cond, b1, b2) ->
      let cond_reg = reg_alloc () in
      ex cond_reg cond;
@@ -659,11 +651,11 @@ let rec st = function
      emit "leave";
      emit "ret";
   | SContinue ->
-     let lbl = (List.hd !con_stack) in
+     let lbl = peek con_stack in
      emit "br L%d" lbl;
      for_continue_flg_ref := 1
   | SBreak ->
-     let lbl = (List.hd !brk_stack) in
+     let lbl = peek brk_stack in
      emit "br L%d" lbl
   | SLabel (label, s) ->
      emit_raw "%s:\n" (escape_label label);
@@ -671,10 +663,10 @@ let rec st = function
   | SGoto label ->
      emit "br %s" (escape_label label)
   | SCase i ->
-     switch_cases := (i :: List.hd !switch_cases) :: List.tl !switch_cases;
+     switch_cases := (i :: peek switch_cases) :: List.tl !switch_cases;
      emit_raw "%s:\n" (escape_case i)
   | SDefault ->
-     (List.hd !switch_defaults) := true;
+     peek switch_defaults := true;
      emit_raw "%s:\n" (escape_default ())
   | SSwitch (e,s) ->
      switch_counter := !switch_counter + 1;
@@ -684,9 +676,9 @@ let rec st = function
      let l1 = label_create () in
      let l2 = label_create () in
      emit "br L%d" l1;
-     stack_push brk_stack l2;
+     push brk_stack l2;
      st s;
-     stack_pop brk_stack;
+     pop brk_stack;
      emit "br L%d" l2;
      (* dispatcher *)
      emit_label l1;
@@ -697,10 +689,10 @@ let rec st = function
        (fun i ->
         emit "mov r%d, %d" rreg i;
         emit "beq r%d, r%d, %s" lreg rreg (escape_case i))
-       (List.hd !switch_cases);
+       (peek switch_cases);
      reg_free lreg;
      reg_free rreg;
-     if !(List.hd !switch_defaults) then
+     if !(peek switch_defaults) then
        emit "br %s" (escape_default ());
      emit_label l2;
      switch_defaults := List.tl !switch_defaults;
@@ -713,7 +705,7 @@ let rec st = function
 
 let rec emitter oc = function
   | DefFun(Decl(ln, ty, Name name, _), args, b) ->
-     stack_push env_ref (name, (ty, Global name));
+     push env_ref (name, (ty, Global name));
      fun_name_ref := name;
      begin match ln with
      | NoLink
@@ -737,7 +729,7 @@ let rec emitter oc = function
        insert_halt ();
      flush_buffer oc name
   | DefVar (Decl (ln, ty, Name name, init)) ->
-     stack_push env_ref (name, (ty, Global name));
+     push env_ref (name, (ty, Global name));
      begin match (ln, init) with
      | NoLink, [] when not (is_funty ty) ->
         emit_raw ".global %s\n" name;

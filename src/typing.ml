@@ -1,5 +1,6 @@
 open Ctype
 open Format
+open Util
 
 exception TypingError of string
 
@@ -9,8 +10,6 @@ let venv_ref : (string * ctype) list ref = ref []
 let senv_ref : (string * ctype) list list ref = ref []
 let uenv_ref : (string * ctype) list list ref = ref []
 
-let push_stack x env =
-  env := x::!env
 let resolve_var_type nm =
   let rec go nm  = function
     | [] -> raise (TypingError (sprintf "variable not found: %s" nm))
@@ -362,7 +361,7 @@ let ex_opt = function
 
 let dv = function
   | Syntax.Decl(ln, ty, Name n, x) ->
-     push_stack (n, ty) venv_ref;
+     push venv_ref (n, ty);
      let init = initialize ty x in
      Type.Decl(ln, ty, Name n, List.map ex init)
 
