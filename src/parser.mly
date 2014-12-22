@@ -295,7 +295,7 @@ type_name:
 abstract_declarator:
 | STAR
   { DeclPtr (DeclIdent (Name "")) }
-| STAR direct_abstract_declarator
+| STAR abstract_declarator
   { DeclPtr $2 }
 | direct_abstract_declarator
   { $1 }
