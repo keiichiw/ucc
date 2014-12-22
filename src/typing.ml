@@ -68,6 +68,10 @@ let rec sizeof = function
 let is_integral = function
   | TInt | TShort | TLong | TUnsigned | TChar -> true
   | _ -> false
+let is_pointer = function
+  | TPtr _ -> true
+  | _ -> false
+let is_int_or_ptr x = is_integral x || is_pointer x
 
 let int_conv = function
   | (TVoid, _) | (_, TVoid) -> raise (TypingError "int_conv: void")
@@ -248,17 +252,13 @@ and ex' = function
   | Syntax.ELog (op, e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     begin match (typeof ex1, typeof ex2) with
-     | (t1, t2) when is_integral t1 && is_integral t2 ->
-        begin match int_conv (t1, t2) with
-        | TUnsigned ->
-           raise (TypingError "logical: unsigned")
-        | ty -> (* long or int*)
-           Type.ELog (TInt, op, ex1, ex2)
-        end
-     | _ ->
-        raise (TypingError "logical")
-     end
+     let t1 = typeof ex1 in
+     let t2 = typeof ex2 in
+     if (is_int_or_ptr t1) ||
+        (is_int_or_ptr t2) then
+       Type.ELog (TInt, op, ex1, ex2)
+     else
+       raise (TypingError "logical")
   | Syntax.EUnary (op, e1) ->
      let ex1= ex e1 in
      begin match (op, typeof ex1) with
