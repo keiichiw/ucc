@@ -61,33 +61,35 @@ let int_conv = function
 let initialize ty init =
   let scaler = function
     | Syntax.IVect ((Syntax.IVect _)::_) ->
-      raise (TypingError "too many braces around scalar initializer")
+       raise (TypingError "too many braces around scalar initializer")
     | Syntax.IVect [Syntax.IScal e] -> [e]
     | Syntax.IVect _ ->
-      raise (TypingError "invalid scaler initializer")
+       raise (TypingError "invalid scaler initializer")
     | Syntax.IScal e -> [e] in
   let rec compound ty init idx =
     match ty, init with
     | TStruct s_id, Syntax.IVect ilist ->
-      let s = List.nth !struct_env s_id in
-      if List.length s = idx then [], init
-      else
-        let l, rem  = inner (snd (List.nth s idx)) ilist in
-        let r, tail = compound ty rem (idx + 1) in
-        l @ r, tail
+       let s = List.nth !struct_env s_id in
+       if List.length s = idx then ([], init)
+       else
+         let l, rem  = inner (snd (List.nth s idx)) ilist in
+         let r, tail = compound ty rem (idx + 1) in
+         (l @ r, tail)
     | TUnion u_id, Syntax.IVect ilist ->
-      let u = List.nth !union_env u_id in
-      inner (snd (List.hd u)) ilist
+       let u = List.nth !union_env u_id in
+       inner (snd (List.hd u)) ilist
     | TArray (inner_ty, sz), Syntax.IVect ilist ->
-      if sz = idx then [], init
-      else
-        let l, rem  = inner inner_ty ilist in
-        let r, tail = compound ty rem (idx + 1) in
-        l @ r, tail
+       if sz > 0 && sz = idx then ([], init)
+       else
+         let l, rem = inner inner_ty ilist in
+         if sz = 0 && rem = Syntax.IVect [] then (l, rem)
+         else
+           let r, tail = compound ty rem (idx + 1) in
+           (l @ r, tail)
     | TArray (TChar, _), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
-      let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
-      let ilist = Syntax.IVect (List.map f str) in
-      compound ty ilist 0
+       let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
+       let ilist = Syntax.IVect (List.map f str) in
+       compound ty ilist 0
     | _ -> raise (TypingError "requied initializer list")
   and inner inner_ty ilist =
     let i, is =
@@ -97,30 +99,26 @@ let initialize ty init =
         List.hd ilist, List.tl ilist in
     match inner_ty, i with
     | TStruct _, Syntax.IVect _ | TArray _, Syntax.IVect _ ->
-      let res, tail = compound inner_ty i 0 in
-      if tail <> Syntax.IVect [] then
-        raise (TypingError "initializer eccess elements");
-      res, Syntax.IVect is
+       let res, tail = compound inner_ty i 0 in
+       if tail <> Syntax.IVect [] then
+         raise (TypingError "initializer eccess elements");
+       (res, Syntax.IVect is)
     | TArray (TChar, _), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
-      let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
-      let ilist = Syntax.IVect (List.map f str) in
-      let res, tail = compound inner_ty ilist 0 in
-      if tail <> Syntax.IVect [] then
-        raise (TypingError "initializer eccess elements");
-      res, Syntax.IVect is
+       let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
+       inner inner_ty (Syntax.IVect (List.map f str) :: is)
     | TStruct _, _ | TArray _, _ ->
-      compound inner_ty (Syntax.IVect ilist) 0
-    | _, _ -> scaler i, Syntax.IVect is in
+       compound inner_ty (Syntax.IVect ilist) 0
+    | _, _ -> (scaler i, Syntax.IVect is) in
   match init with
   | None -> []
   | Some init ->
-    match ty with
-    | TStruct _ | TUnion _ | TArray _ ->
-      let res, tail = compound ty init 0 in
-      if tail <> Syntax.IVect [] then
-        raise (TypingError "initializer eccess elements");
-      res
-    | _ -> scaler init
+     match ty with
+     | TStruct _ | TUnion _ | TArray _ ->
+        let res, tail = compound ty init 0 in
+        if tail <> Syntax.IVect [] then
+          raise (TypingError "initializer eccess elements");
+        res
+     | _ -> scaler init
 
 let rec ex e =
   let e = ex' e in
@@ -336,8 +334,13 @@ let ex_opt = function
 
 let dv = function
   | Syntax.Decl(ln, ty, Name n, x) ->
-     push venv_ref (n, ty);
      let init = initialize ty x in
+     let ty =
+       match ty with
+       | TArray (t, 0) ->
+          TArray (t, List.length init / sizeof t)
+       | _ -> ty in
+     push venv_ref (n, ty);
      Type.Decl(ln, ty, Name n, List.map ex init)
 
 let rec st = function
