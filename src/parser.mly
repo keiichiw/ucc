@@ -520,17 +520,17 @@ unary_expr:
   { EAssign(Some Add, $2, EConst(VInt(1))) }
 | DEC unary_expr
   { EAssign(Some Sub, $2, EConst(VInt(1))) }
-| NOT unary_expr
+| NOT cast_expr
   { EUnary (LogNot, $2) }
-| PLUS unary_expr
+| PLUS cast_expr
   { EUnary (Plus, $2) }
-| MINUS unary_expr
+| MINUS cast_expr
   { EUnary (Minus, $2) }
-| STAR unary_expr
+| STAR cast_expr
   { EPtr $2 }
-| AMP unary_expr
+| AMP cast_expr
   { EAddr $2 }
-| TILDE unary_expr
+| TILDE cast_expr
   { EUnary (BitNot, $2) }
 | SIZEOF LPAREN type_name RPAREN
   { ESizeof $3 }
