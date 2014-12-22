@@ -15,7 +15,10 @@ let struct_table : (string * int) list ref = ref []
 let union_table  : (string * int) list ref = ref []
 
 let get_ty = function
-  | Decl (_, ty, _, _) -> ty
+  | Decl (_, TArray (ty, sz), _, _) ->
+     TPtr ty
+  | Decl (_, ty, _, _) ->
+     ty
 
 let make_decl ln ty (decl, exp) =
   let name = ref (Name "") in
@@ -34,7 +37,12 @@ let make_decl ln ty (decl, exp) =
   Decl (ln, ty, !name, exp)
 
 let rec get_params = function
-  | DeclFun (_, dvs) -> dvs
+  | DeclFun (_, dvs) ->
+     let go = function
+       | Decl(ln, TArray (ty, _), nm, e) ->
+          Decl(ln, TPtr ty, nm, e)
+       | x -> x in
+     List.map go dvs
   | DeclPtr d -> get_params d
   | _ -> raise (ParserError "get_params")
 
@@ -268,6 +276,8 @@ direct_declarator:
   { $2 }
 | direct_declarator LBRACKET const_expr RBRACKET
   { DeclArray($1, $3) }
+| direct_declarator LBRACKET RBRACKET
+  { DeclArray($1, 0) }
 | direct_declarator LPAREN param_decl_list RPAREN
   { DeclFun ($1, $3)}
 | direct_declarator LPAREN RPAREN
@@ -314,6 +324,8 @@ direct_abstract_declarator:
   { DeclArray (DeclIdent (Name ""), $2) }
 | LPAREN param_decl_list RPAREN
   { DeclFun (DeclIdent (Name ""), $2) }
+| direct_abstract_declarator LBRACKET RBRACKET
+  { DeclArray ($1, 0) }
 | direct_abstract_declarator LBRACKET const_expr RBRACKET
   { DeclArray ($1, $3) }
 | direct_abstract_declarator LPAREN param_decl_list RPAREN
