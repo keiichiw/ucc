@@ -1,3 +1,5 @@
+open Util
+
 exception TODO of string
 
 type size = int
@@ -26,6 +28,18 @@ type linkage =
 let is_funty = function
   | TFun _ -> true
   | _ -> false
+
+let struct_env : (string * ctype) list list ref = ref []
+let union_env  : (string * ctype) list list ref = ref []
+
+let rec sizeof = function
+  | TInt | TShort | TLong | TUnsigned | TChar | TPtr _ -> 1
+  | TVoid -> failwith "sizeof void"
+  | TStruct s_id -> sum_of (List.map (snd >> sizeof) (List.nth !struct_env s_id))
+  | TUnion u_id -> max_of (List.map (snd >> sizeof) (List.nth !union_env u_id))
+  | TArray (ty, sz) -> (sizeof ty) * sz
+  | TFun _ -> failwith "sizeof function"
+
 
 (* operator definitions *)
 

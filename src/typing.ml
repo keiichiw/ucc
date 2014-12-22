@@ -6,23 +6,20 @@ exception TypingError of string
 
 let venv_ref : (string * ctype) list ref = ref []
 
-(* This is initialized in main *)
-let senv_ref : (string * ctype) list list ref = ref []
-let uenv_ref : (string * ctype) list list ref = ref []
-
 let resolve_var_type nm =
   let rec go nm  = function
     | [] -> raise (TypingError (sprintf "variable not found: %s" nm))
     | (s, ty)::_ when s=nm -> ty
     | _ :: xs -> go nm xs in
   go nm !venv_ref
+
 let resolve_member_type ty mem_name =
   match ty with
   | TStruct s_id ->
-     let dvs = List.nth !senv_ref s_id in
+     let dvs = List.nth !struct_env s_id in
      List.assoc mem_name dvs
   | TUnion u_id ->
-     let dvs = List.nth !uenv_ref u_id in
+     let dvs = List.nth !union_env u_id in
      List.assoc mem_name dvs
   | _ -> failwith "resolve_member_type"
 
@@ -46,24 +43,6 @@ let typeof = function
   | Type.ECond   (t, _, _, _) -> t
   | Type.EDot    (t, _, _) -> t
   | Type.ECast   (t, _, _) -> t
-
-let rec sizeof = function
-  | TInt
-  | TShort
-  | TLong
-  | TUnsigned
-  | TChar
-  | TPtr _ -> 1
-  | TArray (ty, sz) -> sz * (sizeof ty)
-  | TFun _ -> raise (TypingError "sizeof function")
-  | TStruct s_id ->
-    let sz = List.fold_left (fun n (_, ty) -> n + sizeof ty) 0 in
-    sz (List.nth !senv_ref s_id)
-  | TUnion u_id ->
-    let sz = List.fold_left (fun n (_, ty) -> max n (sizeof ty)) 0 in
-    sz (List.nth !uenv_ref u_id)
-  | TVoid ->
-    raise (TypingError "sizeof void")
 
 let is_integral = function
   | TInt | TShort | TLong | TUnsigned | TChar -> true
@@ -90,14 +69,14 @@ let initialize ty init =
   let rec compound ty init idx =
     match ty, init with
     | TStruct s_id, Syntax.IVect ilist ->
-      let s = List.nth !senv_ref s_id in
+      let s = List.nth !struct_env s_id in
       if List.length s = idx then [], init
       else
         let l, rem  = inner (snd (List.nth s idx)) ty ilist in
         let r, tail = compound ty rem (idx + 1) in
         l @ r, tail
     | TUnion u_id, Syntax.IVect ilist ->
-      let u = List.nth !uenv_ref u_id in
+      let u = List.nth !union_env u_id in
       inner (snd (List.hd u)) ty ilist
     | TArray (inner_ty, sz), Syntax.IVect ilist ->
       if sz = idx then [], init
@@ -352,6 +331,9 @@ and ex' = function
   | Syntax.ESizeof (ty) ->
      let i = sizeof ty in
      Type.EConst (TUnsigned, Type.VInt i)
+  | Syntax.ESizeofExpr (e) ->
+     let i = sizeof (typeof (ex' e)) in
+     Type.EConst (TUnsigned, Type.VInt i)
 
 let ex_opt = function
   | Some e ->
@@ -418,18 +400,13 @@ let rec def = function
   | Syntax.DefFun (d, dlist, b) ->
      let d1 = dv d in
      let old_venv = !venv_ref in
-     let old_senv = !senv_ref in
      let a1 = List.map dv dlist in
      let b1 = st b in
      let ret = Type.DefFun (d1, a1, b1) in
      venv_ref := old_venv;
-     senv_ref := old_senv;
      ret
   | Syntax.DefVar decl ->
      Type.DefVar (dv decl)
 
 let main defs =
-  let go x = let Syntax.Decl (_, ty, Name n, _) = x in (n, ty) in
-  senv_ref := List.map (List.map go) (List.rev !Syntax.struct_env);
-  uenv_ref := List.map (List.map go) (List.rev !Syntax.union_env);
-  List.map (fun x -> def x) defs
+  List.map def defs

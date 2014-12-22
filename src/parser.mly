@@ -68,18 +68,20 @@ let lookup_unionty name =
 let insert_struct_decl sid decl =
   let rec go = function
     | [], _ -> failwith "insert_struct_decl"
-    | (_::xs), i when i = sid -> decl::xs
-    | (x::xs), i -> x :: go (xs, (i-1)) in
+    | _ :: xs, i when i = sid -> decl :: xs
+    | x :: xs, i -> x :: go (xs, (i-1)) in
   struct_env := go (!struct_env, List.length !struct_env - 1)
 
 let insert_union_decl uid decl =
   let rec go = function
     | [], _ -> failwith "insert_union_decl"
-    | (_::xs), i when i = uid -> decl::xs
-    | (x::xs), i -> x :: go (xs, (i-1)) in
+    | _ :: xs, i when i = uid -> decl :: xs
+    | x :: xs, i -> x :: go (xs, (i-1)) in
   union_env := go (!union_env, List.length !union_env - 1)
 
 let make_structty name_opt decl =
+  let go (Decl (_, ty, Name n, _)) = (n, ty) in
+  let decl = List.map go decl in
   match name_opt with
   | Some name ->
      let sid = lookup_structty name in
@@ -91,6 +93,8 @@ let make_structty name_opt decl =
      TStruct sid
 
 let make_unionty name_opt decl =
+  let go (Decl (_, ty, Name n, _)) = (n, ty) in
+  let decl = List.map go decl in
   match name_opt with
   | Some name ->
      let uid = lookup_unionty name in
@@ -123,6 +127,9 @@ let rec fold_expr = function
   | ELog (LogOr, e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
   | _ -> raise (ParserError "fold_expr")
 
+let epilogue () =
+  struct_env := List.rev !struct_env;
+  union_env := List.rev !union_env
 %}
 
 %token <int> INT
@@ -163,7 +170,7 @@ let rec fold_expr = function
 
 main:
 | external_decl* EOF
-  { List.concat $1 }
+  { epilogue (); List.concat $1 }
 
 external_decl:
 | fun_definition
@@ -515,6 +522,8 @@ unary_expr:
   { EUnary (BitNot, $2) }
 | SIZEOF LPAREN type_name RPAREN
   { ESizeof $3 }
+| SIZEOF unary_expr
+  { ESizeofExpr $2 }
 
 postfix_expr:
 | primary_expr

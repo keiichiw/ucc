@@ -26,10 +26,6 @@ let switch_stack = ref []
 let switch_cases = ref []
 let switch_defaults = ref []
 
-(* This is initialized in main *)
-let senv_ref : (size * ((string * ctype) list)) list ref = ref []
-let uenv_ref : (size * ((string * ctype) list)) list ref = ref []
-
 let emit fmt =
   ksprintf (fun s -> push buffer_ref ("\t"^s^"\n")) fmt
 let emit_raw fmt =
@@ -98,30 +94,6 @@ let resolve_var name =
     List.assoc name !env_ref
   with
   | Not_found -> raise (EmitError (sprintf "not found %s" name))
-
-let rec sizeof = function
-  | TInt | TShort | TLong | TUnsigned | TChar | TPtr _ -> 1
-  | TArray (ty, sz) -> sz * (sizeof ty)
-  | TStruct s_id -> fst (resolve_struct s_id)
-  | TUnion u_id -> fst (resolve_union u_id)
-  | TFun _ -> raise (EmitError "sizeof function")
-  | TVoid -> raise (EmitError "sizeof void")
-
-and resolve_struct s = match List.nth !senv_ref s with
-  | (-1, d) ->
-     let sz = sum_of (List.map (snd >> sizeof) d) in
-     let go i (k, l) = if i = s then (sz, l) else (k, l) in
-     senv_ref := List.mapi go !senv_ref;
-     (sz, d)
-  | x -> x
-
-and resolve_union u = match List.nth !uenv_ref u with
-  | (-1, d) ->
-     let sz = max_of (List.map (snd >> sizeof) d) in
-     let go i (k, l) = if i = u then (sz, l) else (k, l) in
-     uenv_ref := List.mapi go !uenv_ref;
-     (sz, d)
-  | x -> x
 
 let sizeof_decl = function
   | Decl (NoLink,ty,_,_) ->
@@ -471,6 +443,7 @@ let rec ex ret_reg = function
      | _ ->
         ex ret_reg e
      end
+
 and emit_bin ret_reg op e1 e2 =
   ex ret_reg e1;
   let reg = reg_alloc () in
@@ -493,7 +466,7 @@ and emit_lv_addr ret_reg = function
           | [] -> failwith "edot"
           | (v, _)::_ when v=s -> i
           | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
-        let memlist = snd (resolve_struct s_id) in
+        let memlist = List.nth !struct_env s_id in
         let mem_offset = go 0 mem memlist in
         emit_lv_addr ret_reg expr;
         emit "add r%d, r%d, %d" ret_reg ret_reg mem_offset
@@ -543,13 +516,11 @@ let rec st = function
   | SBlock (vars, stmts) ->
      let old_sp = !sp_offset_ref in
      let old_env = !env_ref in
-     let old_senv = !senv_ref in
      push_local_vars vars;
      init_local_vars vars;
      List.iter st stmts;
      sp_offset_ref := old_sp;
      env_ref := old_env;
-     senv_ref := old_senv;
   | SWhile (cond, b) ->
      let beginlabel = label_create () in
      let endlabel = label_create () in
@@ -717,13 +688,11 @@ let rec emitter oc = function
      end;
      let free_regs = !free_reg_stack in
      let old_env = !env_ref in
-     let old_senv = !senv_ref in
      push_args args;
      emit "enter %d" (sizeof_block b);
      st b;
      free_reg_stack := free_regs;
      env_ref := old_env;
-     senv_ref := old_senv;
      insert_epilogue ();
      if name = "main" then
        insert_halt ();
@@ -748,8 +717,5 @@ let rec emitter oc = function
      end;
      flush_buffer oc name
 
-(*emit main*)
 let rec main oc defs =
-  senv_ref := List.map (fun l -> (-1, l)) !Typing.senv_ref;
-  uenv_ref := List.map (fun l -> (-1, l)) !Typing.uenv_ref;
   List.iter (emitter oc) defs

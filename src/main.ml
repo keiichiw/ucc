@@ -29,7 +29,6 @@ let () =
   let filebuf = Lexing.from_channel inchan in
   try
     let parse = Parser.main Lexer.token filebuf in
-    (* Print.print_program stderr parse; *)
     let typing = Typing.main parse in
     let outchan = open_out (out_file fname) in
     Emitter.main outchan typing;
