@@ -6,6 +6,7 @@ CC=$BIN_DIR/cc
 AS=$BIN_DIR/as
 UCCLIB=$BIN_DIR/../lib/libucc.s
 
+INCLUDE_DIR=.
 OUTFILE=a.out
 
 usage_exit() {
@@ -13,7 +14,7 @@ usage_exit() {
     exit 1
 }
 
-while getopts sSo:h OPT
+while getopts sSI:o:h OPT
 do
     case $OPT in
         s|S)
@@ -21,6 +22,9 @@ do
             ;;
         o)
             OUTFILE=$OPTARG
+            ;;
+        I)
+            INCLUDE_DIR=$OPTARG
             ;;
         h)  usage_exit
             ;;
@@ -36,11 +40,11 @@ FILENAME=`basename $1`
 
 # syntax check
 
-gcc -w -fsyntax-only $1 || exit 1
+gcc -I$INCLUDE_DIR -w -fsyntax-only $1 || exit 1
 
 # preprocess
 
-$CPP -D__UCC__=1 $1 > /tmp/$FILENAME.x || exit 1
+$CPP -I$INCLUDE_DIR -D__UCC__=1 $1 > /tmp/$FILENAME.x || exit 1
 
 # compile
 

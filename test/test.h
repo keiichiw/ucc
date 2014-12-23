@@ -1,7 +1,8 @@
 int __mul(int, int);
 int __div(int, int);
 int __mod(int, int);
-void _putc (char);
+void _putc(char);
+char _getc();
 int _printf();
 
 #ifdef __UCC__

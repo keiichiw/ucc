@@ -4,14 +4,14 @@ int __mul (int a, int b) {
   int i, r;
   r = 0;
   for (i = 31; i >= 0; --i) {
-    r = r << 1;
+    r <<= 1;
     if ((b >> i) & 1) r += a;
   }
   return r;
 }
 
 static void __div_kernel (int n, int d, int *qp, int *rp) {
-  int sign = ((n >> 31) ^ (d >> 31)) & 1;
+  int is_neg = (n ^ d) < 0;
   int i, q = 0, r = 0;
   if (n < 0) n = -n;
   if (d < 0) d = -d;
@@ -23,8 +23,8 @@ static void __div_kernel (int n, int d, int *qp, int *rp) {
       r -= d;
     }
   }
-  *qp = sign ? -q : q;
-  *rp = sign ? -r : r;
+  *qp = is_neg ? -q : q;
+  *rp = is_neg ? -r : r;
 }
 
 int __div (int n, int d) {
@@ -42,6 +42,10 @@ int __mod (int n, int d) {
 
 void _putc (char c) {
   __gaia_write(c);
+}
+
+char _getc () {
+  return __gaia_read();
 }
 
 static void _printint(int xx, int base, int sgn) {
