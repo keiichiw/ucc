@@ -15,6 +15,7 @@ let buffer_ref : string list ref = ref []
 let env_ref : (string * (ctype * storageplace)) list ref = ref []
 let fun_name_ref = ref ""
 let sp_offset_ref = ref 0
+let static_locals_ref = ref []
 let for_continue_flg_ref = ref 0
 
 (* label management *)
@@ -506,7 +507,7 @@ let init_local_vars vars =
        | Extern, _ ->
           raise (EmitError "local extern variable has initializer")
        | Static, xs ->
-          emit_global_var label xs in
+          push static_locals_ref (label, xs) in
   List.iter go vars
 
 let rec st = function
@@ -677,6 +678,7 @@ let emitter oc = function
   | DefFun(Decl(ln, ty, Name name, _), args, b) ->
      push env_ref (name, (ty, Global name));
      fun_name_ref := name;
+     static_locals_ref := [];
      begin match ln with
      | NoLink
      | Extern ->
@@ -695,6 +697,9 @@ let emitter oc = function
      insert_epilogue ();
      if name = "main" then
        insert_halt ();
+     List.iter (fun (name,e) ->
+       emit_global_var name e
+     ) !static_locals_ref;
      flush_buffer oc
   | DefVar (Decl (ln, ty, Name name, init)) ->
      push env_ref (name, (ty, Global name));
