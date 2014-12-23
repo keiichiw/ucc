@@ -1,18 +1,38 @@
 /*
--8
--8
--7
--2
-0
-0
-3
-4
-8
-8
+-97
+-88
+-84
+-78
+-76
+-59
+-52
+-28
+-22
+-17
+-10
+10
+12
+13
+18
+20
+21
+32
+33
+46
+48
+53
+59
+68
+72
+73
+78
+82
+84
+96
 */
 
 #include "test.h"
-#define N 10
+#define N 30
 int xor128();
 void mergeSort (int x[], int left, int right);
 
@@ -20,10 +40,10 @@ int main () {
   int a[N];
   int i;
   for (i=0; i<N; i++) {
-    a[i] = xor128()%N;
+    a[i] = xor128()%100;
   }
 
-  // mergeSort(a, 0, N);
+  mergeSort(a, 0, N);
 
   for (i=0; i<N;++i) {
     printf("%d\n", a[i]);
