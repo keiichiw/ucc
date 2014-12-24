@@ -1,6 +1,5 @@
-int __mul(int, int);
-int __div(int, int);
-int __mod(int, int);
+void _signed_divmod(int, int, int*, int*);
+void _unsigned_divmod(unsigned, unsigned, unsigned*, unsigned*);
 void _putc(char);
 char _getc();
 int _printf();
