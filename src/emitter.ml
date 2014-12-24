@@ -195,16 +195,22 @@ let rec ex ret_reg = function
      emit_label lelse;
      ex ret_reg e;
      emit_label lend
-  | EArith (_, op, e1, e2) ->
-     let t = TFun (TInt, [TInt; TInt]) in
-     let t_ptr = TPtr t in
+  | EArith (ty, op, e1, e2) ->
      begin match op with
-     | Mul ->
-        ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__mul")), [e1;e2]))
-     | Div ->
-        ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__div")), [e1;e2]))
-     | Mod ->
-        ex ret_reg (ECall (t_ptr, EAddr (t, EVar(TInt, Name "__mod")), [e1;e2]))
+     | Mul | Div | Mod ->
+        let fun_name =
+          match op, ty with
+          | Div, TUnsigned -> "__unsigned_div"
+          | Mod, TUnsigned -> "__unsigned_mod"
+          | Mul, _ -> "__mul"
+          | Div, _ -> "__signed_div"
+          | Mod, _ -> "__signed_mod"
+          | _ -> assert false in
+        ex ret_reg e1;
+        let reg = reg_alloc () in
+        ex reg e2;
+        emit_native_call ret_reg fun_name ret_reg reg;
+        reg_free reg
      | _ ->
         let op = match op with
           | Add    -> "add"
@@ -270,7 +276,7 @@ let rec ex ret_reg = function
         ex reg e2;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg reg;
         emit "mov r%d, %d" reg sz;
-        emit_native_call ret_reg "__div" ret_reg reg;
+        emit_native_call ret_reg "__signed_div" ret_reg reg;
         reg_free reg
      | _ ->
         failwith "EPDiff"
@@ -376,7 +382,7 @@ let rec ex ret_reg = function
         emit_lv_addr ret_reg (EVar (ty, Name name));
         emit "mov r%d, [r%d]" ret_reg ret_reg
      end
-  | EAssign (_, op, e1, e2) ->
+  | EAssign (ty, op, e1, e2) ->
      let reg = reg_alloc () in
      emit_lv_addr reg e1;
      ex ret_reg e2;
@@ -413,9 +419,15 @@ let rec ex ret_reg = function
         | Mul, _ ->
            emit_native_call ret_reg "__mul" tmp_reg ret_reg
         | Div, _ ->
-           emit_native_call ret_reg "__div" tmp_reg ret_reg
+           if ty = TUnsigned then
+             emit_native_call ret_reg "__unsigned_div" tmp_reg ret_reg
+           else
+             emit_native_call ret_reg "__signed_div" tmp_reg ret_reg
         | Mod, _ ->
-           emit_native_call ret_reg "__mod" tmp_reg ret_reg
+           if ty = TUnsigned then
+             emit_native_call ret_reg "__unsigned_mod" tmp_reg ret_reg
+           else
+             emit_native_call ret_reg "__signed_mod" tmp_reg ret_reg
         end;
         reg_free tmp_reg;
      end;

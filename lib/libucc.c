@@ -1,6 +1,6 @@
 #include "intrinsics.h"
 
-int __mul (int a, int b) {
+int __mul(int a, int b) {
   int i, r;
   r = 0;
   for (i = 31; i >= 0; --i) {
@@ -10,7 +10,7 @@ int __mul (int a, int b) {
   return r;
 }
 
-static void __div_kernel (int n, int d, int *qp, int *rp) {
+void _signed_divmod(int n, int d, int *qp, int *rp) {
   int is_neg = (n ^ d) < 0;
   int i, q = 0, r = 0;
   if (n < 0) n = -n;
@@ -27,24 +27,51 @@ static void __div_kernel (int n, int d, int *qp, int *rp) {
   *rp = is_neg ? -r : r;
 }
 
-int __div (int n, int d) {
+void _unsigned_divmod(unsigned n, unsigned d, unsigned *qp, unsigned *rp) {
+  int i;
+  unsigned q = 0, r = 0;
+  for (i = 31; i >= 0; --i) {
+    r <<= 1;
+    r += (n >> i) & 1;
+    if (r >= d) {
+      q += 1 << i;
+      r -= d;
+    }
+  }
+  *qp = q;
+  *rp = r;
+}
+
+int __signed_div(int n, int d) {
   int p, q;
-  __div_kernel(n, d, &p, &q);
+  _signed_divmod(n, d, &p, &q);
   return p;
 }
 
-int __mod (int n, int d) {
+int __signed_mod(int n, int d) {
   int p, q;
-  __div_kernel(n, d, &p, &q);
+  _signed_divmod(n, d, &p, &q);
+  return q;
+}
+
+unsigned __unsigned_div(unsigned n, unsigned d) {
+  unsigned p, q;
+  _unsigned_divmod(n, d, &p, &q);
+  return p;
+}
+
+unsigned __unsigned_mod(unsigned n, unsigned d) {
+  unsigned p, q;
+  _unsigned_divmod(n, d, &p, &q);
   return q;
 }
 
 
-void _putc (char c) {
+void _putc(char c) {
   __gaia_write(c);
 }
 
-char _getc () {
+char _getc() {
   return __gaia_read();
 }
 
