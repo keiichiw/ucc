@@ -6,13 +6,7 @@ char _getc();
 int _printf();
 
 #ifdef __UCC__
-void print_int(int n) {
-  _printf("%d\n", n);
-}
 #define printf(...) _printf(__VA_ARGS__)
-#else
-#include <stdio.h>
-void print_int(int n){
-  printf("%d\n", n);
-}
 #endif
+
+#define print_int(n) printf("%d\n", n)
