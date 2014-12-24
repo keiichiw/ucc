@@ -7,6 +7,8 @@ int _printf();
 
 #ifdef __UCC__
 #define printf(...) _printf(__VA_ARGS__)
+#else
+#include <stdio.h>
 #endif
 
 #define print_int(n) printf("%d\n", n)
