@@ -48,6 +48,7 @@ let flush_buffer oc =
     (fun s ->
      fprintf oc "%s" s)
     (List.rev !buffer_ref);
+  if !buffer_ref <> [] then fprintf oc "\n";
   buffer_ref := []
 
 let reg_alloc () =
@@ -721,7 +722,7 @@ let emitter oc = function
      | NoLink, [] when not (is_funty ty) ->
         emit_raw ".global %s\n" name;
         emit_raw "%s:\n" name;
-        emit ".int 0, %d\n" (sizeof ty)
+        emit ".int 0, %d" (sizeof ty)
      | NoLink, []
      | Extern, []
      | Static, [] ->
