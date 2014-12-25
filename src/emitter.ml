@@ -166,8 +166,10 @@ let emit_native_call ret_reg func arg1 arg2 =
   List.iter (emit "push r%d") used_reg;
   emit "push r%d" arg2;
   emit "push r%d" arg1;
+  let fun_reg = reg_alloc () in
+  emit "mov r%d, %s" fun_reg func;
+  emit "call r%d" fun_reg;
   reg_free_all ();
-  emit "call %s" func;
   reg_use ret_reg;
   if ret_reg != 1 then
     emit "mov r%d, r1" ret_reg;
