@@ -15,13 +15,13 @@ int main () {
 
   pi = &a.x;
   qi = &a.z;
-  print_int (qi-pi);
+  print_int(qi-pi);
 
   p = &b[3];
   q = &b[6];
-  print_int (q-p);
+  print_int(q-p);
 
   p = &b[9];
-  print_int ((p+1) - p);
+  print_int((p+1) - p);
   return 0;
 }

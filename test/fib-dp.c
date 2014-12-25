@@ -17,8 +17,8 @@ int fib (int x) {
 }
 
 int main () {
-  print_int (fib(45));
-  print_int (count);
-  print_int (fib(30));
-  print_int (count);
+  print_int(fib(45));
+  print_int(count);
+  print_int(fib(30));
+  print_int(count);
 }
