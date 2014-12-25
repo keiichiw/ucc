@@ -70,6 +70,8 @@ rule token = parse
   { token lexbuf }
 | "volatile"
   { token lexbuf }
+| "inline"
+  { token lexbuf }
 | "if"
   { IF }
 | "else"
