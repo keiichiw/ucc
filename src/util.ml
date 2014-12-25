@@ -9,3 +9,7 @@ let peek stack = List.hd !stack
 let pop stack = stack := List.tl !stack
 
 let id x = x
+
+let rec rep x = function
+  | 0 -> []
+  | n -> x :: rep x (n-1)

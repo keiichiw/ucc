@@ -142,6 +142,9 @@ let push_local_vars vars =
        push env_ref (name, (ty, Global label)) in
   List.iter go vars
 
+let create_defualt_init ty =
+  Util.rep (EConst (TInt, (VInt 0))) (sizeof ty)
+
 let emit_global_var name init =
   let contents = ref [] in
   emit_raw "%s:\n" name;
@@ -503,7 +506,7 @@ and emit_lv_addr ret_reg = function
      raise (EmitError "this expr is not lvalue")
 
 let init_local_vars vars =
-  let go (Decl (ln, _, Name nm, init)) =
+  let go (Decl (ln, ty, Name nm, init)) =
     match resolve_var nm with
     | (_, Mem offset) ->
        let reg = reg_alloc () in
@@ -514,15 +517,16 @@ let init_local_vars vars =
        reg_free reg
     | (_, Global label) ->
        match (ln, init) with
-       | NoLink, _  -> failwith "init_local_vars"
+       | NoLink, _  ->
+          failwith "init_local_vars"
+       | Static, [] ->
+          push static_locals_ref (label, create_defualt_init ty)
+       | Static, xs ->
+          push static_locals_ref (label, xs)
        | Extern, [] ->
           ()                   (* ignore *)
-       | Static, [] ->
-          raise (EmitError "local static variable has no initializer")
        | Extern, _ ->
-          raise (EmitError "local extern variable has initializer")
-       | Static, xs ->
-          push static_locals_ref (label, xs) in
+          raise (EmitError "local extern variable has initializer") in
   List.iter go vars
 
 let rec st = function
@@ -721,8 +725,7 @@ let emitter oc = function
      begin match (ln, init) with
      | NoLink, [] when not (is_funty ty) ->
         emit_raw ".global %s\n" name;
-        emit_raw "%s:\n" name;
-        emit ".int 0, %d" (sizeof ty)
+        emit_global_var name (create_defualt_init ty)
      | NoLink, []
      | Extern, []
      | Static, [] ->
