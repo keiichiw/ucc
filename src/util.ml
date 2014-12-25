@@ -7,3 +7,5 @@ let (>>) f g = fun x -> g (f x)
 let push stack x = stack := x :: !stack
 let peek stack = List.hd !stack
 let pop stack = stack := List.tl !stack
+
+let id x = x

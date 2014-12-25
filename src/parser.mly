@@ -2,6 +2,7 @@
 open Syntax
 open Ctype
 open Parser_helper
+open Util
 
 exception ParserError of string
 
@@ -33,7 +34,7 @@ let make_decl ln ty (decl, exp) =
          go (fun x -> TArray (k x, sz)) d
       | DeclFun (d, dvs) ->
          go (fun x -> TFun (k x, List.map get_ty dvs)) d in
-    go (fun x -> x) decl in
+    go id decl in
   Decl (ln, ty, !name, exp)
 
 let rec get_params = function
