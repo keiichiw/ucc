@@ -64,3 +64,39 @@ type eq_bin = Eq | Ne
 type unary = Plus | Minus | BitNot | LogNot | PostInc | PostDec
 
 type inc = Inc | Dec
+
+(* functions for fold-expression *)
+let arith2fun = function
+  | Add -> (+)
+  | Sub -> (-)
+  | Mul -> ( * )
+  | Div -> (/)
+  | Mod -> (mod)
+  | LShift -> (lsl)
+  | RShift -> (lsr)
+  | BitAnd -> (land)
+  | BitXor -> (lxor)
+  | BitOr  -> (lor)
+
+let rel2fun rel =
+  let op =
+    match rel with
+    | Lt -> (<)
+    | Le -> (<=)
+    | Gt -> (>)
+    | Ge -> (>=) in
+  (fun a b -> if (op a b) then 1 else 0)
+
+let eq2fun eq =
+  let op =
+    match eq with
+    | Eq -> (=)
+    | Ne -> (!=) in
+  (fun a b -> if (op a b) then 1 else 0)
+
+let unary2fun = function
+  | Plus   -> (+) 0
+  | Minus  -> (-) 0
+  | BitNot -> (lnot)
+  | LogNot -> (fun x -> if x=0 then 1 else 0)
+  | _ -> failwith "unary2fun: PostInc/PostDec"

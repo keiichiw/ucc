@@ -125,15 +125,22 @@ let make_enumty enums =
   let _ = List.fold_left go 0 enums in ()
 
 let rec fold_expr = function
-  | EConst (VInt i) -> i
-  | EArith(Add ,e1, e2) -> (fold_expr e1) + (fold_expr e2)
-  | EArith(Sub, e1, e2) -> (fold_expr e1) - (fold_expr e2)
-  | ERel (Lt, e1, e2) -> if (fold_expr e1) < (fold_expr e2) then 1 else 0
-  | EEq (Eq, e1, e2) -> if (fold_expr e1) = (fold_expr e2) then 1 else 0
-  | EEq (Ne, e1, e2) -> if (fold_expr e1) != (fold_expr e2) then 1 else 0
-  | ECond (e1, e2, e3) -> if fold_expr e1 != 0 then fold_expr e2 else fold_expr e3
-  | ELog (LogAnd, e1, e2) -> if fold_expr e1 != 0 then fold_expr e2 else 0
-  | ELog (LogOr, e1, e2) -> if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
+  | EConst (VInt i) ->
+     i
+  | EArith(op, e1, e2) ->
+     (arith2fun op) (fold_expr e1) (fold_expr e2)
+  | ERel (op, e1, e2) ->
+     (rel2fun op) (fold_expr e1) (fold_expr e2)
+  | EEq (op, e1, e2) ->
+     (eq2fun op) (fold_expr e1) (fold_expr e2)
+  | EUnary(op, e1) ->
+     (unary2fun op) (fold_expr e1)
+  | ECond (e1, e2, e3) ->
+     if fold_expr e1 != 0 then fold_expr e2 else fold_expr e3
+  | ELog (LogAnd, e1, e2) ->
+     if fold_expr e1 != 0 then fold_expr e2 else 0
+  | ELog (LogOr, e1, e2) ->
+     if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
   | _ -> raise (ParserError "fold_expr")
 
 let epilogue () =
