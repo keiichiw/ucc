@@ -8,6 +8,7 @@ UCCLIB=$BIN_DIR/../lib/libucc.s
 
 INCLUDE_DIR=.
 OUTFILE=a.out
+OFLAG=0
 
 usage_exit() {
     echo "Usage: $0 [-s] [-o file] file" 1>&2
@@ -21,7 +22,8 @@ do
             ASM_MODE=1
             ;;
         o)
-            OUTFILE=$OPTARG
+            OUTFILE=$OPTARG;
+            OFLAG=1
             ;;
         I)
             INCLUDE_DIR=$OPTARG
@@ -52,7 +54,12 @@ $CC /tmp/$FILENAME.x || exit 1
 
 if [ $ASM_MODE ]
 then
-    cp /tmp/$FILENAME.x.s $FILEDIR/${FILENAME%.*}.s
+    if [ $OFLAG ]
+    then
+        cp /tmp/$FILENAME.x.s $OUTFILE
+    else
+        cp /tmp/$FILENAME.x.s $FILEDIR/${FILENAME%.*}.s
+    fi
     exit 0
 fi
 
