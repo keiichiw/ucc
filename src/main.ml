@@ -23,7 +23,7 @@ let show_error fmt =
 
 let () =
   let argc = Array.length Sys.argv in
-  if argc != 2 then Format.printf "Usage: ./ucc [filename]\n" else
+  if argc != 2 then Format.printf "Usage: ./cc [filename]\n" else
   let fname = Sys.argv.(1) in
   let inchan = open_in fname in
   let filebuf = Lexing.from_channel inchan in

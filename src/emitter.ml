@@ -262,12 +262,13 @@ let rec ex ret_reg = function
      | (TPtr ty, i) when Typing.is_integral i ->
         let reg = reg_alloc () in
         ex reg e2;
-        if sizeof ty != 1 then begin
+        if ty != TVoid && sizeof ty != 1 then begin
            emit "mov r%d, %d" ret_reg (sizeof ty);
            emit_native_call reg "__mul" ret_reg reg
         end;
         ex ret_reg e1;
-        emit "shl r%d, r%d, 2" reg reg;
+        if ty != TVoid then
+          emit "shl r%d, r%d, 2" reg reg;
         emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
         reg_free reg
       | _ ->
@@ -276,13 +277,18 @@ let rec ex ret_reg = function
   | EPDiff (_, e1, e2) ->
      begin match (Typing.typeof e1, Typing.typeof e2) with
      | (TPtr t1, TPtr t2) when t1 = t2 ->
-        let sz = 4 * (sizeof t1) in
+        let sz =
+          if t1 = TVoid then
+            1
+          else
+            4 * (sizeof t1) in
         ex ret_reg e1;
         let reg = reg_alloc () in
         ex reg e2;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg reg;
-        emit "mov r%d, %d" reg sz;
-        emit_native_call ret_reg "__signed_div" ret_reg reg;
+        if sz != 1 then
+          (emit "mov r%d, %d" reg sz;
+           emit_native_call ret_reg "__signed_div" ret_reg reg);
         reg_free reg
      | _ ->
         failwith "EPDiff"
