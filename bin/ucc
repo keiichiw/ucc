@@ -8,7 +8,6 @@ UCCLIB=$BIN_DIR/../lib/libucc.s
 
 INCLUDE_DIR=.
 OUTFILE=a.out
-OFLAG=0
 
 usage_exit() {
     echo "Usage: $0 [-s] [-o file] file" 1>&2
