@@ -126,26 +126,37 @@ let make_enumty enums =
 
 let rec fold_expr = function
   | EConst (VInt i) ->
-     i
+     Some i
   | EArith(op, e1, e2) ->
-     (arith2fun op) (fold_expr e1) (fold_expr e2)
+     opMap2 (arith2fun op) (fold_expr e1) (fold_expr e2)
   | ERel (op, e1, e2) ->
-     (rel2fun op) (fold_expr e1) (fold_expr e2)
+     opMap2 (rel2fun op) (fold_expr e1) (fold_expr e2)
   | EEq (op, e1, e2) ->
-     (eq2fun op) (fold_expr e1) (fold_expr e2)
+     opMap2 (eq2fun op) (fold_expr e1) (fold_expr e2)
   | EUnary(op, e1) ->
-     (unary2fun op) (fold_expr e1)
+     opMap (unary2fun op) (fold_expr e1)
   | ECond (e1, e2, e3) ->
-     if fold_expr e1 != 0 then fold_expr e2 else fold_expr e3
+     if fold_expr e1 != Some 0 then fold_expr e2 else fold_expr e3
   | ELog (LogAnd, e1, e2) ->
-     if fold_expr e1 != 0 then fold_expr e2 else 0
+     if fold_expr e1 != Some 0 then fold_expr e2 else Some 0
   | ELog (LogOr, e1, e2) ->
-     if fold_expr e1 != 0 then fold_expr e1 else fold_expr e2
-  | _ -> raise (ParserError "fold_expr")
+     if fold_expr e1 != Some 0 then fold_expr e1 else fold_expr e2
+  | _ -> None
+
+let rec const_fold e =
+  match fold_expr e with
+  | Some x -> x
+  | None -> failwith "const_fold"
+
+let rec init_fold e =
+  match fold_expr e with
+  | Some x -> EConst (VInt x)
+  | None -> e
 
 let epilogue () =
   struct_env := List.rev !struct_env;
   union_env := List.rev !union_env
+
 %}
 
 %token <int> INT
@@ -307,7 +318,7 @@ param_decl:
 
 initializer_: /* 'initializer' is an OCaml's keyword! */
 | assign_expr
-  { IScal $1 }
+  { IScal (init_fold $1) }
 | LBRACE l=separated_list(COMMA, initializer_) RBRACE
   { IVect l }
 
@@ -437,7 +448,7 @@ cond_expr:
 
 const_expr:
 | cond_expr
-  { fold_expr $1 }
+  { const_fold $1 }
 
 logor_expr:
 | logand_expr

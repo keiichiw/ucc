@@ -13,3 +13,13 @@ let id x = x
 let rec rep x = function
   | 0 -> []
   | n -> x :: rep x (n-1)
+
+let opMap f = function
+  | Some x -> Some (f x)
+  | None -> None
+
+let opMap2 f a b =
+  match (a, b) with
+  | (Some x, Some y) ->
+     Some (f x y)
+  | _ -> None
