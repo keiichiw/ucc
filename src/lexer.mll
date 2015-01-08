@@ -1,6 +1,7 @@
 {
 open Parser
 open Parser_helper
+open String
 
 exception LexerError of string
 
@@ -24,9 +25,12 @@ let cast_char_to_int s =
 
 let digit = ['0'-'9']
 let dec = ['1'-'9'] digit*
-let oct = '0' ['0'-'7']*
 let hex = '0' ['x' 'X'] ['0'-'9' 'a'-'f' 'A'-'F']+
 let bin = '0' ['b' 'B'] ['0' '1']+
+let integer = (dec | hex | bin)
+let oct = '0' ['0'-'7']*
+let uint = integer ['u' 'U']
+let uoct = oct ['u' 'U']
 let space = [' ' '\t' '\r']
 let alpha = ['a'-'z' 'A'-'Z' '_' ]
 let ident = alpha (alpha | digit)*
@@ -190,14 +194,14 @@ rule token = parse
   { commentbis lexbuf }
 | "/*"
   { comment lexbuf }
-| bin as i
-  { INT (int_of_string i) }
-| dec as i
+| integer as i
   { INT (int_of_string i) }
 | oct as i
   { INT (int_of_string ("0o"^i)) }
-| hex as i
-  { INT (int_of_string i) }
+| uint as u
+  { UINT (int_of_string (sub u 0 (length u -1))) }
+| uoct as u
+  { UINT (int_of_string ("0o"^(sub u 0 (length u -1)))) }
 | '\'' (char as c) '\''
   { INT (cast_char_to_int c) }
 | '\"'

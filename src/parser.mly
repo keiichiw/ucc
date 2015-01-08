@@ -160,6 +160,7 @@ let epilogue () =
 %}
 
 %token <int> INT
+%token <int> UINT
 %token <int list> STR
 %token <string> ID
 %token <string> TYPEDEF_NAME
@@ -575,6 +576,8 @@ postfix_expr:
 primary_expr:
 | INT
   { EConst (VInt $1) }
+| UINT
+  { ECast (TUnsigned, EConst (VInt $1)) }
 | STR
   { EConst (VStr $1) }
 | ID
