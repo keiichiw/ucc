@@ -267,8 +267,7 @@ let rec ex ret_reg = function
            emit_native_call reg "__mul" ret_reg reg
         end;
         ex ret_reg e1;
-        if ty != TVoid then
-          emit "shl r%d, r%d, 2" reg reg;
+        emit "shl r%d, r%d, 2" reg reg;
         emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
         reg_free reg
       | _ ->
@@ -279,16 +278,15 @@ let rec ex ret_reg = function
      | (TPtr t1, TPtr t2) when t1 = t2 ->
         let sz =
           if t1 = TVoid then
-            1
+            4
           else
             4 * (sizeof t1) in
         ex ret_reg e1;
         let reg = reg_alloc () in
         ex reg e2;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg reg;
-        if sz != 1 then
-          (emit "mov r%d, %d" reg sz;
-           emit_native_call ret_reg "__signed_div" ret_reg reg);
+        emit "mov r%d, %d" reg sz;
+        emit_native_call ret_reg "__signed_div" ret_reg reg;
         reg_free reg
      | _ ->
         failwith "EPDiff"
