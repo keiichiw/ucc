@@ -730,6 +730,8 @@ let emitter oc = function
      | NoLink, [] when not (is_funty ty) ->
         emit_raw ".global %s\n" name;
         emit_global_var name (create_defualt_init ty)
+     | Static, [] when not (is_funty ty) ->
+        emit_global_var name (create_defualt_init ty)
      | NoLink, []
      | Extern, []
      | Static, [] ->
