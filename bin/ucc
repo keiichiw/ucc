@@ -64,8 +64,4 @@ fi
 
 # assemble
 
-$AS /tmp/$FILENAME.x.s -l $UCCLIB || exit 1
-
-# epilogue
-
-mv /tmp/$FILENAME.x.out $OUTFILE
+$AS /tmp/$FILENAME.x.s -l $UCCLIB -o $OUTFILE || exit 1
