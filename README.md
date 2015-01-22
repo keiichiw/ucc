@@ -6,7 +6,6 @@ Requirement
 ==============
 * OCaml 4.0.1
 * ocamlbuild 4.0.1
-* Menhir 20140422
 
 Build
 ==============
@@ -22,7 +21,7 @@ Example
 
 If you want to see an assembly, run the following command.
 
-``./bin/cc ./test/fib-loop.c``
+``./bin/ucc -S ./test/fib-loop.c``
 
 Then, `./test/fib-loop.s` will be generated.
 
