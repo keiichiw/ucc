@@ -188,23 +188,32 @@ let epilogue () =
 %token SIZEOF
 %token EOF
 
-(* avoid dangling-else problem *)
+/* avoid dangling-else problem */
 %nonassoc RPAREN
 %nonassoc ELSE
 
-%start <Syntax.def list> main
+%type <Syntax.def list> main
+%start main
 
 %%
 
 main:
-| external_decl* EOF
+| external_decl_list EOF
   { epilogue (); List.concat $1 }
+| error
+  { failwith "parse error" }
 
 external_decl:
 | fun_definition
   { [$1] }
 | decl
   { List.map (fun x -> DefVar x) $1 }
+
+external_decl_list:
+|
+  { [] }
+| external_decl external_decl_list
+  { $1 :: $2 }
 
 fun_definition:
 | linkage decl_specs declarator compound_stat
@@ -222,9 +231,15 @@ decl:
 | decl_real SEMICOLON
   { $1 }
 
+decl_list:
+|
+  { [] }
+| decl decl_list
+  { $1 :: $2 }
+
 decl_real:
-| ln=linkage; typ=decl_specs; dlist=separated_list(COMMA, init_declarator)
-  { List.map (make_decl ln typ) dlist }
+| linkage decl_specs init_declarator_list
+  { List.map (make_decl $1 $2) $3 }
 | TYPEDEF type_spec declarator
   { typedef (make_decl NoLink $2 ($3, None)); [] }
 
@@ -252,12 +267,18 @@ type_spec:
 | enum_spec
   { $1 }
 
+id_option:
+|
+  { None }
+| ID
+  { Some $1 }
+
 struct_spec:
-| STRUCT ID? LBRACE struct_decl+ RBRACE
+| STRUCT id_option LBRACE struct_decl_list RBRACE
   { make_structty $2 (List.concat $4) }
 | STRUCT ID
   { TStruct (lookup_structty $2) }
-| UNION ID? LBRACE struct_decl+ RBRACE
+| UNION id_option LBRACE struct_decl_list RBRACE
   { make_unionty $2 (List.concat $4) }
 | UNION ID
   { TUnion (lookup_unionty $2) }
@@ -266,8 +287,14 @@ struct_decl:
 | decl
   { $1 }
 
+struct_decl_list:
+| struct_decl
+  { [$1] }
+| struct_decl struct_decl_list
+  { $1 :: $2 }
+
 enum_spec:
-| ENUM ID? LBRACE separated_nonempty_list(COMMA, enumerator) RBRACE
+| ENUM id_option LBRACE enumerator_list RBRACE
   { make_enumty $4; TInt }
 | ENUM ID
   { TInt }
@@ -277,11 +304,26 @@ enumerator:
   { ($1, None) }
 | ID ASSIGN const_expr
   { ($1, Some $3) }
+
+enumerator_list:
+| enumerator
+  { [$1] }
+| enumerator COMMA enumerator_list
+  { $1 :: $3 }
+
 init_declarator:
 | declarator
   { ($1, None) }
 | declarator ASSIGN initializer_
   { ($1, Some $3) }
+
+init_declarator_list:
+|
+  { [] }
+| init_declarator
+  { [$1] }
+| init_declarator COMMA init_declarator_list
+  { $1 :: $3 }
 
 declarator:
 | direct_declarator
@@ -307,7 +349,7 @@ param_decl_list:
 | param_decl
   { [$1] }
 | param_decl COMMA param_decl_list
-  { $1::$3 }
+  { $1 :: $3 }
 
 param_decl:
 | decl_specs declarator
@@ -320,8 +362,14 @@ param_decl:
 initializer_: /* 'initializer' is an OCaml's keyword! */
 | assign_expr
   { IScal (init_fold $1) }
-| LBRACE l=separated_list(COMMA, initializer_) RBRACE
-  { IVect l }
+| LBRACE initializer_list RBRACE
+  { IVect $2 }
+
+initializer_list:
+| initializer_
+  { [$1] }
+| initializer_ COMMA initializer_list
+  { $1 :: $3 }
 
 type_name:
 | type_spec
@@ -365,6 +413,12 @@ stat:
 | labeled_stat
   { $1 }
 
+stat_list:
+|
+  { [] }
+| stat stat_list
+  { $1 :: $2 }
+
 expr_stat:
 | SEMICOLON
   { SNil }
@@ -372,7 +426,7 @@ expr_stat:
   { SExpr($1) }
 
 compound_stat:
-| LBRACE decl* stat* RBRACE
+| LBRACE decl_list stat_list RBRACE
   { SBlock(List.concat $2, $3) }
 
 selection_stat:
@@ -388,8 +442,8 @@ iteration_stat:
   { SWhile($3, $5) }
 | DO stat WHILE LPAREN expr RPAREN SEMICOLON
   { SDoWhile($2, $5) }
-| FOR LPAREN e1=expr?; SEMICOLON e2=expr?; SEMICOLON e3=expr?; RPAREN stat
-  { SFor(e1, e2, e3, $9) }
+| FOR LPAREN expr_option SEMICOLON expr_option SEMICOLON expr_option RPAREN stat
+  { SFor($3, $5, $7, $9) }
 
 jump_stat:
 | GOTO ID SEMICOLON
@@ -398,7 +452,7 @@ jump_stat:
   { SBreak }
 | CONTINUE SEMICOLON
   { SContinue }
-| RETURN expr? SEMICOLON
+| RETURN expr_option SEMICOLON
   { SReturn $2 }
 
 labeled_stat:
@@ -414,6 +468,12 @@ expr:
   { $1 }
 | expr COMMA assign_expr
   { EComma($1, $3) }
+
+expr_option:
+|
+  { None }
+| expr
+  { Some $1 }
 
 assign_expr:
 | cond_expr
@@ -588,5 +648,9 @@ primary_expr:
   { EConst (VInt (get_enum $1)) }
 
 arg_expr_list:
-| args=separated_list(COMMA, assign_expr)
-  { args }
+|
+  { [] }
+| assign_expr
+  { [$1] }
+| assign_expr COMMA arg_expr_list
+  { $1 :: $3 }

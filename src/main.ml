@@ -36,6 +36,6 @@ let () =
   | Lexer.LexerError msg ->
     show_pos fname filebuf;
     show_error "lex: %s" msg
-  | Parser.Error ->
+  | Failure "parse error" ->
     show_pos fname filebuf;
     show_error "parser: syntax error near '%s'" (Lexing.lexeme filebuf)
