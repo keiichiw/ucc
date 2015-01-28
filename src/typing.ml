@@ -86,7 +86,8 @@ let initialize ty init =
          else
            let r, tail = compound ty rem (idx + 1) in
            (l @ r, tail)
-    | TArray (TChar, _), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
+    | TArray (TChar, sz), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
+       let str = if sz > 0 then List.rev (List.tl (List.rev str)) else str in
        let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
        let ilist = Syntax.IVect (List.map f str) in
        compound ty ilist 0
@@ -103,7 +104,8 @@ let initialize ty init =
        if tail <> Syntax.IVect [] then
          raise (TypingError "initializer eccess elements");
        (res, Syntax.IVect is)
-    | TArray (TChar, _), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
+    | TArray (TChar, sz), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
+       let str = if sz > 0 then List.rev (List.tl (List.rev str)) else str in
        let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
        inner inner_ty (Syntax.IVect (List.map f str) :: is)
     | TStruct _, _ | TArray _, _ ->
