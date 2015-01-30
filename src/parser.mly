@@ -161,11 +161,12 @@ let epilogue () =
 
 %token <int> INT
 %token <int> UINT
+%token <float> FLOAT
 %token <int list> STR
 %token <string> ID
 %token <string> TYPEDEF_NAME
 %token <string> ENUM_ID
-%token TINT TUNSIGNED TCHAR TSHORT TLONG TVOID
+%token TINT TUNSIGNED TFLOAT TCHAR TSHORT TLONG TVOID
 %token STRUCT UNION TYPEDEF ENUM
 %token STATIC EXTERN
 %token IF ELSE WHILE DO FOR
@@ -258,6 +259,8 @@ type_spec:
   { TUnsigned }
 | TCHAR
   { TChar }
+| TFLOAT
+  { TFloat}
 | TVOID
   { TVoid }
 | TYPEDEF_NAME
@@ -636,6 +639,8 @@ postfix_expr:
 primary_expr:
 | INT
   { EConst (VInt $1) }
+| FLOAT
+  { EConst (VFloat $1) }
 | UINT
   { ECast (TUnsigned, EConst (VInt $1)) }
 | STR

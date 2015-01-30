@@ -1,8 +1,9 @@
 open Ctype
 
 type value =
-  | VInt of int
-  | VStr of int list
+  | VInt   of int
+  | VFloat of float
+  | VStr   of int list
 
 type expr =
   | EConst       of value

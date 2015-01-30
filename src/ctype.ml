@@ -13,6 +13,7 @@ type ctype =
   | TLong
   | TUnsigned
   | TChar
+  | TFloat
   | TVoid
   | TStruct of int
   | TUnion of int
@@ -33,7 +34,8 @@ let struct_env : (string * ctype) list list ref = ref []
 let union_env  : (string * ctype) list list ref = ref []
 
 let rec sizeof = function
-  | TInt | TShort | TLong | TUnsigned | TChar | TPtr _ -> 1
+  | TInt  | TShort | TLong | TUnsigned
+  | TChar | TFloat | TPtr   _ -> 1
   | TStruct s_id ->
      s_id |> List.nth !struct_env
           |> List.map (snd >> sizeof)

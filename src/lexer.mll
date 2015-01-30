@@ -28,6 +28,7 @@ let dec = ['1'-'9'] digit*
 let hex = '0' ['x' 'X'] ['0'-'9' 'a'-'f' 'A'-'F']+
 let bin = '0' ['b' 'B'] ['0' '1']+
 let integer = (dec | hex | bin)
+let fnum = digit+ '.' digit+
 let oct = '0' ['0'-'7']*
 let uint = integer ['u' 'U']
 let uoct = oct ['u' 'U']
@@ -56,6 +57,8 @@ rule token = parse
   { TUNSIGNED }
 | "char"
   { TCHAR }
+| "float"
+  { TFLOAT }
 | "void"
   { TVOID }
 | "struct"
@@ -204,6 +207,8 @@ rule token = parse
   { UINT (int_of_string ("0o"^(sub u 0 (length u -1)))) }
 | '\'' (char as c) '\''
   { INT (cast_char_to_int c) }
+| fnum as f
+  { FLOAT (float_of_string f) }
 | '\"'
   { STR (string_elements lexbuf) }
 | ident  as n
