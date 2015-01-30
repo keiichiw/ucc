@@ -393,14 +393,7 @@ let dv = function
           TArray (t, List.length init / sizeof t)
        | _ -> ty in
      push venv_ref (n, ty);
-     let elist =
-       if is_num_or_ptr ty then
-         List.map (fun e ->
-           let ex1 = ex e in
-           Type.ECast(ty, typeof ex1, ex1)) init
-       else
-         List.map ex init in
-     Type.Decl(ln, ty, Name n, elist)
+     Type.Decl(ln, ty, Name n, List.map ex init)
 
 let rec st = function
   | Syntax.SNil -> Type.SNil
