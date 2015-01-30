@@ -60,8 +60,8 @@ let is_pointer = function
   | _ -> false
 let is_num_or_ptr x = is_num x || is_pointer x
 
-let int_conv = function
-  | (TVoid,  _)    | (_, TVoid)     -> raise (TypingError "int_conv: void")
+let arith_conv = function
+  | (TVoid,  _)    | (_, TVoid)     -> raise (TypingError "arith_conv: void")
   | (TFloat, _)    | (_, TFloat)    -> TFloat
   | (TLong,  _)    | (_, TLong)     -> TLong
   | (TUnsigned, _) | (_, TUnsigned) -> TUnsigned
@@ -165,11 +165,11 @@ and ex' = function
         | (i, TPtr ty) when is_integral i ->
            Type.EPAdd (TPtr ty, ex2, ex1)
         | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
-           let ty = int_conv (ty1,ty2) in
+           let ty = arith_conv (ty1,ty2) in
            Type.EArith  (ty, Add,
                          Type.ECast(ty, ty1, ex1),
                          Type.ECast(ty, ty2, ex2))
-        | (ty1, ty2) when int_conv(ty1, ty2) = TFloat ->
+        | (ty1, ty2) when arith_conv(ty1, ty2) = TFloat ->
            Type.EFArith (TFloat, Add,
                          Type.ECast(TFloat, ty1, ex1),
                          Type.ECast(TFloat, ty2, ex2))
@@ -185,11 +185,11 @@ and ex' = function
            assert (is_integral (typeof m_ex2));
            Type.EPAdd (TPtr ty1, ex1, m_ex2)
         | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
-           let ty = int_conv (ty1,ty2) in
+           let ty = arith_conv (ty1,ty2) in
            Type.EArith  (ty, Sub,
                          Type.ECast(ty, ty1, ex1),
                          Type.ECast(ty, ty2, ex2))
-        | (ty1, ty2) when int_conv(ty1, ty2) = TFloat ->
+        | (ty1, ty2) when arith_conv(ty1, ty2) = TFloat ->
            Type.EFArith (TFloat, Sub,
                          Type.ECast(TFloat, ty1, ex1),
                          Type.ECast(TFloat, ty2, ex2))
@@ -199,11 +199,11 @@ and ex' = function
      | _ ->
         begin match (typeof ex1, typeof ex2) with
         | (ty1, ty2) when is_integral ty1 && is_integral ty2->
-           let ty = int_conv (ty1, ty2) in
+           let ty = arith_conv (ty1, ty2) in
            Type.EArith (ty, op,
                         Type.ECast(ty, ty1, ex1),
                         Type.ECast(ty, ty2, ex2))
-        | (ty1, ty2) when int_conv (ty1, ty2) = TFloat ->
+        | (ty1, ty2) when arith_conv (ty1, ty2) = TFloat ->
            begin match op with
            | Mul | Div ->
               Type.EFArith (TFloat, op,
@@ -220,7 +220,7 @@ and ex' = function
      let ex2 = ex e2 in
      begin match (typeof ex1, typeof ex2) with
      | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
-        begin match int_conv (ty1, ty2) with
+        begin match arith_conv (ty1, ty2) with
         | TUnsigned ->
            Type.EURel (TInt, op,
                        Type.ECast(TUnsigned, ty1, ex1),
@@ -228,7 +228,7 @@ and ex' = function
         | _ ->
            Type.ERel (TInt, op, ex1, ex2)
         end
-     | (ty1, ty2) when int_conv (ty1, ty2) = TFloat ->
+     | (ty1, ty2) when arith_conv (ty1, ty2) = TFloat ->
         Type.EFRel (TInt, op,
                     Type.ECast(TFloat, ty1, ex1),
                     Type.ECast(TFloat, ty2, ex2))
@@ -243,7 +243,7 @@ and ex' = function
      begin match (typeof ex1, typeof ex2) with
      | (t1, t2) when is_integral t1 && is_integral t2 ->
         Type.EEq (TInt, op, ex1, ex2)
-     | (t1, t2) when int_conv (t1, t2) = TFloat ->
+     | (t1, t2) when arith_conv (t1, t2) = TFloat ->
         Type.EFEq (TInt, op,
                    Type.ECast(TFloat, t1, ex1),
                    Type.ECast(TFloat, t2, ex2))
@@ -313,7 +313,7 @@ and ex' = function
         | (i, TPtr ty) when is_integral i ->
            Type.EAssign (TPtr ty, op, ex2, ex1)
         | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
-           let ty = int_conv (ty1, ty2) in
+           let ty = arith_conv (ty1, ty2) in
            Type.EAssign (ty, op, ex1, ex2)
         | _ -> raise (TypingError "EAssign: add")
         end
@@ -326,14 +326,14 @@ and ex' = function
            assert (is_integral (typeof m_ex2));
            Type.EAssign (TPtr ty1, Some Add, ex1, m_ex2)
         | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
-           let ty = int_conv (ty1,ty2) in
+           let ty = arith_conv (ty1,ty2) in
            Type.EAssign (ty, op, ex1, ex2)
         | _ -> raise (TypingError "EAssign: sub")
         end
      | _ ->
         begin match (typeof ex1, typeof ex2) with
         | (t1, t2) when is_integral t1 && is_integral t2->
-           let ty = int_conv (t1, t2) in
+           let ty = arith_conv (t1, t2) in
            Type.EAssign (ty, op, ex1, ex2)
         | _ -> raise (TypingError "EAssign")
         end
