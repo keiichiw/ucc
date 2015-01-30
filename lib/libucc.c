@@ -101,50 +101,99 @@ static void _printint(int xx, int base, int sgn) {
     _putc(buf[i]);
 }
 
+static void _printfloat (float f, unsigned round) {
+  int num, frac, diff;
+  float abs = f<0 ? -f : f;
+  unsigned i;
+  diff = 1;
+  for (i=0; i<round; i++) {
+    diff *= 10;
+  }
+  num  = (int) abs;
+  frac = (int) ((abs - num) * (float)diff);
+  if (f < 0) _putc('-');
+  _printint( num, 10, 1);
+  _putc('.');
+  _printint(frac, 10, 1);
+  i=(frac/10)+1;
+  while (i<round) {
+    _putc('0'); ++i;
+  }
+}
+
 
 // Print to the given fd. Only understands %d, %x, %p, %s.
 int _printf(char *fmt) {
   char *s;
   int c, i, state;
-  unsigned *ap;
-
+  unsigned* ap;
+  unsigned round = 4;
   state = 0;
   ap = (unsigned*)(void*)&fmt + 1;
-  for(i = 0; fmt[i]; i++){
+  for (i = 0; fmt[i]; i++){
     c = fmt[i] & 0xff;
-    if(state == 0){
-      if(c == '%'){
+    if (state == 0) {
+      if (c == '%') {
         state = '%';
       } else {
         _putc(c);
       }
-    } else if(state == '%'){
-      if(c == 'd'){
-        _printint(*ap, 10, 1);
-        ap++;
-      } else if(c == 'x' || c == 'p'){
-        _printint(*ap, 16, 0);
-        ap++;
-      } else if(c == 's'){
-        s = (char*)*ap;
-        ap++;
-        if(s == 0)
-          s = "(null)";
-        while(*s != 0){
-          _putc(*s);
-          s+=1;
-        }
-      } else if(c == 'c'){
-        _putc(*ap);
-        ap++;
-      } else if(c == '%'){
-        _putc(c);
+    } else if (state == '%'){
+      if (c == '.') {
+        state = '.';
+        round = 0;
       } else {
-        // Unknown % sequence.  Print it to draw attention.
-        _putc('%');
-        _putc(c);
+        if (c == 'd'){
+          _printint(*ap, 10, 1);
+          ap++;
+        } else if (c == 'f') {
+          union {float f;unsigned u;} t;
+          t.u = *ap;
+          _printfloat(t.f, round);
+          ap++;
+        } else if(c == 'x' || c == 'p'){
+          _printint(*ap, 16, 0);
+          ap++;
+        } else if(c == 's'){
+          s = (char*)*ap;
+          ap++;
+          if(s == 0)
+            s = "(null)";
+          while(*s != 0){
+            _putc(*s);
+            s+=1;
+          }
+        } else if(c == 'c'){
+          _putc(*ap);
+          ap++;
+        } else if(c == '%'){
+          _putc(c);
+        } else {
+          // Unknown % sequence.  Print it to draw attention.
+          _putc('%');
+          _putc(c);
+        }
+        state = 0;
       }
-      state = 0;
+    } else if (state == '.') {
+      if ('0'<=c && c<='9') {
+        round = round*10 + (c-'0');
+      } else if (c == 'f') {
+        union {float f;unsigned u;} t;
+        t.u = *ap;
+        _printfloat(t.f, round);
+        ap++;
+        round = 4;
+        state = 0;
+      } else {
+        // Unknown %. sequence.  Print it to draw attention.
+        _putc('@');
+        _putc('.');
+        _printint(round, 10, 0);
+        _putc(c);
+        round = 4;
+        state = 0;
+      }
     }
   }
   return 0;

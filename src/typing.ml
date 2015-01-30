@@ -25,13 +25,17 @@ let resolve_member_type ty mem_name =
 
 let typeof = function
   | Type.EArith  (t, _, _, _) -> t
+  | Type.EFArith (t, _, _, _) -> t
   | Type.ERel    (t, _, _, _) -> t
   | Type.EURel   (t, _, _, _) -> t
+  | Type.EFRel   (t, _, _, _) -> t
   | Type.EPAdd   (t, _, _) -> t
   | Type.EPDiff  (t, _, _) -> t
   | Type.EEq     (t, _, _, _) -> t
+  | Type.EFEq    (t, _, _, _) -> t
   | Type.ELog    (t, _, _, _) -> t
   | Type.EUnary  (t, _, _) -> t
+  | Type.EFUnary (t, _, _) -> t
   | Type.EPPost  (t, _, _) -> t
   | Type.EConst  (t, _) -> t
   | Type.EVar    (t, _) -> t
@@ -47,14 +51,19 @@ let typeof = function
 let is_integral = function
   | TInt | TShort | TLong | TUnsigned | TChar -> true
   | _ -> false
+let is_num = function
+  | TInt | TShort | TLong | TUnsigned
+  | TChar | TFloat -> true
+  | _ -> false
 let is_pointer = function
   | TPtr _ -> true
   | _ -> false
-let is_int_or_ptr x = is_integral x || is_pointer x
+let is_num_or_ptr x = is_num x || is_pointer x
 
 let int_conv = function
-  | (TVoid, _) | (_, TVoid) -> raise (TypingError "int_conv: void")
-  | (TLong, _) | (_, TLong) -> TLong
+  | (TVoid,  _)    | (_, TVoid)     -> raise (TypingError "int_conv: void")
+  | (TFloat, _)    | (_, TFloat)    -> TFloat
+  | (TLong,  _)    | (_, TLong)     -> TLong
   | (TUnsigned, _) | (_, TUnsigned) -> TUnsigned
   | _ -> TInt
 
@@ -136,8 +145,9 @@ let rec ex e =
 and ex' = function
   | Syntax.EConst v ->
      let (ty, v) = match v with
-       | Syntax.VInt i -> TInt, Type.VInt i
-       | Syntax.VStr s -> TArray (TInt, List.length s), Type.VStr s in
+       | Syntax.VInt   i -> TInt,   Type.VInt i
+       | Syntax.VFloat f -> TFloat, Type.VFloat f
+       | Syntax.VStr   s -> TArray (TInt, List.length s), Type.VStr s in
      Type.EConst (ty, v)
   | Syntax.EVar (Name n)->
      Type.EVar (resolve_var_type n, Name n)
@@ -156,8 +166,15 @@ and ex' = function
            Type.EPAdd (TPtr ty, ex2, ex1)
         | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
            let ty = int_conv (ty1,ty2) in
-           Type.EArith (ty, Add, ex1, ex2)
-        | _ -> raise (TypingError "EArith: add")
+           Type.EArith  (ty, Add,
+                         Type.ECast(ty, ty1, ex1),
+                         Type.ECast(ty, ty2, ex2))
+        | (ty1, ty2) when int_conv(ty1, ty2) = TFloat ->
+           Type.EFArith (TFloat, Add,
+                         Type.ECast(TFloat, ty1, ex1),
+                         Type.ECast(TFloat, ty2, ex2))
+        | _ ->
+           raise (TypingError "EArith: add")
         end
      | Sub ->
         begin match (typeof ex1, typeof ex2) with
@@ -169,14 +186,32 @@ and ex' = function
            Type.EPAdd (TPtr ty1, ex1, m_ex2)
         | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
            let ty = int_conv (ty1,ty2) in
-           Type.EArith (ty, Sub, ex1, ex2)
-        | _ -> raise (TypingError "EArith: sub")
+           Type.EArith  (ty, Sub,
+                         Type.ECast(ty, ty1, ex1),
+                         Type.ECast(ty, ty2, ex2))
+        | (ty1, ty2) when int_conv(ty1, ty2) = TFloat ->
+           Type.EFArith (TFloat, Sub,
+                         Type.ECast(TFloat, ty1, ex1),
+                         Type.ECast(TFloat, ty2, ex2))
+        | _ ->
+           raise (TypingError "EArith: sub")
         end
      | _ ->
         begin match (typeof ex1, typeof ex2) with
-        | (t1, t2) when is_integral t1 && is_integral t2->
-           let ty = int_conv (t1, t2) in
-           Type.EArith (ty, op, ex1, ex2)
+        | (ty1, ty2) when is_integral ty1 && is_integral ty2->
+           let ty = int_conv (ty1, ty2) in
+           Type.EArith (ty, op,
+                        Type.ECast(ty, ty1, ex1),
+                        Type.ECast(ty, ty2, ex2))
+        | (ty1, ty2) when int_conv (ty1, ty2) = TFloat ->
+           begin match op with
+           | Mul | Div ->
+              Type.EFArith (TFloat, op,
+                            Type.ECast(TFloat, ty1, ex1),
+                            Type.ECast(TFloat, ty2, ex2))
+           | _ ->
+              raise (TypingError "EFArith; float")
+           end
         | _ -> raise (TypingError "EArith")
         end
      end
@@ -184,13 +219,19 @@ and ex' = function
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      begin match (typeof ex1, typeof ex2) with
-     | (t1, t2) when is_integral t1 && is_integral t2 ->
-        begin match int_conv (t1, t2) with
+     | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
+        begin match int_conv (ty1, ty2) with
         | TUnsigned ->
-           Type.EURel (TInt, op, ex1, ex2)
+           Type.EURel (TInt, op,
+                       Type.ECast(TUnsigned, ty1, ex1),
+                       Type.ECast(TUnsigned, ty2, ex2))
         | _ ->
            Type.ERel (TInt, op, ex1, ex2)
         end
+     | (ty1, ty2) when int_conv (ty1, ty2) = TFloat ->
+        Type.EFRel (TInt, op,
+                    Type.ECast(TFloat, ty1, ex1),
+                    Type.ECast(TFloat, ty2, ex2))
      | (TPtr _, TPtr _) ->
         Type.EURel (TInt, op, ex1, ex2)
      | _ ->
@@ -202,6 +243,10 @@ and ex' = function
      begin match (typeof ex1, typeof ex2) with
      | (t1, t2) when is_integral t1 && is_integral t2 ->
         Type.EEq (TInt, op, ex1, ex2)
+     | (t1, t2) when int_conv (t1, t2) = TFloat ->
+        Type.EFEq (TInt, op,
+                   Type.ECast(TFloat, t1, ex1),
+                   Type.ECast(TFloat, t2, ex2))
      | (TPtr _, TPtr _) ->
         Type.EEq (TInt, op, ex1, ex2)
      | (t, TPtr _) when is_integral t ->
@@ -226,8 +271,8 @@ and ex' = function
      let ex2 = ex e2 in
      let t1 = typeof ex1 in
      let t2 = typeof ex2 in
-     if (is_int_or_ptr t1) ||
-        (is_int_or_ptr t2) then
+     if (is_num_or_ptr t1) ||
+        (is_num_or_ptr t2) then
        Type.ELog (TInt, op, ex1, ex2)
      else
        raise (TypingError "logical")
@@ -238,6 +283,9 @@ and ex' = function
         Type.EPPost(TPtr t, Inc, ex1)
      | (PostDec, TPtr t) ->
         Type.EPPost(TPtr t, Dec, ex1)
+     | (Plus,  TFloat)
+     | (Minus, TFloat) ->
+        Type.EFUnary(TFloat, op, ex1)
      | (LogNot, _) (* ! *)
      | (_, TInt)
      | (_, TShort)
@@ -255,7 +303,9 @@ and ex' = function
      let ex2 = ex e2 in
      begin match op with
      | None ->
-        Type.EAssign (typeof ex1, op, ex1, ex2)
+        let ty = typeof ex1 in
+        Type.EAssign (ty, op, ex1,
+                      Type.ECast(ty, typeof ex2, ex2))
      | Some Add ->
         begin match (typeof ex1, typeof ex2) with
         | (TPtr ty, i) when is_integral i ->
@@ -343,7 +393,14 @@ let dv = function
           TArray (t, List.length init / sizeof t)
        | _ -> ty in
      push venv_ref (n, ty);
-     Type.Decl(ln, ty, Name n, List.map ex init)
+     let elist =
+       if is_num_or_ptr ty then
+         List.map (fun e ->
+           let ex1 = ex e in
+           Type.ECast(ty, typeof ex1, ex1)) init
+       else
+         List.map ex init in
+     Type.Decl(ln, ty, Name n, elist)
 
 let rec st = function
   | Syntax.SNil -> Type.SNil

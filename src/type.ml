@@ -17,6 +17,7 @@ type expr =
   | EFEq    of ctype * eq_bin      * expr * expr
   | ELog    of ctype * logical_bin * expr * expr
   | EUnary  of ctype * unary * expr
+  | EFUnary of ctype * unary * expr
   | EPPost  of ctype * inc * expr
   | EConst  of ctype * value
   | EVar    of ctype * name

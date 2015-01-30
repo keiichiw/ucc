@@ -188,6 +188,8 @@ let rec ex ret_reg = function
      begin match v with
      | VInt i ->
         emit "mov r%d, %d" ret_reg i
+     | VFloat f ->
+        emit "mov r%d, %F" ret_reg f
      | VStr _ ->
         raise (EmitError "logic flaw: EConst at Emitter.ex")
      end
@@ -229,6 +231,14 @@ let rec ex ret_reg = function
           | _ -> assert false in
         emit_bin ret_reg op e1 e2
      end
+  | EFArith (ty, op, e1, e2) ->
+     let op = match op with
+       | Add    -> "fadd"
+       | Sub    -> "fsub"
+       | Mul    -> "fmul"
+       | Div    -> "fdiv"
+       | _ -> assert false in
+     emit_bin ret_reg op e1 e2
   | ERel (_, op, e1, e2) ->
      let op = match op with
        | Le -> "cmple"
@@ -252,10 +262,22 @@ let rec ex ret_reg = function
      emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
      reg_free reg;
      reg_free sreg
+  | EFRel (_, op, e1, e2) ->
+     let op = match op with
+       | Le -> "fcmple"
+       | Lt -> "fcmplt"
+       | Ge -> "fcmpge"
+       | Gt -> "fcmpgt" in
+     emit_bin ret_reg op e1 e2
   | EEq (_, op, e1, e2) ->
      let op = match op with
        | Eq -> "cmpeq"
        | Ne -> "cmpne" in
+     emit_bin ret_reg op e1 e2
+  | EFEq (_, op, e1, e2) ->
+     let op = match op with
+       | Eq -> "fcmpeq"
+       | Ne -> "fcmpne" in
      emit_bin ret_reg op e1 e2
   | EPAdd (_, e1, e2) ->
      begin match (Typing.typeof e1, Typing.typeof e2) with
@@ -343,6 +365,16 @@ let rec ex ret_reg = function
         emit "mov [r%d], r%d" areg reg;
         reg_free areg;
         reg_free reg
+     end
+  | EFUnary (_, op, e) ->
+     begin match op with
+     | Plus ->
+        ex ret_reg e
+     | Minus ->
+        ex ret_reg e;
+       emit "xor r%d, r%d, 0x80000000" ret_reg ret_reg
+     | _ ->
+        raise (EmitError "FUnary")
      end
   | EPPost (ty, op, e) ->
      let areg = reg_alloc () in
@@ -452,7 +484,7 @@ let rec ex ret_reg = function
      emit_lv_addr ret_reg (EDot (ty, e, Name name));
      begin match ty with
      | TArray _ | TStruct _ | TUnion _ ->
-       raise (EmitError "EDot")
+        raise (EmitError "EDot")
      | _ ->
         emit "mov r%d, [r%d]" ret_reg ret_reg
      end
@@ -462,6 +494,26 @@ let rec ex ret_reg = function
      | TUnion  _, _ | _, TUnion  _
      | TArray  _, _ | _, TArray  _ ->
         raise (EmitError "ECast")
+     | _, _ when t1 = t2 ->
+       ex ret_reg e
+     | TFloat, TInt ->
+       ex ret_reg e;
+       emit "itof r%d, r%d" ret_reg ret_reg
+     | TInt, TFloat ->
+       ex ret_reg e;
+       let sgn = reg_alloc () in
+       let lbl = label_create () in
+       emit "and r%d, r%d, 0x80000000" sgn ret_reg;
+       emit "and r%d, r%d, 0x7fffffff" ret_reg ret_reg;
+       emit "floor r%d, r%d" ret_reg ret_reg;
+       emit "ftoi  r%d, r%d" ret_reg ret_reg;
+       emit "bz r%d, L%d" sgn lbl;
+       emit "neg r%d, r%d" ret_reg ret_reg;
+       emit_label lbl;
+       reg_free sgn
+     | TFloat, _
+     | _, TFloat ->
+        raise (EmitError "ECast: float")
      | _ ->
         ex ret_reg e
      end
