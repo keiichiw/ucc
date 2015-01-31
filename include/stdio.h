@@ -2,11 +2,11 @@
 #define _STDIO_H
 
 int _putchar(int);
-int _getchar();
+int _getchar(void);
 int _printf(const char*, ...);
 
-#define putchar _putchar
-#define getchar _getchar
+#define putchar(c) _putchar(c)
+#define getchar() _getchar()
 #define printf _printf
 
 #endif  /* stdio.h */
