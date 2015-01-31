@@ -98,11 +98,12 @@ let resolve_var name =
   | Not_found -> raise (EmitError (sprintf "not found %s" name))
 
 let sizeof_decl = function
-  | Decl (NoLink,ty,_,_) ->
-     sizeof ty * 4
+  | Decl (NoLink,TFun _,_,_)
   | Decl (Extern,_,_,_)
   | Decl (Static,_,_,_) ->
      0
+  | Decl (NoLink,ty,_,_) ->
+     sizeof ty * 4
 
 let rec sizeof_block = function
   | SBlock (d, s) ->
@@ -130,12 +131,13 @@ let push_args args = (* add args in env *)
 
 let push_local_vars vars =
   let go = function
+    | Decl (NoLink, ((TFun _) as ty), Name name, _)
+    | Decl (Extern, ty, Name name, _) ->
+       push env_ref (name, (ty, Global name))
     | Decl (NoLink, ty, Name name, _) ->
        let sz = sizeof ty in
        sp_offset_ref := !sp_offset_ref + sz*4;
        push env_ref (name, (ty, Mem !sp_offset_ref))
-    | Decl (Extern, ty, Name name, _) ->
-       push env_ref (name, (ty, Global name))
     | Decl (Static, ty, Name name, _) ->
        let label_id = label_create () in
        let label = sprintf "L_%s_%d" name label_id in
@@ -525,15 +527,13 @@ let init_local_vars vars =
        reg_free reg
     | (_, Global label) ->
        match (ln, init) with
-       | NoLink, _  ->
-          failwith "init_local_vars"
        | Static, [] ->
           push static_locals_ref (label, create_defualt_init ty)
        | Static, xs ->
           push static_locals_ref (label, xs)
-       | Extern, [] ->
+       | Extern, [] | NoLink, [] ->
           ()                   (* ignore *)
-       | Extern, _ ->
+       | Extern, _ | NoLink, _ ->
           raise (EmitError "local extern variable has initializer") in
   List.iter go vars
 
