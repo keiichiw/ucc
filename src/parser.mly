@@ -395,9 +395,9 @@ initializer_list:
   { $1 :: $3 }
 
 type_name:
-| type_spec
+| decl_specs
   { make_type $1 (DeclIdent (Name "")) }
-| type_spec abstract_declarator
+| decl_specs abstract_declarator
   { make_type $1 $2 }
 
 abstract_declarator:
