@@ -10,7 +10,7 @@ int __mul(int a, int b) {
   return r;
 }
 
-void _signed_divmod(int n, int d, int *qp, int *rp) {
+static void signed_divmod(int n, int d, int *qp, int *rp) {
   int is_neg = (n ^ d) < 0;
   int i, q = 0, r = 0;
   if (n < 0) n = -n;
@@ -27,7 +27,7 @@ void _signed_divmod(int n, int d, int *qp, int *rp) {
   *rp = is_neg ? -r : r;
 }
 
-void _unsigned_divmod(unsigned n, unsigned d, unsigned *qp, unsigned *rp) {
+static void unsigned_divmod(unsigned n, unsigned d, unsigned *qp, unsigned *rp) {
   int i;
   unsigned q = 0, r = 0;
   for (i = 31; i >= 0; --i) {
@@ -44,38 +44,39 @@ void _unsigned_divmod(unsigned n, unsigned d, unsigned *qp, unsigned *rp) {
 
 int __signed_div(int n, int d) {
   int p, q;
-  _signed_divmod(n, d, &p, &q);
+  signed_divmod(n, d, &p, &q);
   return p;
 }
 
 int __signed_mod(int n, int d) {
   int p, q;
-  _signed_divmod(n, d, &p, &q);
+  signed_divmod(n, d, &p, &q);
   return q;
 }
 
 unsigned __unsigned_div(unsigned n, unsigned d) {
   unsigned p, q;
-  _unsigned_divmod(n, d, &p, &q);
+  unsigned_divmod(n, d, &p, &q);
   return p;
 }
 
 unsigned __unsigned_mod(unsigned n, unsigned d) {
   unsigned p, q;
-  _unsigned_divmod(n, d, &p, &q);
+  unsigned_divmod(n, d, &p, &q);
   return q;
 }
 
 
-void _putc(char c) {
+int _putchar(int c) {
   __gaia_write(c);
+  return c;
 }
 
-char _getc() {
+int _getchar(void) {
   return __gaia_read();
 }
 
-static void _printint(int xx, int base, int sgn) {
+static void print_int(int xx, int base, int sgn) {
   char digits[20] = "0123456789ABCDEF";
   char buf[16];
   int i, neg;
@@ -98,12 +99,12 @@ static void _printint(int xx, int base, int sgn) {
     buf[i++] = '-';
 
   while(--i >= 0)
-    _putc(buf[i]);
+    _putchar(buf[i]);
 }
 
 
 // Print to the given fd. Only understands %d, %x, %p, %s.
-int _printf(char *fmt) {
+int _printf(const char *fmt, ...) {
   char *s;
   int c, i, state;
   unsigned *ap;
@@ -116,14 +117,14 @@ int _printf(char *fmt) {
       if(c == '%'){
         state = '%';
       } else {
-        _putc(c);
+        _putchar(c);
       }
     } else if(state == '%'){
       if(c == 'd'){
-        _printint(*ap, 10, 1);
+        print_int(*ap, 10, 1);
         ap++;
       } else if(c == 'x' || c == 'p'){
-        _printint(*ap, 16, 0);
+        print_int(*ap, 16, 0);
         ap++;
       } else if(c == 's'){
         s = (char*)*ap;
@@ -131,18 +132,18 @@ int _printf(char *fmt) {
         if(s == 0)
           s = "(null)";
         while(*s != 0){
-          _putc(*s);
+          _putchar(*s);
           s+=1;
         }
       } else if(c == 'c'){
-        _putc(*ap);
+        _putchar(*ap);
         ap++;
       } else if(c == '%'){
-        _putc(c);
+        _putchar(c);
       } else {
         // Unknown % sequence.  Print it to draw attention.
-        _putc('%');
-        _putc(c);
+        _putchar('%');
+        _putchar(c);
       }
       state = 0;
     }
@@ -150,7 +151,7 @@ int _printf(char *fmt) {
   return 0;
 }
 
-void _abort () {
+void _abort (void) {
   while (1) {
     _printf("abort!\n");
   }
@@ -158,7 +159,7 @@ void _abort () {
 
 typedef int jmp_buf[4];
 
-int setjmp (jmp_buf buf) {
+int _setjmp (jmp_buf buf) {
   __asm("\
   mov r1, [rbp + 4]     # r1 <- buf                    \n\
   mov r2, [rbp]         # r2 <- caller rbp             \n\
@@ -173,7 +174,7 @@ int setjmp (jmp_buf buf) {
 ");
 }
 
-void longjmp (jmp_buf buf, int val) {
+void _longjmp (jmp_buf buf, int val) {
   __asm("\
   mov r1, [rbp + 8]     # r1 <- val                   \n\
   mov r2, [rbp + 4]     # r2 <- buf                   \n\
