@@ -661,7 +661,7 @@ primary_expr:
   { EConst (VInt $1) }
 | UINT
   { ECast (TUnsigned, EConst (VInt $1)) }
-| STR
+| string_literal
   { EConst (VStr $1) }
 | ID
   { EVar (Name $1)}
@@ -669,6 +669,12 @@ primary_expr:
   { $2 }
 | ENUM_ID
   { EConst (VInt (get_enum $1)) }
+
+string_literal:
+| STR
+  { $1 }
+| STR string_literal
+  { (take (List.length $1 - 1) $1) @ $2 }
 
 arg_expr_list:
 |
