@@ -288,20 +288,20 @@ type_spec:
 | enum_spec
   { $1 }
 
-id_option:
+ident_option:
 |
   { None }
-| ID
+| ident
   { Some $1 }
 
 struct_spec:
-| STRUCT id_option LBRACE struct_decl_list RBRACE
+| STRUCT ident_option LBRACE struct_decl_list RBRACE
   { make_structty $2 (List.concat $4) }
-| STRUCT ID
+| STRUCT ident
   { TStruct (lookup_structty $2) }
-| UNION id_option LBRACE struct_decl_list RBRACE
+| UNION ident_option LBRACE struct_decl_list RBRACE
   { make_unionty $2 (List.concat $4) }
-| UNION ID
+| UNION ident
   { TUnion (lookup_unionty $2) }
 
 struct_decl:
@@ -315,15 +315,15 @@ struct_decl_list:
   { $1 :: $2 }
 
 enum_spec:
-| ENUM id_option LBRACE enumerator_list RBRACE
+| ENUM ident_option LBRACE enumerator_list RBRACE
   { make_enumty $4; TInt }
-| ENUM ID
+| ENUM ident
   { TInt }
 
 enumerator:
-| ID
+| ident
   { ($1, None) }
-| ID ASSIGN const_expr
+| ident ASSIGN const_expr
   { ($1, Some $3) }
 
 enumerator_list:
@@ -353,7 +353,7 @@ declarator:
   { DeclPtr $2 }
 
 direct_declarator:
-| ID
+| ident
   { DeclIdent(Name $1) }
 | LPAREN declarator RPAREN
   { $2 }
@@ -469,7 +469,7 @@ iteration_stat:
   { SFor($3, $5, $7, $9) }
 
 jump_stat:
-| GOTO ID SEMICOLON
+| GOTO ident SEMICOLON
   { SGoto $2 }
 | BREAK SEMICOLON
   { SBreak }
@@ -479,7 +479,7 @@ jump_stat:
   { SReturn $2 }
 
 labeled_stat:
-| ID COLON stat
+| ident COLON stat
   { SLabel($1, $3) }
 | CASE const_expr COLON
   { SCase($2) }
@@ -651,9 +651,9 @@ postfix_expr:
   { EUnary (PostDec, $1) }
 | postfix_expr LPAREN arg_expr_list RPAREN
   { ECall($1, $3) }
-| postfix_expr DOT ID
+| postfix_expr DOT ident
   { EDot($1, Name $3) }
-| postfix_expr ARROW ID
+| postfix_expr ARROW ident
   { EDot(EPtr $1, Name $3) }
 
 primary_expr:
@@ -677,3 +677,11 @@ arg_expr_list:
   { [$1] }
 | assign_expr COMMA arg_expr_list
   { $1 :: $3 }
+
+ident:
+| ID
+  { $1 }
+| TYPEDEF_NAME
+  { $1 }
+| ENUM_ID
+  { $1 }
