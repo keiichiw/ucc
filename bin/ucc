@@ -46,7 +46,7 @@ gcc -I$INCLUDE_DIR -w -fsyntax-only $1 || exit 1
 
 # preprocess
 
-$CPP -I$INCLUDE_DIR -I$UCCLIB_INCLUDE_DIR -D__UCC__=1 $1 > /tmp/$FILENAME.x || exit 1
+$CPP -undef -std=c89 -I$INCLUDE_DIR -I$UCCLIB_INCLUDE_DIR -D__UCC__=1 $1 > /tmp/$FILENAME.x || exit 1
 
 # compile
 
