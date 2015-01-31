@@ -149,3 +149,9 @@ int _printf(char *fmt) {
   }
   return 0;
 }
+
+void _abort () {
+  while (1) {
+    _printf("abort!\n");
+  }
+}
