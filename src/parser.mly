@@ -186,6 +186,7 @@ let epilogue () =
 %token STAR_ASSIGN SLASH_ASSIGN MOD_ASSIGN LSHIFT_ASSIGN RSHIFT_ASSIGN
 %token AMP_ASSIGN HAT_ASSIGN BAR_ASSIGN
 %token SIZEOF
+%token DOTS
 %token EOF
 
 /* avoid dangling-else problem */
@@ -347,6 +348,8 @@ direct_declarator:
 
 param_decl_list:
 | param_decl
+  { [$1] }
+| param_decl COMMA DOTS
   { [$1] }
 | param_decl COMMA param_decl_list
   { $1 :: $3 }

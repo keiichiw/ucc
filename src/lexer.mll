@@ -188,6 +188,8 @@ rule token = parse
   { RBRACKET }
 | "sizeof"
   { SIZEOF }
+| "..."
+  { DOTS }
 | "//"
   { commentbis lexbuf }
 | "#"
