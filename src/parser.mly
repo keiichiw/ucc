@@ -157,6 +157,24 @@ let epilogue () =
   struct_env := List.rev !struct_env;
   union_env := List.rev !union_env
 
+let to_unsigned = function
+  | _ -> TUnsigned
+
+let create_type = function
+  | (t, TUnsigned)
+  | (TUnsigned, t) ->
+     to_unsigned t
+  | (_, TLong)
+  | (TLong, _) ->
+     TLong
+  | (_, TShort)
+  | (TShort, _) ->
+     TShort
+  | (_, TChar)
+  | (TChar, _) ->
+     TChar
+  | _ ->
+     TInt
 %}
 
 %token <int> INT
@@ -247,6 +265,8 @@ decl_real:
 decl_specs:
 | type_spec
   { $1 }
+| type_spec decl_specs
+  { create_type ($1, $2) }
 
 type_spec:
 | TINT
