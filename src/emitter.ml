@@ -148,17 +148,17 @@ let create_defualt_init ty =
 let emit_global_var name init =
   let contents = ref [] in
   emit_raw "%s:\n" name;
-  List.iter
-    begin function
+  let rec go = function
     | EConst (TInt, (VInt v)) ->
        emit ".int %d" v
     | EAddr (TPtr TInt, EConst (TArray (TInt, _), VStr s)) ->
        contents := s :: !contents;
        emit ".int %s_contents_%d" name (List.length !contents)
-    | _ ->
-       raise (EmitError "global initializer must be constant")
-    end
-    init;
+    | EAddr (TPtr _, EVar (_, Name v)) when List.mem_assoc v !env_ref ->
+       emit ".int %s" v
+    | ECast (_, _, e) -> go e
+    | _ -> raise (EmitError "global initializer must be constant") in
+  List.iter go init;
   List.iteri
     (fun i c ->
      emit_raw "%s_contents_%d:\n" name (i + 1);
