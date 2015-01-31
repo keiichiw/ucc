@@ -9,10 +9,17 @@ let peek stack = List.hd !stack
 let pop stack = stack := List.tl !stack
 
 let id x = x
+let const x _ = x
 
 let rec rep x = function
   | 0 -> []
   | n -> x :: rep x (n-1)
+
+let rec take = function
+  | 0 -> const []
+  | i -> function
+    | []   -> failwith "take"
+    | x::xs -> x::take (i-1) xs
 
 let opMap f = function
   | Some x -> Some (f x)

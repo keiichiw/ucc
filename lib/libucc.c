@@ -198,3 +198,39 @@ int _printf(char *fmt) {
   }
   return 0;
 }
+
+void _abort () {
+  while (1) {
+    _printf("abort!\n");
+  }
+}
+
+typedef int jmp_buf[4];
+
+int setjmp (jmp_buf buf) {
+  __asm("\
+  mov r1, [rbp + 4]     # r1 <- buf                    \n\
+  mov r2, [rbp]         # r2 <- caller rbp             \n\
+  mov [r1], r2          # save caller rbp              \n\
+  mov [r1 + 4], r28     # save r28 (return address)    \n\
+  mov [r1 + 8], rbp     # save current rbp             \n\
+  jl  r2, 0             # get PC                       \n\
+  add r2, r2, 12        # r2 <- address of 'ret'       \n\
+  mov [r1 + 12], r2     # save r2                      \n\
+  mov r1, 0             # return 0                     \n\
+  ret                                                  \n\
+");
+}
+
+void longjmp (jmp_buf buf, int val) {
+  __asm("\
+  mov r1, [rbp + 8]     # r1 <- val                   \n\
+  mov r2, [rbp + 4]     # r2 <- buf                   \n\
+  mov r3, [r2]          # r3 <- caller rbp            \n\
+  mov r28, [r2 + 4]     # restore r28                 \n\
+  mov rbp, [r2 + 8]     # restore setjmp rbp          \n\
+  mov [rbp], r3         # restore setjmp's caller rbp \n\
+  mov r2, [r2 + 12]     # r2 <- address of 'ret'      \n\
+  jr  r2                # jump                        \n\
+");
+}

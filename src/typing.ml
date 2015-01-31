@@ -150,7 +150,10 @@ and ex' = function
        | Syntax.VStr   s -> TArray (TInt, List.length s), Type.VStr s in
      Type.EConst (ty, v)
   | Syntax.EVar (Name n)->
-     Type.EVar (resolve_var_type n, Name n)
+     if n = "__asm" then
+       Type.EVar (TFun (TVoid, [TPtr TChar]), Name n)
+     else
+       Type.EVar (resolve_var_type n, Name n)
   | Syntax.EComma (e1, e2) ->
      let e = ex e2 in
      Type.EComma(typeof e, ex e1, e)

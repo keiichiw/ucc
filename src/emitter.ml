@@ -388,6 +388,10 @@ let rec ex ret_reg = function
      emit "mov [r%d], r%d" areg reg;
      reg_free areg;
      reg_free reg
+  | ECall (_, EAddr(_, EVar(_, Name "__asm")),
+           [EAddr (_, EConst(_, VStr asm))]) ->
+     let slist = List.map (Char.chr >> String.make 1) asm in
+     emit_raw "%s" (String.concat "" (Util.take (List.length slist - 1) slist))
   | ECall (_, f, exlst) ->
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
      let arg_list = List.map
