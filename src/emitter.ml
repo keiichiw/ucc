@@ -530,16 +530,16 @@ let rec ex ret_reg = function
        emit "itof r%d, r%d" ret_reg ret_reg
      | TInt, TFloat ->
        ex ret_reg e;
-       let sgn = reg_alloc () in
-       let lbl = label_create () in
-       emit "and r%d, r%d, 0x80000000" sgn ret_reg;
-       emit "and r%d, r%d, 0x7fffffff" ret_reg ret_reg;
+       let flg = reg_alloc () in
+       emit "sar r%d, r%d, 31" flg ret_reg;    (* flg=ret<0?-1:0 *)
+       emit "shl r%d, r%d, 1"  ret_reg ret_reg;
+       emit "shr r%d, r%d, 1"  ret_reg ret_reg;(* fabs(ret_reg)*)
        emit "floor r%d, r%d" ret_reg ret_reg;
        emit "ftoi  r%d, r%d" ret_reg ret_reg;
-       emit "bz r%d, L%d" sgn lbl;
-       emit "neg r%d, r%d" ret_reg ret_reg;
-       emit_label lbl;
-       reg_free sgn
+       (* (x^flg)-flg equals (flg==-1?-x:x) *)
+       emit "xor r%d, r%d, r%d" ret_reg ret_reg flg;
+       emit "sub r%d, r%d, r%d" ret_reg ret_reg flg;
+       reg_free flg
      | TFloat, TUInt
      | TUInt, TFloat ->
         raise (EmitError "ECast: float <-> unsigned is unsupported")
