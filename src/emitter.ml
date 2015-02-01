@@ -391,7 +391,7 @@ let rec ex ret_reg = function
      reg_free areg;
      reg_free reg
   | ECall (_, EAddr(_, EVar(_, Name "__asm")),
-           [EAddr (_, EConst(_, VStr asm))]) ->
+           [ECast(_, _, EAddr (_, EConst(_, VStr asm)))]) ->
      let slist = List.map (Char.chr >> String.make 1) asm in
      emit_raw "%s" (String.concat "" (Util.take (List.length slist - 1) slist))
   | ECall (_, f, exlst) ->

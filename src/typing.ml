@@ -340,8 +340,19 @@ and ex' = function
   | Syntax.ECall (e1, elist) ->
      let ex1 = ex e1 in
      begin match typeof ex1 with
-     | TPtr (TFun (retty, _)) ->
-        Type.ECall (retty, ex1, List.map ex elist)
+     | TPtr (TFun (retty, argtys)) ->
+        let go a t =
+          let arg = ex a in
+          if typeof arg = t then
+            arg
+          else
+            Type.ECast(t, typeof arg, arg) in
+        let args =
+          if List.length elist = List.length argtys then
+            List.map2 go elist argtys
+          else (* for variadic function *)
+            List.map ex elist in
+        Type.ECall (retty, ex1, args)
      | _ ->
         raise (TypingError "ECall: not a function given")
      end

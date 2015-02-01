@@ -6,11 +6,7 @@
 #include <stdarg.h>
 #include "test.h"
 
-#ifndef __UCC__
 int sum (int count, ...) {
-#else
-int sum (int count) {
-#endif
   int s = 0;
   va_list ap;
   va_start(ap, count);
