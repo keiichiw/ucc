@@ -41,6 +41,7 @@ let typeof = function
   | Type.EVar    (t, _) -> t
   | Type.EComma  (t, _, _) -> t
   | Type.EAssign (t, _, _, _) -> t
+  | Type.EFAssign(t, _, _, _) -> t
   | Type.ECall   (t, _, _) -> t
   | Type.EAddr   (t, _) -> t
   | Type.EPtr    (t, _) -> t
@@ -181,7 +182,7 @@ and ex' = function
         end
      | Sub ->
         begin match (typeof ex1, typeof ex2) with
-        | (TPtr ty1, TPtr ty2) when ty1 = ty2->
+        | (TPtr ty1, TPtr ty2) when ty1 = ty2 ->
            Type.EPDiff(TInt, ex1, ex2)
         | (TPtr ty1, i) when is_integral i ->
            let m_ex2 = ex (Syntax.EUnary(Minus, e2)) in
@@ -304,42 +305,33 @@ and ex' = function
   | Syntax.EAssign (op, e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
-     begin match op with
-     | None ->
-        let ty = typeof ex1 in
-        Type.EAssign (ty, op, ex1,
-                      Type.ECast(ty, typeof ex2, ex2))
-     | Some Add ->
-        begin match (typeof ex1, typeof ex2) with
-        | (TPtr ty, i) when is_integral i ->
+     begin match (typeof ex1, typeof ex2) with
+     | (ty1, ty2) when is_integral ty1 && ty1 = ty2 ->
+        Type.EAssign (ty1, op, ex1, ex2)
+     | (ty1, ty2) when is_integral ty1 && is_num ty2 ->
+        Type.EAssign (ty1, op, ex1,
+                      Type.ECast(ty1, ty2, ex2))
+     | (ty1, ty2) when ty1= TFloat && is_num ty2 ->
+        Type.EFAssign (TFloat, op, ex1,
+                       Type.ECast(ty1, ty2, ex2))
+     | (TPtr ty, i) when is_integral i ->
+        begin match op with
+        | None ->
            Type.EAssign (TPtr ty, op, ex1, ex2)
-        | (i, TPtr ty) when is_integral i ->
-           Type.EAssign (TPtr ty, op, ex2, ex1)
-        | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
-           let ty = arith_conv (ty1, ty2) in
-           Type.EAssign (ty, op, ex1, ex2)
-        | _ -> raise (TypingError "EAssign: add")
-        end
-     | Some Sub ->
-        begin match (typeof ex1, typeof ex2) with
-        | (TPtr _, TPtr _) ->
-           raise (TypingError "EAssign")
-        | (TPtr ty1, i) when is_integral i ->
+        | Some Add ->
+           Type.EAssign (TPtr ty, op, ex1, ex2)
+        | Some Sub ->
            let m_ex2 = ex (Syntax.EUnary(Minus, e2)) in
-           assert (is_integral (typeof m_ex2));
-           Type.EAssign (TPtr ty1, Some Add, ex1, m_ex2)
-        | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
-           let ty = arith_conv (ty1,ty2) in
-           Type.EAssign (ty, op, ex1, ex2)
-        | _ -> raise (TypingError "EAssign: sub")
+           Type.EAssign (TPtr ty, Some Add, ex1, m_ex2)
+        | _ ->
+           raise (TypingError "EAssign: TPtr")
         end
-     | _ ->
-        begin match (typeof ex1, typeof ex2) with
-        | (t1, t2) when is_integral t1 && is_integral t2->
-           let ty = arith_conv (t1, t2) in
-           Type.EAssign (ty, op, ex1, ex2)
-        | _ -> raise (TypingError "EAssign")
-        end
+     | (ty1, ty2) ->
+        if op = None then
+          Type.EAssign (ty1, op, ex1,
+                        Type.ECast(ty1, ty2, ex2))
+        else
+          raise (TypingError "EAssign")
      end
   | Syntax.ECall (e1, elist) ->
      let ex1 = ex e1 in

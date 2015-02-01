@@ -481,6 +481,29 @@ let rec ex ret_reg = function
      end;
      emit "mov [r%d], r%d" reg ret_reg;
      reg_free reg
+  | EFAssign (ty, op, e1, e2) ->
+     let reg = reg_alloc () in
+     emit_lv_addr reg e1;
+     ex ret_reg e2;
+     begin match op with
+     | None ->
+        ()
+     | Some op ->
+        let tmp_reg = reg_alloc () in
+        emit "mov r%d, [r%d]" tmp_reg reg;
+        let fop =
+          begin match op with
+          | Add -> "fadd"
+          | Sub -> "fsub"
+          | Mul -> "fmul"
+          | Div -> "fdiv"
+          | _   -> raise (EmitError "EFAssign")
+          end in
+        emit "%s r%d, r%d, r%d" fop ret_reg tmp_reg ret_reg;
+        reg_free tmp_reg
+     end;
+     emit "mov [r%d], r%d" reg ret_reg;
+     reg_free reg
   | EAddr (_, e) ->
      emit_lv_addr ret_reg e
   | EPtr (_, e) ->

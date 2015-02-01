@@ -6,29 +6,30 @@ type value =
   | VStr   of int list
 
 type expr =
-  | EArith  of ctype * arith_bin   * expr * expr
-  | EFArith of ctype * arith_bin   * expr * expr
-  | EPAdd   of ctype * expr * expr
-  | EPDiff  of ctype * expr * expr
-  | ERel    of ctype * rel_bin     * expr * expr
-  | EURel   of ctype * rel_bin     * expr * expr
-  | EFRel   of ctype * rel_bin     * expr * expr
-  | EEq     of ctype * eq_bin      * expr * expr
-  | EFEq    of ctype * eq_bin      * expr * expr
-  | ELog    of ctype * logical_bin * expr * expr
-  | EUnary  of ctype * unary * expr
-  | EFUnary of ctype * unary * expr
-  | EPPost  of ctype * inc * expr
-  | EConst  of ctype * value
-  | EVar    of ctype * name
-  | EComma  of ctype * expr * expr
-  | EAssign of ctype * arith_bin option * expr * expr
-  | ECall   of ctype * expr * (expr list)
-  | EAddr   of ctype * expr
-  | EPtr    of ctype * expr
-  | ECond   of ctype * expr * expr * expr
-  | EDot    of ctype * expr * name
-  | ECast   of ctype * ctype * expr
+  | EArith   of ctype * arith_bin   * expr * expr
+  | EFArith  of ctype * arith_bin   * expr * expr
+  | EPAdd    of ctype * expr * expr
+  | EPDiff   of ctype * expr * expr
+  | ERel     of ctype * rel_bin     * expr * expr
+  | EURel    of ctype * rel_bin     * expr * expr
+  | EFRel    of ctype * rel_bin     * expr * expr
+  | EEq      of ctype * eq_bin      * expr * expr
+  | EFEq     of ctype * eq_bin      * expr * expr
+  | ELog     of ctype * logical_bin * expr * expr
+  | EUnary   of ctype * unary * expr
+  | EFUnary  of ctype * unary * expr
+  | EPPost   of ctype * inc * expr
+  | EConst   of ctype * value
+  | EVar     of ctype * name
+  | EComma   of ctype * expr * expr
+  | EAssign  of ctype * arith_bin option * expr * expr
+  | EFAssign of ctype * arith_bin option * expr * expr
+  | ECall    of ctype * expr * (expr list)
+  | EAddr    of ctype * expr
+  | EPtr     of ctype * expr
+  | ECond    of ctype * expr * expr * expr
+  | EDot     of ctype * expr * name
+  | ECast    of ctype * ctype * expr
 
 type decl =
   | Decl of linkage * ctype * name * (expr list)
