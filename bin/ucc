@@ -78,4 +78,4 @@ if [ $ASM_MODE ]; then
 fi
 
 # assemble
-$AS $ASMS -l $UCCLIB -o $OUTFILE || exit 1
+$AS $ASMS -l $UCCLIB -o $OUTFILE -f __UCC_HEAP_START || exit 1
