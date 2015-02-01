@@ -10,7 +10,7 @@ int main()
 {
     int i;
     for (i = 0; i < sizeof buf; ++i) {
-        _putc(((char*)buf)[i]);
+        putchar(((char*)buf)[i]);
     }
-    printf("\n");
+    putchar('\n');
 }

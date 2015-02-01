@@ -157,6 +157,24 @@ let epilogue () =
   struct_env := List.rev !struct_env;
   union_env := List.rev !union_env
 
+let to_unsigned = function
+  | _ -> TUInt
+
+let create_type = function
+  | (t, TUInt)
+  | (TUInt, t) ->
+     to_unsigned t
+  | (_, TLong)
+  | (TLong, _) ->
+     TLong
+  | (_, TShort)
+  | (TShort, _) ->
+     TShort
+  | (_, TChar)
+  | (TChar, _) ->
+     TChar
+  | _ ->
+     TInt
 %}
 
 %token <int> INT
@@ -187,6 +205,7 @@ let epilogue () =
 %token STAR_ASSIGN SLASH_ASSIGN MOD_ASSIGN LSHIFT_ASSIGN RSHIFT_ASSIGN
 %token AMP_ASSIGN HAT_ASSIGN BAR_ASSIGN
 %token SIZEOF
+%token DOTS
 %token EOF
 
 /* avoid dangling-else problem */
@@ -247,6 +266,8 @@ decl_real:
 decl_specs:
 | type_spec
   { $1 }
+| type_spec decl_specs
+  { create_type ($1, $2) }
 
 type_spec:
 | TINT
@@ -256,7 +277,7 @@ type_spec:
 | TLONG
   { TLong }
 | TUNSIGNED
-  { TUnsigned }
+  { TUInt }
 | TCHAR
   { TChar }
 | TFLOAT
@@ -351,6 +372,8 @@ direct_declarator:
 param_decl_list:
 | param_decl
   { [$1] }
+| param_decl COMMA DOTS
+  { [$1] }
 | param_decl COMMA param_decl_list
   { $1 :: $3 }
 
@@ -375,9 +398,9 @@ initializer_list:
   { $1 :: $3 }
 
 type_name:
-| type_spec
+| decl_specs
   { make_type $1 (DeclIdent (Name "")) }
-| type_spec abstract_declarator
+| decl_specs abstract_declarator
   { make_type $1 $2 }
 
 abstract_declarator:
@@ -642,8 +665,8 @@ primary_expr:
 | FLOAT
   { EConst (VFloat $1) }
 | UINT
-  { ECast (TUnsigned, EConst (VInt $1)) }
-| STR
+  { ECast (TUInt, EConst (VInt $1)) }
+| string_literal
   { EConst (VStr $1) }
 | ID
   { EVar (Name $1)}
@@ -651,6 +674,12 @@ primary_expr:
   { $2 }
 | ENUM_ID
   { EConst (VInt (get_enum $1)) }
+
+string_literal:
+| STR
+  { $1 }
+| STR string_literal
+  { (take (List.length $1 - 1) $1) @ $2 }
 
 arg_expr_list:
 |

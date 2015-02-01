@@ -11,7 +11,7 @@ type ctype =
   | TInt
   | TShort
   | TLong
-  | TUnsigned
+  | TUInt
   | TChar
   | TFloat
   | TVoid
@@ -34,7 +34,7 @@ let struct_env : (string * ctype) list list ref = ref []
 let union_env  : (string * ctype) list list ref = ref []
 
 let rec sizeof = function
-  | TInt  | TShort | TLong | TUnsigned
+  | TInt  | TShort | TLong | TUInt
   | TChar | TFloat | TPtr   _ -> 1
   | TStruct s_id ->
      s_id |> List.nth !struct_env

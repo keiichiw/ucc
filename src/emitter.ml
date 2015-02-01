@@ -98,11 +98,12 @@ let resolve_var name =
   | Not_found -> raise (EmitError (sprintf "not found %s" name))
 
 let sizeof_decl = function
-  | Decl (NoLink,ty,_,_) ->
-     sizeof ty * 4
+  | Decl (NoLink,TFun _,_,_)
   | Decl (Extern,_,_,_)
   | Decl (Static,_,_,_) ->
      0
+  | Decl (NoLink,ty,_,_) ->
+     sizeof ty * 4
 
 let rec sizeof_block = function
   | SBlock (d, s) ->
@@ -130,12 +131,13 @@ let push_args args = (* add args in env *)
 
 let push_local_vars vars =
   let go = function
+    | Decl (NoLink, ((TFun _) as ty), Name name, _)
+    | Decl (Extern, ty, Name name, _) ->
+       push env_ref (name, (ty, Global name))
     | Decl (NoLink, ty, Name name, _) ->
        let sz = sizeof ty in
        sp_offset_ref := !sp_offset_ref + sz*4;
        push env_ref (name, (ty, Mem !sp_offset_ref))
-    | Decl (Extern, ty, Name name, _) ->
-       push env_ref (name, (ty, Global name))
     | Decl (Static, ty, Name name, _) ->
        let label_id = label_create () in
        let label = sprintf "L_%s_%d" name label_id in
@@ -148,17 +150,17 @@ let create_defualt_init ty =
 let emit_global_var name init =
   let contents = ref [] in
   emit_raw "%s:\n" name;
-  List.iter
-    begin function
+  let rec go = function
     | EConst (TInt, (VInt v)) ->
        emit ".int %d" v
     | EAddr (TPtr TInt, EConst (TArray (TInt, _), VStr s)) ->
        contents := s :: !contents;
        emit ".int %s_contents_%d" name (List.length !contents)
-    | _ ->
-       raise (EmitError "global initializer must be constant")
-    end
-    init;
+    | EAddr (TPtr _, EVar (_, Name v)) when List.mem_assoc v !env_ref ->
+       emit ".int %s" v
+    | ECast (_, _, e) -> go e
+    | _ -> raise (EmitError "global initializer must be constant") in
+  List.iter go init;
   List.iteri
     (fun i c ->
      emit_raw "%s_contents_%d:\n" name (i + 1);
@@ -208,8 +210,8 @@ let rec ex ret_reg = function
      | Mul | Div | Mod ->
         let fun_name =
           match op, ty with
-          | Div, TUnsigned -> "__unsigned_div"
-          | Mod, TUnsigned -> "__unsigned_mod"
+          | Div, TUInt -> "__unsigned_div"
+          | Mod, TUInt -> "__unsigned_mod"
           | Mul, _ -> "__mul"
           | Div, _ -> "__signed_div"
           | Mod, _ -> "__signed_mod"
@@ -465,12 +467,12 @@ let rec ex ret_reg = function
         | Mul, _ ->
            emit_native_call ret_reg "__mul" tmp_reg ret_reg
         | Div, _ ->
-           if ty = TUnsigned then
+           if ty = TUInt then
              emit_native_call ret_reg "__unsigned_div" tmp_reg ret_reg
            else
              emit_native_call ret_reg "__signed_div" tmp_reg ret_reg
         | Mod, _ ->
-           if ty = TUnsigned then
+           if ty = TUInt then
              emit_native_call ret_reg "__unsigned_mod" tmp_reg ret_reg
            else
              emit_native_call ret_reg "__signed_mod" tmp_reg ret_reg
@@ -577,15 +579,13 @@ let init_local_vars vars =
        reg_free reg
     | (_, Global label) ->
        match (ln, init) with
-       | NoLink, _  ->
-          failwith "init_local_vars"
        | Static, [] ->
           push static_locals_ref (label, create_defualt_init ty)
        | Static, xs ->
           push static_locals_ref (label, xs)
-       | Extern, [] ->
+       | Extern, [] | NoLink, [] ->
           ()                   (* ignore *)
-       | Extern, _ ->
+       | Extern, _ | NoLink, _ ->
           raise (EmitError "local extern variable has initializer") in
   List.iter go vars
 

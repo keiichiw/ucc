@@ -9,6 +9,8 @@ UCCLIB=$BIN_DIR/../lib/libucc.s
 INCLUDE_DIR=.
 UCCLIB_INCLUDE_DIR=$BIN_DIR/../include
 OUTFILE=a.out
+OFLAG=0
+FILE1=$1
 
 usage_exit() {
     echo "Usage: $0 [-s] [-o file] file" 1>&2
@@ -37,32 +39,43 @@ done
 
 shift $((OPTIND - 1))
 
-FILEDIR=`dirname $1`
-FILENAME=`basename $1`
+if [ \( $# -gt 1 \) -a \( $OFLAG = 1 \) ]; then
+    echo '-o option got but more than one files given'
+    exit 1
+fi
 
-# syntax check
+CPPOPTS="-undef -std=c89 -I$INCLUDE_DIR -I$UCCLIB_INCLUDE_DIR -D__UCC__=1"
 
-gcc -I$INCLUDE_DIR -w -fsyntax-only $1 || exit 1
+ASMS=''
 
-# preprocess
+function compile() {
+    local FILEDIR=`dirname $1`
+    local FILENAME=`basename $1`
 
-$CPP -I$INCLUDE_DIR -I$UCCLIB_INCLUDE_DIR -D__UCC__=1 $1 > /tmp/$FILENAME.x || exit 1
+    # syntax check
+    gcc -I$INCLUDE_DIR -w -fsyntax-only $1 || return 1
 
-# compile
+    # preprocess
+    $CPP $CPPOPTS $1 > /tmp/$FILENAME.x || return 1
 
-$CC /tmp/$FILENAME.x || exit 1
+    # compile
+    $CC /tmp/$FILENAME.x || return 1
 
-if [ $ASM_MODE ]
-then
-    if [ $OFLAG ]
-    then
-        cp /tmp/$FILENAME.x.s $OUTFILE
-    else
-        cp /tmp/$FILENAME.x.s $FILEDIR/${FILENAME%.*}.s
+    # rename & push
+    cp /tmp/$FILENAME.x.s $FILEDIR/${FILENAME%.*}.s
+    ASMS="$FILEDIR/${FILENAME%.*}.s $ASMS"
+}
+
+for f in $@; do
+    compile $f || exit 1;
+done
+
+if [ $ASM_MODE ]; then
+    if [ $OFLAG = 1 ]; then
+        cp /tmp/`dirname $FILE1`.x.s $OUTFILE
     fi
     exit 0
 fi
 
 # assemble
-
-$AS /tmp/$FILENAME.x.s -l $UCCLIB -o $OUTFILE || exit 1
+$AS $ASMS -l $UCCLIB -o $OUTFILE || exit 1

@@ -49,10 +49,10 @@ let typeof = function
   | Type.ECast   (t, _, _) -> t
 
 let is_integral = function
-  | TInt | TShort | TLong | TUnsigned | TChar -> true
+  | TInt | TShort | TLong | TUInt | TChar -> true
   | _ -> false
 let is_num = function
-  | TInt | TShort | TLong | TUnsigned
+  | TInt | TShort | TLong | TUInt
   | TChar | TFloat -> true
   | _ -> false
 let is_pointer = function
@@ -61,10 +61,10 @@ let is_pointer = function
 let is_num_or_ptr x = is_num x || is_pointer x
 
 let arith_conv = function
-  | (TVoid,  _)    | (_, TVoid)     -> raise (TypingError "arith_conv: void")
-  | (TFloat, _)    | (_, TFloat)    -> TFloat
-  | (TLong,  _)    | (_, TLong)     -> TLong
-  | (TUnsigned, _) | (_, TUnsigned) -> TUnsigned
+  | (TVoid,  _) | (_, TVoid)  -> raise (TypingError "arith_conv: void")
+  | (TFloat, _) | (_, TFloat) -> TFloat
+  | (TLong,  _) | (_, TLong)  -> TLong
+  | (TUInt, _)  | (_, TUInt)  -> TUInt
   | _ -> TInt
 
 let initialize ty init =
@@ -224,10 +224,10 @@ and ex' = function
      begin match (typeof ex1, typeof ex2) with
      | (ty1, ty2) when is_integral ty1 && is_integral ty2 ->
         begin match arith_conv (ty1, ty2) with
-        | TUnsigned ->
+        | TUInt ->
            Type.EURel (TInt, op,
-                       Type.ECast(TUnsigned, ty1, ex1),
-                       Type.ECast(TUnsigned, ty2, ex2))
+                       Type.ECast(TUInt, ty1, ex1),
+                       Type.ECast(TUInt, ty2, ex2))
         | _ ->
            Type.ERel (TInt, op, ex1, ex2)
         end
@@ -296,8 +296,8 @@ and ex' = function
         Type.EUnary(TInt, op, ex1)
      | (_, TLong) ->
         Type.EUnary(TLong, op, ex1)
-     | (_, TUnsigned) ->
-        Type.EUnary(TUnsigned, op, ex1)
+     | (_, TUInt) ->
+        Type.EUnary(TUInt, op, ex1)
      | _ ->
         raise (TypingError "unary")
      end
@@ -376,10 +376,10 @@ and ex' = function
      Type.ECast (ty, ty2, e)
   | Syntax.ESizeof (ty) ->
      let i = sizeof ty in
-     Type.EConst (TUnsigned, Type.VInt i)
+     Type.EConst (TUInt, Type.VInt i)
   | Syntax.ESizeofExpr (e) ->
      let i = sizeof (typeof (ex' e)) in
-     Type.EConst (TUnsigned, Type.VInt i)
+     Type.EConst (TUInt, Type.VInt i)
 
 let ex_opt = function
   | Some e ->
