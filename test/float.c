@@ -13,11 +13,12 @@
 -1
 0
 1
+0.0120
 */
 #include "test.h"
 
 int main () {
-  float a=0.5, b=-1.25;
+  float a=0.5, b=-1.25, c=0.012;
   printf("%.4f\n",  a);
   printf("%.4f\n", -a);
   printf("%.4f\n",  b);
@@ -32,5 +33,6 @@ int main () {
   printf("%d\n", (int)b);
   printf("%d\n", (int)-a);
   printf("%d\n", (int)-b);
+  printf("%.4f\n", c);
   return 0;
 }

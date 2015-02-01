@@ -103,7 +103,7 @@ static void print_int(int xx, int base, int sgn) {
 }
 
 static void print_float (float f, unsigned round) {
-  int num, frac, diff;
+  int num, frac, diff, t;
   float abs = f<0 ? -f : f;
   unsigned i;
   diff = 1;
@@ -115,11 +115,15 @@ static void print_float (float f, unsigned round) {
   if (f < 0) _putchar('-');
   print_int( num, 10, 1);
   _putchar('.');
-  print_int(frac, 10, 1);
-  i=(frac/10)+1;
-  while (i<round) {
-    _putchar('0'); ++i;
+  t = frac;
+  i=1;
+  while (t>1) {
+    t /= 10; ++i;
   }
+  while (i<round) {
+    _putchar('0');++i;
+  }
+  print_int(frac, 10, 1);
 }
 
 
