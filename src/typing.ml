@@ -5,6 +5,10 @@ open Util
 exception TypingError of string
 
 let venv_ref : (string * ctype) list ref = ref []
+let ret_ty_ref : ctype ref = ref TInt
+let get_ret_ty = function
+  | Type.Decl (_, TFun (ty, _), _, _) -> ty
+  | _ -> raise (TypingError "get return type")
 
 let resolve_var_type nm =
   let rec go nm  = function
@@ -416,8 +420,16 @@ let rec st = function
      let st2 = st s2 in
      Type.SIfElse (ex1, st1, st2)
   | Syntax.SReturn e ->
-     let ex1 = ex_opt e in
-     Type.SReturn (ex1)
+     begin match ex_opt e with
+     | None ->
+        Type.SReturn (None)
+     | Some ex1 ->
+        let ty = typeof ex1 in
+        if ty = !ret_ty_ref then
+          Type.SReturn (Some ex1)
+        else
+          Type.SReturn (Some (Type.ECast(!ret_ty_ref, ty, ex1)))
+     end
   | Syntax.SContinue ->
      Type.SContinue
   | Syntax.SBreak ->
@@ -442,6 +454,7 @@ let rec st = function
 let def = function
   | Syntax.DefFun (d, dlist, b) ->
      let d1 = dv d in
+     ret_ty_ref := get_ret_ty d1;
      let old_venv = !venv_ref in
      let a1 = List.map dv dlist in
      let b1 = st b in

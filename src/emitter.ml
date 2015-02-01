@@ -540,6 +540,9 @@ let rec ex ret_reg = function
        emit "neg r%d, r%d" ret_reg ret_reg;
        emit_label lbl;
        reg_free sgn
+     | TFloat, TUInt
+     | TUInt, TFloat ->
+        raise (EmitError "ECast: float <-> unsigned is unsupported")
      | TFloat, _
      | _, TFloat ->
         raise (EmitError "ECast: float")
