@@ -158,11 +158,11 @@ let epilogue () =
   union_env := List.rev !union_env
 
 let to_unsigned = function
-  | _ -> TUnsigned
+  | _ -> TUInt
 
 let create_type = function
-  | (t, TUnsigned)
-  | (TUnsigned, t) ->
+  | (t, TUInt)
+  | (TUInt, t) ->
      to_unsigned t
   | (_, TLong)
   | (TLong, _) ->
@@ -276,7 +276,7 @@ type_spec:
 | TLONG
   { TLong }
 | TUNSIGNED
-  { TUnsigned }
+  { TUInt }
 | TCHAR
   { TChar }
 | TVOID
@@ -660,7 +660,7 @@ primary_expr:
 | INT
   { EConst (VInt $1) }
 | UINT
-  { ECast (TUnsigned, EConst (VInt $1)) }
+  { ECast (TUInt, EConst (VInt $1)) }
 | string_literal
   { EConst (VStr $1) }
 | ID

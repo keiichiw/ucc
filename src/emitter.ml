@@ -208,8 +208,8 @@ let rec ex ret_reg = function
      | Mul | Div | Mod ->
         let fun_name =
           match op, ty with
-          | Div, TUnsigned -> "__unsigned_div"
-          | Mod, TUnsigned -> "__unsigned_mod"
+          | Div, TUInt -> "__unsigned_div"
+          | Mod, TUInt -> "__unsigned_mod"
           | Mul, _ -> "__mul"
           | Div, _ -> "__signed_div"
           | Mod, _ -> "__signed_mod"
@@ -435,12 +435,12 @@ let rec ex ret_reg = function
         | Mul, _ ->
            emit_native_call ret_reg "__mul" tmp_reg ret_reg
         | Div, _ ->
-           if ty = TUnsigned then
+           if ty = TUInt then
              emit_native_call ret_reg "__unsigned_div" tmp_reg ret_reg
            else
              emit_native_call ret_reg "__signed_div" tmp_reg ret_reg
         | Mod, _ ->
-           if ty = TUnsigned then
+           if ty = TUInt then
              emit_native_call ret_reg "__unsigned_mod" tmp_reg ret_reg
            else
              emit_native_call ret_reg "__signed_mod" tmp_reg ret_reg

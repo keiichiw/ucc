@@ -45,7 +45,7 @@ let typeof = function
   | Type.ECast   (t, _, _) -> t
 
 let is_integral = function
-  | TInt | TShort | TLong | TUnsigned | TChar -> true
+  | TInt | TShort | TLong | TUInt | TChar -> true
   | _ -> false
 let is_pointer = function
   | TPtr _ -> true
@@ -55,7 +55,7 @@ let is_int_or_ptr x = is_integral x || is_pointer x
 let int_conv = function
   | (TVoid, _) | (_, TVoid) -> raise (TypingError "int_conv: void")
   | (TLong, _) | (_, TLong) -> TLong
-  | (TUnsigned, _) | (_, TUnsigned) -> TUnsigned
+  | (TUInt, _) | (_, TUInt) -> TUInt
   | _ -> TInt
 
 let initialize ty init =
@@ -189,7 +189,7 @@ and ex' = function
      begin match (typeof ex1, typeof ex2) with
      | (t1, t2) when is_integral t1 && is_integral t2 ->
         begin match int_conv (t1, t2) with
-        | TUnsigned ->
+        | TUInt ->
            Type.EURel (TInt, op, ex1, ex2)
         | _ ->
            Type.ERel (TInt, op, ex1, ex2)
@@ -248,8 +248,8 @@ and ex' = function
         Type.EUnary(TInt, op, ex1)
      | (_, TLong) ->
         Type.EUnary(TLong, op, ex1)
-     | (_, TUnsigned) ->
-        Type.EUnary(TUnsigned, op, ex1)
+     | (_, TUInt) ->
+        Type.EUnary(TUInt, op, ex1)
      | _ ->
         raise (TypingError "unary")
      end
@@ -326,10 +326,10 @@ and ex' = function
      Type.ECast (ty, ty2, e)
   | Syntax.ESizeof (ty) ->
      let i = sizeof ty in
-     Type.EConst (TUnsigned, Type.VInt i)
+     Type.EConst (TUInt, Type.VInt i)
   | Syntax.ESizeofExpr (e) ->
      let i = sizeof (typeof (ex' e)) in
-     Type.EConst (TUnsigned, Type.VInt i)
+     Type.EConst (TUInt, Type.VInt i)
 
 let ex_opt = function
   | Some e ->
