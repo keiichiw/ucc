@@ -356,7 +356,7 @@ declarator:
   { DeclPtr $2 }
 
 direct_declarator:
-| ident
+| ID
   { DeclIdent(Name $1) }
 | LPAREN declarator RPAREN
   { $2 }
@@ -482,7 +482,7 @@ jump_stat:
   { SReturn $2 }
 
 labeled_stat:
-| ident COLON stat
+| ID COLON stat
   { SLabel($1, $3) }
 | CASE const_expr COLON
   { SCase($2) }
