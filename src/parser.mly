@@ -15,6 +15,8 @@ type declarator =
 let struct_table : (string * int) list ref = ref []
 let union_table  : (string * int) list ref = ref []
 
+let scope_stack = ref []
+
 let get_ty = function
   | Decl (_, TArray (ty, sz), _, _) ->
      TPtr ty
@@ -123,6 +125,17 @@ let make_enumty enums =
        enum_def enum num;
        num+1 in
   let _ = List.fold_left go 0 enums in ()
+
+let scope_enter () =
+  push scope_stack (!struct_table, !union_table, !typedef_env, !enum_env)
+
+let scope_leave () =
+  let (s, u, t, e) = peek scope_stack in
+  struct_table := s;
+  union_table := u;
+  typedef_env := t;
+  enum_env := e;
+  pop scope_stack
 
 let rec fold_expr = function
   | EConst (VInt i) ->
@@ -452,8 +465,16 @@ expr_stat:
   { SExpr($1) }
 
 compound_stat:
-| LBRACE decl_list stat_list RBRACE
+| lbrace_with_action decl_list stat_list rbrace_with_action
   { SBlock(List.concat $2, $3) }
+
+lbrace_with_action:
+| LBRACE
+  { scope_enter () }
+
+rbrace_with_action:
+| RBRACE
+  { scope_leave () }
 
 selection_stat:
 | IF LPAREN expr RPAREN stat
