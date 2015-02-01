@@ -179,11 +179,12 @@ let create_type = function
 
 %token <int> INT
 %token <int> UINT
+%token <float> FLOAT
 %token <int list> STR
 %token <string> ID
 %token <string> TYPEDEF_NAME
 %token <string> ENUM_ID
-%token TINT TUNSIGNED TCHAR TSHORT TLONG TVOID
+%token TINT TUNSIGNED TFLOAT TCHAR TSHORT TLONG TVOID
 %token STRUCT UNION TYPEDEF ENUM
 %token STATIC EXTERN
 %token IF ELSE WHILE DO FOR
@@ -279,6 +280,8 @@ type_spec:
   { TUInt }
 | TCHAR
   { TChar }
+| TFLOAT
+  { TFloat}
 | TVOID
   { TVoid }
 | TYPEDEF_NAME
@@ -659,6 +662,8 @@ postfix_expr:
 primary_expr:
 | INT
   { EConst (VInt $1) }
+| FLOAT
+  { EConst (VFloat $1) }
 | UINT
   { ECast (TUInt, EConst (VInt $1)) }
 | string_literal
