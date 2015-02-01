@@ -158,11 +158,11 @@ let epilogue () =
   union_env := List.rev !union_env
 
 let to_unsigned = function
-  | _ -> TUnsigned
+  | _ -> TUInt
 
 let create_type = function
-  | (t, TUnsigned)
-  | (TUnsigned, t) ->
+  | (t, TUInt)
+  | (TUInt, t) ->
      to_unsigned t
   | (_, TLong)
   | (TLong, _) ->
@@ -179,11 +179,12 @@ let create_type = function
 
 %token <int> INT
 %token <int> UINT
+%token <float> FLOAT
 %token <int list> STR
 %token <string> ID
 %token <string> TYPEDEF_NAME
 %token <string> ENUM_ID
-%token TINT TUNSIGNED TCHAR TSHORT TLONG TVOID
+%token TINT TUNSIGNED TFLOAT TCHAR TSHORT TLONG TVOID
 %token STRUCT UNION TYPEDEF ENUM
 %token STATIC EXTERN
 %token IF ELSE WHILE DO FOR
@@ -276,9 +277,11 @@ type_spec:
 | TLONG
   { TLong }
 | TUNSIGNED
-  { TUnsigned }
+  { TUInt }
 | TCHAR
   { TChar }
+| TFLOAT
+  { TFloat}
 | TVOID
   { TVoid }
 | TYPEDEF_NAME
@@ -395,9 +398,9 @@ initializer_list:
   { $1 :: $3 }
 
 type_name:
-| type_spec
+| decl_specs
   { make_type $1 (DeclIdent (Name "")) }
-| type_spec abstract_declarator
+| decl_specs abstract_declarator
   { make_type $1 $2 }
 
 abstract_declarator:
@@ -659,9 +662,11 @@ postfix_expr:
 primary_expr:
 | INT
   { EConst (VInt $1) }
+| FLOAT
+  { EConst (VFloat $1) }
 | UINT
-  { ECast (TUnsigned, EConst (VInt $1)) }
-| STR
+  { ECast (TUInt, EConst (VInt $1)) }
+| string_literal
   { EConst (VStr $1) }
 | ID
   { EVar (Name $1)}
@@ -669,6 +674,12 @@ primary_expr:
   { $2 }
 | ENUM_ID
   { EConst (VInt (get_enum $1)) }
+
+string_literal:
+| STR
+  { $1 }
+| STR string_literal
+  { (take (List.length $1 - 1) $1) @ $2 }
 
 arg_expr_list:
 |

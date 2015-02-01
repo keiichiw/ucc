@@ -98,11 +98,12 @@ let resolve_var name =
   | Not_found -> raise (EmitError (sprintf "not found %s" name))
 
 let sizeof_decl = function
-  | Decl (NoLink,ty,_,_) ->
-     sizeof ty * 4
+  | Decl (NoLink,TFun _,_,_)
   | Decl (Extern,_,_,_)
   | Decl (Static,_,_,_) ->
      0
+  | Decl (NoLink,ty,_,_) ->
+     sizeof ty * 4
 
 let rec sizeof_block = function
   | SBlock (d, s) ->
@@ -130,12 +131,13 @@ let push_args args = (* add args in env *)
 
 let push_local_vars vars =
   let go = function
+    | Decl (NoLink, ((TFun _) as ty), Name name, _)
+    | Decl (Extern, ty, Name name, _) ->
+       push env_ref (name, (ty, Global name))
     | Decl (NoLink, ty, Name name, _) ->
        let sz = sizeof ty in
        sp_offset_ref := !sp_offset_ref + sz*4;
        push env_ref (name, (ty, Mem !sp_offset_ref))
-    | Decl (Extern, ty, Name name, _) ->
-       push env_ref (name, (ty, Global name))
     | Decl (Static, ty, Name name, _) ->
        let label_id = label_create () in
        let label = sprintf "L_%s_%d" name label_id in
@@ -148,17 +150,17 @@ let create_defualt_init ty =
 let emit_global_var name init =
   let contents = ref [] in
   emit_raw "%s:\n" name;
-  List.iter
-    begin function
+  let rec go = function
     | EConst (TInt, (VInt v)) ->
        emit ".int %d" v
     | EAddr (TPtr TInt, EConst (TArray (TInt, _), VStr s)) ->
        contents := s :: !contents;
        emit ".int %s_contents_%d" name (List.length !contents)
-    | _ ->
-       raise (EmitError "global initializer must be constant")
-    end
-    init;
+    | EAddr (TPtr _, EVar (_, Name v)) when List.mem_assoc v !env_ref ->
+       emit ".int %s" v
+    | ECast (_, _, e) -> go e
+    | _ -> raise (EmitError "global initializer must be constant") in
+  List.iter go init;
   List.iteri
     (fun i c ->
      emit_raw "%s_contents_%d:\n" name (i + 1);
@@ -188,6 +190,8 @@ let rec ex ret_reg = function
      begin match v with
      | VInt i ->
         emit "mov r%d, %d" ret_reg i
+     | VFloat f ->
+        emit "mov r%d, %F" ret_reg f
      | VStr _ ->
         raise (EmitError "logic flaw: EConst at Emitter.ex")
      end
@@ -206,8 +210,8 @@ let rec ex ret_reg = function
      | Mul | Div | Mod ->
         let fun_name =
           match op, ty with
-          | Div, TUnsigned -> "__unsigned_div"
-          | Mod, TUnsigned -> "__unsigned_mod"
+          | Div, TUInt -> "__unsigned_div"
+          | Mod, TUInt -> "__unsigned_mod"
           | Mul, _ -> "__mul"
           | Div, _ -> "__signed_div"
           | Mod, _ -> "__signed_mod"
@@ -229,6 +233,14 @@ let rec ex ret_reg = function
           | _ -> assert false in
         emit_bin ret_reg op e1 e2
      end
+  | EFArith (ty, op, e1, e2) ->
+     let op = match op with
+       | Add    -> "fadd"
+       | Sub    -> "fsub"
+       | Mul    -> "fmul"
+       | Div    -> "fdiv"
+       | _ -> assert false in
+     emit_bin ret_reg op e1 e2
   | ERel (_, op, e1, e2) ->
      let op = match op with
        | Le -> "cmple"
@@ -252,10 +264,22 @@ let rec ex ret_reg = function
      emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
      reg_free reg;
      reg_free sreg
+  | EFRel (_, op, e1, e2) ->
+     let op = match op with
+       | Le -> "fcmple"
+       | Lt -> "fcmplt"
+       | Ge -> "fcmpge"
+       | Gt -> "fcmpgt" in
+     emit_bin ret_reg op e1 e2
   | EEq (_, op, e1, e2) ->
      let op = match op with
        | Eq -> "cmpeq"
        | Ne -> "cmpne" in
+     emit_bin ret_reg op e1 e2
+  | EFEq (_, op, e1, e2) ->
+     let op = match op with
+       | Eq -> "fcmpeq"
+       | Ne -> "fcmpne" in
      emit_bin ret_reg op e1 e2
   | EPAdd (_, e1, e2) ->
      begin match (Typing.typeof e1, Typing.typeof e2) with
@@ -344,6 +368,16 @@ let rec ex ret_reg = function
         reg_free areg;
         reg_free reg
      end
+  | EFUnary (_, op, e) ->
+     begin match op with
+     | Plus ->
+        ex ret_reg e
+     | Minus ->
+        ex ret_reg e;
+       emit "xor r%d, r%d, 0x80000000" ret_reg ret_reg
+     | _ ->
+        raise (EmitError "FUnary")
+     end
   | EPPost (ty, op, e) ->
      let areg = reg_alloc () in
      emit_lv_addr areg e;
@@ -357,7 +391,7 @@ let rec ex ret_reg = function
      reg_free areg;
      reg_free reg
   | ECall (_, EAddr(_, EVar(_, Name "__asm")),
-           [EAddr (_, EConst(_, VStr asm))]) ->
+           [ECast(_, _, EAddr (_, EConst(_, VStr asm)))]) ->
      let slist = List.map (Char.chr >> String.make 1) asm in
      emit_raw "%s" (String.concat "" (Util.take (List.length slist - 1) slist))
   | ECall (_, f, exlst) ->
@@ -433,17 +467,40 @@ let rec ex ret_reg = function
         | Mul, _ ->
            emit_native_call ret_reg "__mul" tmp_reg ret_reg
         | Div, _ ->
-           if ty = TUnsigned then
+           if ty = TUInt then
              emit_native_call ret_reg "__unsigned_div" tmp_reg ret_reg
            else
              emit_native_call ret_reg "__signed_div" tmp_reg ret_reg
         | Mod, _ ->
-           if ty = TUnsigned then
+           if ty = TUInt then
              emit_native_call ret_reg "__unsigned_mod" tmp_reg ret_reg
            else
              emit_native_call ret_reg "__signed_mod" tmp_reg ret_reg
         end;
         reg_free tmp_reg;
+     end;
+     emit "mov [r%d], r%d" reg ret_reg;
+     reg_free reg
+  | EFAssign (ty, op, e1, e2) ->
+     let reg = reg_alloc () in
+     emit_lv_addr reg e1;
+     ex ret_reg e2;
+     begin match op with
+     | None ->
+        ()
+     | Some op ->
+        let tmp_reg = reg_alloc () in
+        emit "mov r%d, [r%d]" tmp_reg reg;
+        let fop =
+          begin match op with
+          | Add -> "fadd"
+          | Sub -> "fsub"
+          | Mul -> "fmul"
+          | Div -> "fdiv"
+          | _   -> raise (EmitError "EFAssign")
+          end in
+        emit "%s r%d, r%d, r%d" fop ret_reg tmp_reg ret_reg;
+        reg_free tmp_reg
      end;
      emit "mov [r%d], r%d" reg ret_reg;
      reg_free reg
@@ -456,7 +513,7 @@ let rec ex ret_reg = function
      emit_lv_addr ret_reg (EDot (ty, e, Name name));
      begin match ty with
      | TArray _ | TStruct _ | TUnion _ ->
-       raise (EmitError "EDot")
+        raise (EmitError "EDot")
      | _ ->
         emit "mov r%d, [r%d]" ret_reg ret_reg
      end
@@ -466,6 +523,29 @@ let rec ex ret_reg = function
      | TUnion  _, _ | _, TUnion  _
      | TArray  _, _ | _, TArray  _ ->
         raise (EmitError "ECast")
+     | _, _ when t1 = t2 ->
+       ex ret_reg e
+     | TFloat, TInt ->
+       ex ret_reg e;
+       emit "itof r%d, r%d" ret_reg ret_reg
+     | TInt, TFloat ->
+       ex ret_reg e;
+       let flg = reg_alloc () in
+       emit "sar r%d, r%d, 31" flg ret_reg;    (* flg=ret<0?-1:0 *)
+       emit "shl r%d, r%d, 1"  ret_reg ret_reg;
+       emit "shr r%d, r%d, 1"  ret_reg ret_reg;(* fabs(ret_reg)*)
+       emit "floor r%d, r%d" ret_reg ret_reg;
+       emit "ftoi  r%d, r%d" ret_reg ret_reg;
+       (* (x^flg)-flg equals (flg==-1?-x:x) *)
+       emit "xor r%d, r%d, r%d" ret_reg ret_reg flg;
+       emit "sub r%d, r%d, r%d" ret_reg ret_reg flg;
+       reg_free flg
+     | TFloat, TUInt
+     | TUInt, TFloat ->
+        raise (EmitError "ECast: float <-> unsigned is unsupported")
+     | TFloat, _
+     | _, TFloat ->
+        raise (EmitError "ECast: float")
      | _ ->
         ex ret_reg e
      end
@@ -525,15 +605,13 @@ let init_local_vars vars =
        reg_free reg
     | (_, Global label) ->
        match (ln, init) with
-       | NoLink, _  ->
-          failwith "init_local_vars"
        | Static, [] ->
           push static_locals_ref (label, create_defualt_init ty)
        | Static, xs ->
           push static_locals_ref (label, xs)
-       | Extern, [] ->
+       | Extern, [] | NoLink, [] ->
           ()                   (* ignore *)
-       | Extern, _ ->
+       | Extern, _ | NoLink, _ ->
           raise (EmitError "local extern variable has initializer") in
   List.iter go vars
 
