@@ -1,11 +1,12 @@
+
 #define NULL 0
 typedef unsigned size_t;
 typedef int ptrdiff_t;
 
+
 /*
   Arithmetic
 */
-
 
 int __mul(int a, int b) {
   int i, r;
@@ -284,7 +285,6 @@ void _abort (void) {
 }
 
 
-
 union header {
   struct {
     union header *ptr;
@@ -415,4 +415,41 @@ _morecore(size_t nu)
   up->s.size = nu;
   _free((char *)(up + 1));
   return freep;
+}
+
+
+static unsigned rbuf[32], ridx = -1;
+
+void _srand(unsigned);
+
+int _rand(void)
+{
+  if (ridx >= 32) _srand(1);
+  if (ridx == 31) {
+    ridx = 0;
+    return (rbuf[31] = rbuf[0] + rbuf[28]) >> 1;
+  } else {
+    int tmp = rbuf[ridx + 1] + rbuf[ridx + (ridx < 3 ? 29 : -3)];
+    return (rbuf[ridx++] = tmp) >> 1;
+  }
+}
+
+void _srand(unsigned seed)
+{
+  int i;
+  unsigned tmp, lo, hi;
+  const unsigned mod = 0x7fffffff;
+  ridx = 2;
+  rbuf[0] = seed ? seed : 1;
+  for (i = 1; i < 31; ++i) {
+    tmp = rbuf[i - 1];
+    if ((int)tmp < 0) tmp = -tmp;
+    lo = 16807 * (tmp & 0xffff);
+    hi = 16807 * (tmp >> 16);
+    tmp = (lo + ((hi & 0x7fff) << 16) + (hi >> 15));
+    if (tmp >= mod) tmp -= mod;
+    rbuf[i] = (int)rbuf[i - 1] < 0 && tmp ? mod - tmp : tmp;
+  }
+  rbuf[31] = rbuf[0]; rbuf[0] = rbuf[1]; rbuf[1] = rbuf[2];
+  for (i = 34; i < 344; ++i) _rand();
 }
