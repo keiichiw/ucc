@@ -182,6 +182,12 @@ let emit_native_call ret_reg func arg1 arg2 =
   emit "add rsp, rsp, 8";
   List.iter (fun i -> reg_use i; emit "pop r%d" i) (List.rev used_reg)
 
+let mem_access (reg, disp) =
+  let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
+  if disp > 0 then sprintf "[%s + %d]" reg disp else
+  if disp < 0 then sprintf "[%s - %d]" reg (-disp) else
+  sprintf "[%s]" reg
+
 let rec ex ret_reg = function
   | EComma(_, ex1, ex2) ->
      ex ret_reg ex1;
@@ -357,14 +363,14 @@ let rec ex ret_reg = function
      | PostInc
      | PostDec ->
         let areg = reg_alloc () in
-        emit_lv_addr areg e;
+        let mem = emit_lv_addr areg e in
         let reg = reg_alloc () in
-        emit "mov r%d, [r%d]" ret_reg areg;
+        emit "mov r%d, %s" ret_reg (mem_access mem);
         if op = PostInc then
           emit "add r%d, r%d, 1" reg ret_reg
         else
           emit "sub r%d, r%d, 1" reg ret_reg;
-        emit "mov [r%d], r%d" areg reg;
+        emit "mov %s, r%d" (mem_access mem) reg;
         reg_free areg;
         reg_free reg
      end
@@ -380,14 +386,14 @@ let rec ex ret_reg = function
      end
   | EPPost (TPtr ty, op, e) ->
      let areg = reg_alloc () in
-     emit_lv_addr areg e;
+     let mem = emit_lv_addr areg e in
      let reg = reg_alloc () in
-     emit "mov r%d, [r%d]" ret_reg areg;
+     emit "mov r%d, %s" ret_reg (mem_access mem);
      if op = Inc then
-       emit "add r%d, r%d, %d" reg ret_reg (4*sizeof ty)
+       emit "add r%d, r%d, %d" reg ret_reg (4 * sizeof ty)
      else
-       emit "sub r%d, r%d, %d" reg ret_reg (4*sizeof ty);
-     emit "mov [r%d], r%d" areg reg;
+       emit "sub r%d, r%d, %d" reg ret_reg (4 * sizeof ty);
+     emit "mov %s, r%d" (mem_access mem) reg;
      reg_free areg;
      reg_free reg
   | EPPost _ ->
@@ -421,28 +427,26 @@ let rec ex ret_reg = function
                 reg_use i;
                 emit "pop r%d" i)
                (List.rev used_reg)
-  | EVar (ty, Name name) ->
+  | EVar (ty, Name name) as expr ->
      begin match resolve_var name with
      | TArray _, _ | TFun _, _ ->
         raise (EmitError "logic flaw: EVar")
      | TStruct _, _ | TUnion _, _ ->
         raise (EmitError "EVar: struct as value is unsupported")
-     | _, Mem offset ->
-        emit "mov r%d, [rbp%+d]" ret_reg (-offset)
-     | _, Global label ->
-        emit "mov r%d, %s" ret_reg label;
-        emit "mov r%d, [r%d]" ret_reg ret_reg
+     | _ ->
+        let mem = emit_lv_addr ret_reg expr in
+        emit "mov r%d, %s" ret_reg (mem_access mem)
      end
   | EAssign (ty, op, e1, e2) ->
      let reg = reg_alloc () in
-     emit_lv_addr reg e1;
+     let mem = emit_lv_addr reg e1 in
      ex ret_reg e2;
      begin match op with
      | None ->
         ()
      | Some op ->
         let tmp_reg = reg_alloc () in
-        emit "mov r%d, [r%d]" tmp_reg reg;
+        emit "mov r%d, %s" tmp_reg (mem_access mem);
         begin match op, Typing.typeof e1 with
         | Add, TPtr ty ->
            if sizeof ty != 0 then begin
@@ -482,18 +486,18 @@ let rec ex ret_reg = function
         end;
         reg_free tmp_reg;
      end;
-     emit "mov [r%d], r%d" reg ret_reg;
+     emit "mov %s, r%d" (mem_access mem) ret_reg;
      reg_free reg
   | EFAssign (ty, op, e1, e2) ->
      let reg = reg_alloc () in
-     emit_lv_addr reg e1;
+     let mem = emit_lv_addr reg e1 in
      ex ret_reg e2;
      begin match op with
      | None ->
         ()
      | Some op ->
         let tmp_reg = reg_alloc () in
-        emit "mov r%d, [r%d]" tmp_reg reg;
+        emit "mov r%d, %s" tmp_reg (mem_access mem);
         let fop =
           begin match op with
           | Add -> "fadd"
@@ -505,20 +509,22 @@ let rec ex ret_reg = function
         emit "%s r%d, r%d, r%d" fop ret_reg tmp_reg ret_reg;
         reg_free tmp_reg
      end;
-     emit "mov [r%d], r%d" reg ret_reg;
+     emit "mov %s, r%d" (mem_access mem) ret_reg;
      reg_free reg
   | EAddr (_, e) ->
-     emit_lv_addr ret_reg e
+     let (reg, disp) = emit_lv_addr ret_reg e in
+     let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
+     emit "add r%d, %s, %d" ret_reg reg disp
   | EPtr (_, e) ->
      ex ret_reg e;
      emit "mov r%d, [r%d]" ret_reg ret_reg
-  | EDot (ty, e, Name name) ->
-     emit_lv_addr ret_reg (EDot (ty, e, Name name));
+  | EDot (ty, e, Name name) as expr ->
+     let mem = emit_lv_addr ret_reg expr in
      begin match ty with
      | TArray _ | TStruct _ | TUnion _ ->
         raise (EmitError "EDot")
      | _ ->
-        emit "mov r%d, [r%d]" ret_reg ret_reg
+        emit "mov r%d, %s" ret_reg (mem_access mem)
      end
   | ECast (t1, t2, e) ->
      begin match t1, t2 with
@@ -564,9 +570,10 @@ and emit_lv_addr ret_reg = function
   | EVar (_, Name name) ->
      begin match resolve_var name with
      | (_, Mem offset) ->
-        emit "sub r%d, rbp, %d" ret_reg offset
+        (31, (-offset))
      | (_, Global label) ->
-        emit "mov r%d, %s" ret_reg label
+        emit "mov r%d, %s" ret_reg label;
+        (ret_reg, 0)
      end
   | EDot (_, expr, Name mem) ->
      begin match Typing.typeof expr with
@@ -577,14 +584,15 @@ and emit_lv_addr ret_reg = function
           | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
         let memlist = List.nth !struct_env s_id in
         let mem_offset = go 0 mem memlist in
-        emit_lv_addr ret_reg expr;
-        emit "add r%d, r%d, %d" ret_reg ret_reg mem_offset
+        let (reg, disp) = emit_lv_addr ret_reg expr in
+        (reg, disp + mem_offset)
      | TUnion _ ->
         emit_lv_addr ret_reg expr
      | _ -> raise (EmitError "emit_lv_addr dot")
      end
   | EPtr (_, e) ->
-     ex ret_reg e
+     ex ret_reg e;
+     (ret_reg, 0)
   | EConst (_, VStr s) ->
      let ldata = label_create () in
      let ltext = label_create () in
@@ -592,7 +600,8 @@ and emit_lv_addr ret_reg = function
      emit_label ldata;
      List.iter (fun i -> emit ".int %d" i) s;
      emit_label ltext;
-     emit "mov r%d, L%d" ret_reg ldata
+     emit "mov r%d, L%d" ret_reg ldata;
+     (ret_reg, 0)
   | _ ->
      raise (EmitError "this expr is not lvalue")
 
