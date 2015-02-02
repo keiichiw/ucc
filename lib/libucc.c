@@ -310,10 +310,19 @@ _malloc(size_t nbytes)
     base.s.ptr = freep = prevp = &base;
     base.s.size = 0;
   }
+  /* FIXME: begin */
+  /* We all don't know why this works... */
+  for (p = prevp->s.ptr; 1; prevp = p, p = p->s.ptr) {
+    if (p == freep) {
+      break;
+    }
+  }
+  /* FIXME: end */
   for (p = prevp->s.ptr; 1; prevp = p, p = p->s.ptr) {
     if (p->s.size >= nunits) {  /* big enough */
-      if (p->s.size == nunits)  /* exactly */
+      if (p->s.size == nunits) {  /* exactly */
         prevp->s.ptr = p->s.ptr;
+      }
       else {  /* allocate tail end */
         p->s.size -= nunits;
         p += p->s.size;
@@ -322,9 +331,11 @@ _malloc(size_t nbytes)
       freep = prevp;
       return (void *)(p + 1);
     }
-    if (p == freep)
-      if ((p = _morecore(nunits)) == NULL)
+    if (p == freep) {
+      if ((p = _morecore(nunits)) == NULL) {
         return NULL;
+      }
+    }
   }
 }
 
@@ -334,20 +345,24 @@ _free(void *ap)
   Header *bp, *p;
 
   bp = (Header *)ap - 1;
-  for (p = freep; !(bp > p && bp < p->s.ptr); p = p->s.ptr)
-    if (p >= p->s.ptr && (bp > p || bp < p->s.ptr))
+  for (p = freep; !(bp > p && bp < p->s.ptr); p = p->s.ptr) {
+    if (p >= p->s.ptr && (bp > p || bp < p->s.ptr)) {
       break;
+    }
+  }
 
   if (bp + bp->s.size == p->s.ptr) {
     bp->s.size += p->s.ptr->s.size;
     bp->s.ptr = p->s.ptr->s.ptr;
-  } else
+  } else {
     bp->s.ptr = p->s.ptr;
+  }
   if (p + p->s.size == bp) {
     p->s.size += bp->s.size;
     p->s.ptr = bp->s.ptr;
-  } else
+  } else {
     p->s.ptr = bp;
+  }
   freep = p;
 }
 
