@@ -4,9 +4,8 @@ bin/cc: FORCE
 	ocamlbuild src/main.native
 	mv main.native bin/cc
 
-lib/libucc.s: lib/libucc.c lib/intrinsics.s bin/cc
+lib/libucc.s: lib/libucc.c bin/cc
 	bin/ucc -s lib/libucc.c
-	cat lib/intrinsics.s >> lib/libucc.s
 
 bin/sim:
 	git submodule update --init

@@ -1,4 +1,3 @@
-#include "intrinsics.h"
 #define NULL 0
 typedef unsigned size_t;
 typedef int ptrdiff_t;
