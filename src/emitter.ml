@@ -401,15 +401,14 @@ let rec ex ret_reg = function
                        let reg = reg_alloc () in
                        ex reg e;
                        reg) exlst in
+     let fun_reg = reg_alloc () in
+     ex fun_reg f;
      (* save registers *)
      List.iter (fun reg -> emit "push r%d" reg) used_reg;
      (* push arguments *)
      List.iter (fun reg -> emit "push r%d" reg) (List.rev arg_list);
-     reg_free_all ();
-     let fun_reg = reg_alloc () in
-     ex fun_reg f;
-     reg_free fun_reg;
      emit "call r%d" fun_reg;
+     reg_free_all ();
      reg_use ret_reg;
      if ret_reg != 1 then
        emit "mov r%d, r1" ret_reg;
