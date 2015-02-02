@@ -285,19 +285,19 @@ void _abort (void) {
 }
 
 
-union header {
-  struct {
-    union header *ptr;
-    size_t size;
-  } s;
+#define NALLOC 1024
+
+struct header {
+  struct header *next;
+  size_t size;
 };
 
-typedef union header Header;
+typedef struct header Header;
 
 static Header base;
 static Header *freep;
 
-static Header * _morecore(size_t);
+static Header *morecore(size_t);
 
 void *
 _malloc(size_t nbytes)
@@ -306,36 +306,32 @@ _malloc(size_t nbytes)
   size_t nunits;
 
   nunits = (nbytes + sizeof(Header) - 1) / sizeof(Header) + 1;
-  if ((prevp = freep) == NULL) {  /* no free list yet */
-    base.s.ptr = freep = prevp = &base;
-    base.s.size = 0;
+  if (! (prevp = freep)) {  /* no free list yet */
+    base.next = freep = prevp = &base;
+    base.size = 0;
   }
+
   /* FIXME: begin */
-  /* We all don't know why this works... */
-  for (p = prevp->s.ptr; 1; prevp = p, p = p->s.ptr) {
-    if (p == freep) {
+  for (p = prevp->next; ; prevp = p, p = p->next)
+    if (p == freep)
       break;
-    }
-  }
   /* FIXME: end */
-  for (p = prevp->s.ptr; 1; prevp = p, p = p->s.ptr) {
-    if (p->s.size >= nunits) {  /* big enough */
-      if (p->s.size == nunits) {  /* exactly */
-        prevp->s.ptr = p->s.ptr;
-      }
-      else {  /* allocate tail end */
-        p->s.size -= nunits;
-        p += p->s.size;
-        p->s.size = nunits;
+
+  for (p = prevp->next; ; prevp = p, p = p->next) {
+    if (p->size >= nunits) {  /* big enough */
+      if (p->size == nunits) {  /* exactly */
+        prevp->next = p->next;
+      } else {  /* allocate tail end */
+        p->size -= nunits;
+        p += p->size;
+        p->size = nunits;
       }
       freep = prevp;
       return (void *)(p + 1);
     }
-    if (p == freep) {
-      if ((p = _morecore(nunits)) == NULL) {
+    if (p == freep)
+      if (! (p = morecore(nunits)))
         return NULL;
-      }
-    }
   }
 }
 
@@ -344,35 +340,38 @@ _free(void *ap)
 {
   Header *bp, *p;
 
+  if (! ap)
+    return;
+
   bp = (Header *)ap - 1;
-  for (p = freep; !(bp > p && bp < p->s.ptr); p = p->s.ptr) {
-    if (p >= p->s.ptr && (bp > p || bp < p->s.ptr)) {
+  for (p = freep; !(p < bp && bp < p->next); p = p->next)
+    if (p->next <= p && (p < bp || bp < p->next))
       break;
-    }
+
+  if (bp + bp->size == p->next) {
+    bp->size += p->next->size;
+    bp->next = p->next->next;
+  } else {
+    bp->next = p->next;
   }
 
-  if (bp + bp->s.size == p->s.ptr) {
-    bp->s.size += p->s.ptr->s.size;
-    bp->s.ptr = p->s.ptr->s.ptr;
+  if (p + p->size == bp) {
+    p->size += bp->size;
+    p->next = bp->next;
   } else {
-    bp->s.ptr = p->s.ptr;
+    p->next = bp;
   }
-  if (p + p->s.size == bp) {
-    p->s.size += bp->s.size;
-    p->s.ptr = bp->s.ptr;
-  } else {
-    p->s.ptr = bp;
-  }
+
   freep = p;
 }
 
 static size_t
-_malloc_size(void *ap)
+malloc_size(void *ap)
 {
   Header *p;
 
   p = (Header *)ap - 1;
-  return p->s.size * sizeof(Header);
+  return p->size * sizeof(Header);
 }
 
 void *
@@ -380,55 +379,50 @@ _realloc(void *ptr, size_t size)
 {
   void *new;
 
-  if (! ptr) {
+  if (! ptr)
     return _malloc(size);
-  } else {
-    if (_malloc_size(ptr) < size) {
-      new = _malloc(size);
-      if (! new) {
-        return NULL;
-      }
 
-      _memcpy(new, ptr, _malloc_size(ptr));
+  if (size <= malloc_size(ptr))
+    return ptr;
 
-      _free(ptr);
-    } else {
-      return ptr;
-    }
-  }
+  new = _malloc(size);
+  if (! new)
+    return NULL;
+
+  _memcpy(new, ptr, malloc_size(ptr));
+  _free(ptr);
 
   return new;
 }
 
 static void *
-_sbrk(size_t s) {
+sbrk(size_t s) {
   extern char __UCC_HEAP_START;
-  static char *ptr = 0;
+  static char *ptr = NULL;
 
-  if (! ptr) {
+  if (! ptr)
     ptr = &__UCC_HEAP_START;
-  }
+
+  /*
+  if (ptr + s >= (char *)0x400000)
+    return NULL;
+  */
 
   ptr += s;
   return ptr - s;
 }
 
-#define NALLOC 1024 * 4
-
 static Header *
-_morecore(size_t nu)
+morecore(size_t nunits)
 {
-  char *cp;
-  Header *up;
+  Header *p;
 
-  if (nu < NALLOC)
-    nu = NALLOC;
-  cp = _sbrk((nu + 1) * sizeof (Header));
-  if (cp == (char *)-1)
+  nunits = (nunits + NALLOC - 1) / NALLOC * NALLOC;
+  p = (Header *)sbrk(nunits * sizeof(Header));
+  if (! p)
     return NULL;
-  up = (Header *)cp;
-  up->s.size = nu;
-  _free((char *)(up + 1));
+  p->size = nunits;
+  _free(p + 1);
   return freep;
 }
 
