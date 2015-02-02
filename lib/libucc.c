@@ -1,4 +1,12 @@
 #include "intrinsics.h"
+#define NULL 0
+typedef unsigned size_t;
+typedef int ptrdiff_t;
+
+/*
+  Arithmetic
+*/
+
 
 int __mul(int a, int b) {
   int i, r;
@@ -67,13 +75,23 @@ unsigned __unsigned_mod(unsigned n, unsigned d) {
 }
 
 
+/*
+  stdio.h
+*/
+
 int _putchar(int c) {
-  __gaia_write(c);
-  return c;
+  __asm("\
+  mov r1, [rbp + 4] \n\
+  write r1          \n\
+  ret               \n\
+");
 }
 
 int _getchar(void) {
-  return __gaia_read();
+  __asm("\
+    read r1 \n\
+    ret     \n\
+");
 }
 
 static void print_int(int xx, int base, int sgn) {
@@ -127,8 +145,8 @@ static void print_float (float f, unsigned round) {
 }
 
 
-// Print to the given fd. Only understands %d, %x, %p, %s.
 int _printf(const char *fmt, ...) {
+  // Print to the given fd. Only understands %d, %x, %f, %s.
   char *s;
   int c, i, state;
   unsigned* ap;
@@ -204,11 +222,10 @@ int _printf(const char *fmt, ...) {
   return 0;
 }
 
-void _abort (void) {
-  while (1) {
-    _printf("abort!\n");
-  }
-}
+
+/*
+  setjmp.h
+*/
 
 typedef int jmp_buf[4];
 
@@ -238,4 +255,165 @@ void _longjmp (jmp_buf buf, int val) {
   mov r2, [r2 + 12]     # r2 <- address of 'ret'      \n\
   jr  r2                # jump                        \n\
 ");
+}
+
+
+/*
+  string.h
+*/
+
+void *
+_memcpy(void *dst, const void *src, size_t n)
+{
+  const char *s = src;
+  char *d = dst;
+
+  while (n-- > 0) {
+    *d++ = *s++;
+  }
+  return d;
+}
+
+
+/*
+  stdlib.h
+*/
+
+void _abort (void) {
+  _printf("abort!\n");
+  __asm("  halt\n");
+}
+
+
+
+union header {
+  struct {
+    union header *ptr;
+    size_t size;
+  } s;
+};
+
+typedef union header Header;
+
+static Header base;
+static Header *freep;
+
+static Header * _morecore(size_t);
+
+void *
+_malloc(size_t nbytes)
+{
+  Header *p, *prevp;
+  size_t nunits;
+
+  nunits = (nbytes + sizeof(Header) - 1) / sizeof(Header) + 1;
+  if ((prevp = freep) == NULL) {  /* no free list yet */
+    base.s.ptr = freep = prevp = &base;
+    base.s.size = 0;
+  }
+  for (p = prevp->s.ptr; 1; prevp = p, p = p->s.ptr) {
+    if (p->s.size >= nunits) {  /* big enough */
+      if (p->s.size == nunits)  /* exactly */
+        prevp->s.ptr = p->s.ptr;
+      else {  /* allocate tail end */
+        p->s.size -= nunits;
+        p += p->s.size;
+        p->s.size = nunits;
+      }
+      freep = prevp;
+      return (void *)(p + 1);
+    }
+    if (p == freep)
+      if ((p = _morecore(nunits)) == NULL)
+        return NULL;
+  }
+}
+
+void
+_free(void *ap)
+{
+  Header *bp, *p;
+
+  bp = (Header *)ap - 1;
+  for (p = freep; !(bp > p && bp < p->s.ptr); p = p->s.ptr)
+    if (p >= p->s.ptr && (bp > p || bp < p->s.ptr))
+      break;
+
+  if (bp + bp->s.size == p->s.ptr) {
+    bp->s.size += p->s.ptr->s.size;
+    bp->s.ptr = p->s.ptr->s.ptr;
+  } else
+    bp->s.ptr = p->s.ptr;
+  if (p + p->s.size == bp) {
+    p->s.size += bp->s.size;
+    p->s.ptr = bp->s.ptr;
+  } else
+    p->s.ptr = bp;
+  freep = p;
+}
+
+static size_t
+_malloc_size(void *ap)
+{
+  Header *p;
+
+  p = (Header *)ap - 1;
+  return p->s.size * sizeof(Header);
+}
+
+void *
+_realloc(void *ptr, size_t size)
+{
+  void *new;
+
+  if (! ptr) {
+    return _malloc(size);
+  } else {
+    if (_malloc_size(ptr) < size) {
+      new = _malloc(size);
+      if (! new) {
+        return NULL;
+      }
+
+      _memcpy(new, ptr, _malloc_size(ptr));
+
+      _free(ptr);
+    } else {
+      return ptr;
+    }
+  }
+
+  return new;
+}
+
+static void *
+_sbrk(size_t s) {
+  extern char __UCC_HEAP_START;
+  static char *ptr = 0;
+
+  if (! ptr) {
+    ptr = &__UCC_HEAP_START;
+  }
+
+  ptr += s;
+  return ptr - s;
+}
+
+#define NALLOC 1024 * 4
+
+static Header *
+_morecore(size_t nu)
+{
+  char *cp;
+  Header *up;
+
+  if (nu < NALLOC)
+    nu = NALLOC;
+  cp = _sbrk((nu + 1) * sizeof (Header));
+  if (cp == (char *)-1)
+    return NULL;
+  up = (Header *)cp;
+  up->s.size = nu;
+  _free((char *)(up + 1));
+  return freep;
 }

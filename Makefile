@@ -18,7 +18,7 @@ bin/as:
 	cp extlib/gaia/asm.py bin/as
 
 test: all test/*.c
-	prove test/*.c
+	prove -j 4 test/*.c
 
 clean:
 	ocamlbuild -clean
