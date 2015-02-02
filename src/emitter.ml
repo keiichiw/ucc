@@ -378,7 +378,7 @@ let rec ex ret_reg = function
      | _ ->
         raise (EmitError "FUnary")
      end
-  | EPPost (ty, op, e) ->
+  | EPPost (TPtr ty, op, e) ->
      let areg = reg_alloc () in
      emit_lv_addr areg e;
      let reg = reg_alloc () in
@@ -390,6 +390,8 @@ let rec ex ret_reg = function
      emit "mov [r%d], r%d" areg reg;
      reg_free areg;
      reg_free reg
+  | EPPost _ ->
+     raise (EmitError "EPPost: not pointer")
   | ECall (_, EAddr(_, EVar(_, Name "__asm")),
            [ECast(_, _, EAddr (_, EConst(_, VStr asm)))]) ->
      let slist = List.map (Char.chr >> String.make 1) asm in
