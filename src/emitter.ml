@@ -427,8 +427,10 @@ let rec ex ret_reg = function
         raise (EmitError "logic flaw: EVar")
      | TStruct _, _ | TUnion _, _ ->
         raise (EmitError "EVar: struct as value is unsupported")
-     | _ ->
-        emit_lv_addr ret_reg (EVar (ty, Name name));
+     | _, Mem offset ->
+        emit "mov r%d, [rbp%+d]" ret_reg (-offset)
+     | _, Global label ->
+        emit "mov r%d, %s" ret_reg label;
         emit "mov r%d, [r%d]" ret_reg ret_reg
      end
   | EAssign (ty, op, e1, e2) ->
