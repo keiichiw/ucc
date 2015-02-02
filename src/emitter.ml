@@ -28,7 +28,7 @@ let switch_cases = ref []
 let switch_defaults = ref []
 
 let emit fmt =
-  ksprintf (fun s -> push buffer_ref ("\t"^s^"\n")) fmt
+  ksprintf (fun s -> push buffer_ref ("  "^s^"\n")) fmt
 let emit_raw fmt =
   ksprintf (fun s -> push buffer_ref s) fmt
 let emit_label num =
@@ -40,7 +40,7 @@ let insert_epilogue () =
   emit "ret"
 
 let insert_halt () =
-  let trap s = if s = "\tret\n" then "\thalt\n" else s in
+  let trap s = if s = "  ret\n" then "  halt\n" else s in
   buffer_ref := List.map trap !buffer_ref
 
 let flush_buffer oc =
