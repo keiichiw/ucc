@@ -273,7 +273,7 @@ decl_list:
 decl_real:
 | linkage decl_specs init_declarator_list
   { List.map (make_decl $1 $2) $3 }
-| TYPEDEF type_spec declarator
+| TYPEDEF decl_specs declarator
   { typedef (make_decl NoLink $2 ($3, None)); [] }
 
 decl_specs:
