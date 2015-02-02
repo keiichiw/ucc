@@ -854,7 +854,13 @@ let emitter oc = function
      let free_regs = !free_reg_stack in
      let old_env = !env_ref in
      push_args args;
-     emit "enter %d" (sizeof_block b);
+     begin match b with
+     | SBlock ([], [SExpr (ECall (_, EAddr (_, EVar(_, Name "__asm")),
+                    [ECast (_, _, EAddr (_, EConst(_, VStr asm)))]))]) ->
+        ()
+     | _ ->
+        emit "enter %d" (sizeof_block b)
+     end;
      st b;
      free_reg_stack := free_regs;
      env_ref := old_env;
