@@ -214,19 +214,65 @@ let rec ex ret_reg = function
   | EArith (ty, op, e1, e2) ->
      begin match op with
      | Mul | Div | Mod ->
-        let fun_name =
-          match op, ty with
-          | Div, TUInt -> "__unsigned_div"
-          | Mod, TUInt -> "__unsigned_mod"
-          | Mul, _ -> "__mul"
-          | Div, _ -> "__signed_div"
-          | Mod, _ -> "__signed_mod"
-          | _ -> assert false in
-        ex ret_reg e1;
-        let reg = reg_alloc () in
-        ex reg e2;
-        emit_native_call ret_reg fun_name ret_reg reg;
-        reg_free reg
+        let log2 n =
+          let rec go n acc =
+            if n <= 1 then acc else go (n / 2) (acc + 1) in
+          go n 0 in
+        begin match e1, e2 with
+        | _, EConst (_, VInt x) when x land (x - 1) = 0 ->
+           ex ret_reg e1;
+           begin match op, ty with
+           | Mul, _ | Div, _ when x = 1 ->
+              ()
+           | Mul, _ when x = 0 ->
+              emit "mov r%d, 0" ret_reg
+           | Mod, _ when x = 1 ->
+              emit "mov r%d, 0" ret_reg
+           | Mul, _ ->
+              emit "shl r%d, r%d, %d" ret_reg ret_reg (log2 x)
+           | Div, TUInt ->
+              emit "shr r%d, r%d, %d" ret_reg ret_reg (log2 x)
+           | Div, _ ->
+              let reg = reg_alloc () in
+              emit "sar r%d, r%d, 31" reg ret_reg;
+              emit "and r%d, r%d, %d" reg reg (x - 1);
+              emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
+              emit "sar r%d, r%d, %d" ret_reg ret_reg (log2 x);
+              reg_free reg
+           | Mod, TUInt ->
+              emit "and r%d, r%d, %d" ret_reg ret_reg (x - 1)
+           | Mod, _ ->
+              let reg = reg_alloc () in
+              if x = 2 then
+                emit "shr r%d, r%d, 31" reg ret_reg
+              else begin
+                emit "sar r%d, r%d, 31" reg ret_reg;
+                emit "shr r%d, r%d, %d" reg reg (32 - log2 x)
+              end;
+              emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
+              emit "and r%d, r%d, %d" ret_reg ret_reg (x - 1);
+              emit "sub r%d, r%d, r%d" ret_reg ret_reg reg;
+              reg_free reg
+           | _ ->
+              assert false
+           end
+        | EConst (_, VInt x), _ when x land (x - 1) = 0 && op = Mul ->
+           ex ret_reg (EArith (ty, op, e2, e1))
+        | _ ->
+           let fun_name =
+             match op, ty with
+             | Div, TUInt -> "__unsigned_div"
+             | Mod, TUInt -> "__unsigned_mod"
+             | Mul, _ -> "__mul"
+             | Div, _ -> "__signed_div"
+             | Mod, _ -> "__signed_mod"
+             | _ -> assert false in
+           ex ret_reg e1;
+           let reg = reg_alloc () in
+           ex reg e2;
+           emit_native_call ret_reg fun_name ret_reg reg;
+           reg_free reg
+        end
      | _ ->
         let op = match op with
           | Add    -> "add"
@@ -513,8 +559,9 @@ let rec ex ret_reg = function
      reg_free reg
   | EAddr (_, e) ->
      let (reg, disp) = emit_lv_addr ret_reg e in
-     let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
-     emit "add r%d, %s, %d" ret_reg reg disp
+     if not (ret_reg = reg && disp = 0) then
+       let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
+       emit "add r%d, %s, %d" ret_reg reg disp
   | EPtr (_, e) ->
      ex ret_reg e;
      emit "mov r%d, [r%d]" ret_reg ret_reg

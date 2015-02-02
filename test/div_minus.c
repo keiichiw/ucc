@@ -7,15 +7,10 @@
 #include "test.h"
 
 int main () {
-  int i, r;
-  r = 23/3;
-  print_int(r);
-  r = (-23)/3;
-  print_int(r);
-  r = 23/(-3);
-  print_int(r);
-  r = (-23)/(-3);
-  print_int(r);
-
+  int x = 23;
+  print_int(x / 3);
+  print_int(-x / 3);
+  print_int(x / -3);
+  print_int(-x / -3);
   return 0;
 }
