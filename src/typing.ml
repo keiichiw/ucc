@@ -363,10 +363,19 @@ and ex' = function
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      let ex3 = ex e3 in
-     if (typeof ex2) = (typeof ex3) then
-       Type.ECond (typeof ex2, ex1, ex2, ex3)
+     let ty2 = typeof ex2 in
+     let ty3 = typeof ex3 in
+     if ty2 = ty3 then
+       Type.ECond (ty2, ex1, ex2, ex3)
      else
-       raise (TypingError "cond")
+       begin match arith_conv (ty2, ty3) with
+       | Some ty ->
+          Type.ECond (ty, ex1,
+                      Type.ECast (ty, ty2, ex2),
+                      Type.ECast (ty, ty3, ex3))
+       | None ->
+          raise (TypingError "cond")
+       end
   | Syntax.EDot (e1, Name nm) ->
      let ex1 = ex e1 in
      let ty = resolve_member_type (typeof ex1) nm in
