@@ -6,6 +6,7 @@ type value =
   | VStr   of int list
 
 type expr =
+  | ENil
   | EArith   of ctype * arith_bin   * expr * expr
   | EFArith  of ctype * arith_bin   * expr * expr
   | EPAdd    of ctype * expr * expr

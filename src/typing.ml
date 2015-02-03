@@ -52,6 +52,7 @@ let typeof = function
   | Type.ECond   (t, _, _, _) -> t
   | Type.EDot    (t, _, _) -> t
   | Type.ECast   (t, _, _) -> t
+  | Type.ENil -> failwith "typeof ENil"
 
 let is_integral = function
   | TInt | TShort | TLong | TUInt | TChar -> true

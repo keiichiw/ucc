@@ -191,6 +191,7 @@ let mem_access (reg, disp) =
   sprintf "[%s]" reg
 
 let rec ex ret_reg = function
+  | ENil -> ()
   | EComma(_, ex1, ex2) ->
      ex ret_reg ex1;
      ex ret_reg ex2
@@ -335,35 +336,26 @@ let rec ex ret_reg = function
        | Eq -> "fcmpeq"
        | Ne -> "fcmpne" in
      emit_bin ret_reg op e1 e2
-  | EPAdd (_, e1, e2) ->
-     begin match (Typing.typeof e1, Typing.typeof e2) with
-     | (TPtr ty, i) when Typing.is_integral i ->
+  | EPAdd (ty, e1, e2) ->
+     begin match ty with
+     | TPtr ty ->
+        ex ret_reg e1;
         let reg = reg_alloc () in
         ex reg e2;
-        if ty != TVoid && sizeof ty != 1 then begin
-           emit "mov r%d, %d" ret_reg (sizeof ty);
-           emit_native_call reg "__mul" ret_reg reg
-        end;
-        ex ret_reg e1;
-        emit "shl r%d, r%d, 2" reg reg;
+        ex reg (EArith (TInt, Mul, ENil, EConst (TInt, VInt (4 * sizeof ty))));
         emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
         reg_free reg
-      | _ ->
-         failwith "EPAdd"
+     | _ ->
+        failwith "EPAdd"
      end
   | EPDiff (_, e1, e2) ->
      begin match (Typing.typeof e1, Typing.typeof e2) with
      | (TPtr t1, TPtr t2) when t1 = t2 ->
-        let sz =
-          if t1 = TVoid then
-            4
-          else
-            4 * (sizeof t1) in
         ex ret_reg e1;
         let reg = reg_alloc () in
         ex reg e2;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg reg;
-        emit "mov r%d, %d" reg sz;
+        emit "mov r%d, %d" reg (4 * sizeof t1);
         emit_native_call ret_reg "__signed_div" ret_reg reg;
         reg_free reg
      | _ ->
@@ -495,7 +487,7 @@ let rec ex ret_reg = function
      | Some op ->
         let tmp_reg = reg_alloc () in
         emit "mov r%d, %s" tmp_reg (mem_access mem);
-        begin match op, Typing.typeof e1 with
+        begin match op, ty with
         | Add, TPtr ty ->
            if sizeof ty != 0 then begin
              let size_reg = reg_alloc () in
@@ -532,7 +524,7 @@ let rec ex ret_reg = function
            else
              emit_native_call ret_reg "__signed_mod" tmp_reg ret_reg
         end;
-        reg_free tmp_reg;
+        reg_free tmp_reg
      end;
      emit "mov %s, r%d" (mem_access mem) ret_reg;
      reg_free reg
