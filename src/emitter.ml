@@ -480,53 +480,20 @@ let rec ex ret_reg = function
   | EAssign (ty, op, e1, e2) ->
      let reg = reg_alloc () in
      let mem = emit_lv_addr reg e1 in
-     ex ret_reg e2;
      begin match op with
      | None ->
-        ()
+        ex ret_reg e2;
+        emit "mov %s, r%d" (mem_access mem) ret_reg
      | Some op ->
-        let tmp_reg = reg_alloc () in
-        emit "mov r%d, %s" tmp_reg (mem_access mem);
+        emit "mov r%d, %s" ret_reg (mem_access mem);
         begin match op, ty with
-        | Add, TPtr ty ->
-           if sizeof ty != 0 then begin
-             let size_reg = reg_alloc () in
-             emit "mov r%d, %d" size_reg (sizeof ty);
-             emit_native_call ret_reg "__mul" ret_reg size_reg;
-             reg_free size_reg
-           end;
-           emit "shl r%d, r%d, 2" ret_reg ret_reg;
-           emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-        | Add, _ ->
-           emit "add r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-        | Sub, _ ->
-           emit "sub r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-        | LShift, _ ->
-           emit "shl r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-        | RShift, _ ->
-           emit "shr r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-        | BitAnd, _ ->
-           emit "and r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-        | BitXor, _ ->
-           emit "xor r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-        | BitOr, _ ->
-           emit "or r%d, r%d, r%d" ret_reg tmp_reg ret_reg
-        | Mul, _ ->
-           emit_native_call ret_reg "__mul" tmp_reg ret_reg
-        | Div, _ ->
-           if ty = TUInt then
-             emit_native_call ret_reg "__unsigned_div" tmp_reg ret_reg
-           else
-             emit_native_call ret_reg "__signed_div" tmp_reg ret_reg
-        | Mod, _ ->
-           if ty = TUInt then
-             emit_native_call ret_reg "__unsigned_mod" tmp_reg ret_reg
-           else
-             emit_native_call ret_reg "__signed_mod" tmp_reg ret_reg
+        | Add, TPtr _ ->
+           ex ret_reg (EPAdd (ty, ENil, e2));
+        | _ ->
+           ex ret_reg (EArith (ty, op, ENil, e2))
         end;
-        reg_free tmp_reg
+        emit "mov %s, r%d" (mem_access mem) ret_reg
      end;
-     emit "mov %s, r%d" (mem_access mem) ret_reg;
      reg_free reg
   | EFAssign (ty, op, e1, e2) ->
      let reg = reg_alloc () in
@@ -607,14 +574,14 @@ and emit_bin ret_reg op e1 e2 =
   emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
   reg_free reg
 
-and emit_lv_addr ret_reg = function
+and emit_lv_addr reg = function
   | EVar (_, Name name) ->
      begin match resolve_var name with
      | (_, Mem offset) ->
-        (31, (-offset))
+        (31, -offset)  (* rbp = r31 *)
      | (_, Global label) ->
-        emit "mov r%d, %s" ret_reg label;
-        (ret_reg, 0)
+        emit "mov r%d, %s" reg label;
+        (reg, 0)
      end
   | EDot (_, expr, Name mem) ->
      begin match Typing.typeof expr with
@@ -625,21 +592,21 @@ and emit_lv_addr ret_reg = function
           | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
         let memlist = List.nth !struct_env s_id in
         let mem_offset = go 0 mem memlist in
-        let (reg, disp) = emit_lv_addr ret_reg expr in
+        let (reg, disp) = emit_lv_addr reg expr in
         (reg, disp + mem_offset)
      | TUnion _ ->
-        emit_lv_addr ret_reg expr
+        emit_lv_addr reg expr
      | _ -> raise (EmitError "emit_lv_addr dot")
      end
   | EPtr (_, e) ->
-     ex ret_reg e;
-     (ret_reg, 0)
+     ex reg e;
+     (reg, 0)
   | EConst (_, VStr s) ->
      let label = sprintf "L%d" (label_create ()) in
      let t = List.map (fun i -> EConst (TInt, VInt i)) s in
      push static_locals_ref (label, t);
-     emit "mov r%d, %s" ret_reg label;
-     (ret_reg, 0)
+     emit "mov r%d, %s" reg label;
+     (reg, 0)
   | _ ->
      raise (EmitError "this expr is not lvalue")
 
