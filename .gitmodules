@@ -3,4 +3,4 @@
 	url = https://github.com/b-inary/gaia-software.git
 [submodule "extlib/benz-gaia"]
 	path = extlib/benz-gaia
-	url = git@github.com:wasabiz/benz-gaia.git
+	url = https://github.com/wasabiz/benz-gaia.git
