@@ -429,10 +429,8 @@ sbrk(size_t s) {
   if (! ptr)
     ptr = &__UCC_HEAP_START;
 
-  /*
   if (ptr + s >= (char *)0x400000)
     return NULL;
-  */
 
   ptr += s;
   return ptr - s;
