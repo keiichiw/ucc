@@ -6,4 +6,4 @@ sudo apt-get install -qq ocaml ocaml-native-compilers
 ocaml -version
 
 # compile & run tests
-make test
+make test-all

@@ -19,9 +19,16 @@ bin/as:
 test: all test/*.c
 	prove -j 4 test/*.c
 
+test-benz:
+	git submodule update --init
+	$(MAKE) -C test/benz test
+
+test-all: test test-benz
+
 clean:
 	ocamlbuild -clean
-	rm -f *~ test/*~ test/*.out bin/cc bin/sim bin/as lib/libucc.s
+	rm -f *~ test/*~ test/*.s test/*.out bin/cc bin/sim bin/as lib/libucc.s
+	$(MAKE) -C test/benz clean
 
 FORCE:
 .PHONY: FORCE clean all test
