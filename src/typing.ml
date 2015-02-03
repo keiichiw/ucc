@@ -202,8 +202,15 @@ and ex' = function
            | Some ty ->
               Type.EArith (ty, Sub, ex1, ex2)
            | None ->
-              raise_error "EArith: add"
+              raise_error "EArith: sub"
            end
+        end
+     | LShift | RShift ->
+        begin match arith_conv (ty1, TInt) with
+        | Some ty when is_integral ty2 ->
+           Type.EArith (ty, op, ex1, ex2)
+        | _ ->
+           raise_error "EArith: shl/shr"
         end
      | _ ->
         begin match arith_conv (ty1, ty2) with

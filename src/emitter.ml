@@ -295,11 +295,11 @@ let rec ex ret_reg = function
         let op = match op with
           | Add    -> "add"
           | Sub    -> "sub"
-          | LShift -> "shl"
-          | RShift -> "shr"
           | BitAnd -> "and"
           | BitOr  -> "or"
           | BitXor -> "xor"
+          | LShift -> "shl"
+          | RShift -> if is_unsigned ty then "shr" else "sar"
           | _ -> assert false in
         emit_bin ret_reg op e1 e2
      end
