@@ -343,13 +343,6 @@ _malloc(size_t nbytes)
     base.next = freep = prevp = &base;
     base.size = 0;
   }
-
-  /* FIXME: begin */
-  for (p = prevp->next; ; prevp = p, p = p->next)
-    if (p == freep)
-      break;
-  /* FIXME: end */
-
   for (p = prevp->next; ; prevp = p, p = p->next) {
     if (p->size >= nunits) {  /* big enough */
       if (p->size == nunits) {  /* exactly */
@@ -404,7 +397,7 @@ malloc_size(void *ap)
   Header *p;
 
   p = (Header *)ap - 1;
-  return p->size * sizeof(Header);
+  return (p->size - 1) * sizeof(Header);
 }
 
 void *
