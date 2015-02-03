@@ -9,13 +9,36 @@ typedef int ptrdiff_t;
 */
 
 int __mul(int a, int b) {
-  int i, r;
-  r = 0;
-  for (i = 31; i >= 0; --i) {
-    r <<= 1;
-    if ((b >> i) & 1) r += a;
-  }
-  return r;
+  __asm("\
+  mov r1, [rbp + 4]     \n\
+  mov r2, [rbp + 8]     \n\
+  xor r3, r1, r2        \n\
+  sar r4, r1, 31        \n\
+  sar r5, r2, 31        \n\
+  xor r1, r1, r4        \n\
+  xor r2, r2, r5        \n\
+  sub r1, r1, r4        \n\
+  sub r2, r2, r5        \n\
+  mov r4, 0             \n\
+  cmplt r5, r1, r2      \n\
+  bz r5, __mul_L1       \n\
+  mov r5, r1            \n\
+  mov r1, r2            \n\
+  mov r2, r5            \n\
+__mul_L1:               \n\
+  and r5, r2, 1         \n\
+  bz r5, __mul_L2       \n\
+  add r4, r4, r1        \n\
+__mul_L2:               \n\
+  add r1, r1, r1        \n\
+  shr r2, r2, 1         \n\
+  bnz+ r2, __mul_L1     \n\
+  cmplt r3, r3, 0       \n\
+  neg r3, r3            \n\
+  xor r1, r4, r3        \n\
+  sub r1, r1, r3        \n\
+  ret                   \n\
+");
 }
 
 static void signed_divmod(int n, int d, int *qp, int *rp) {
