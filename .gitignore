@@ -8,3 +8,5 @@ bin/as
 _build/
 libucc.s
 cc
+/test/benz/log.txt
+/test/benz/build/
