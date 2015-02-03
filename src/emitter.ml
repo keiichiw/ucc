@@ -3,8 +3,6 @@ open Type
 open Printf
 open Util
 
-exception EmitError of string
-
 type storageplace =
   | Mem of int (*memory*)
   | Global of string
@@ -34,6 +32,12 @@ let emit_raw fmt =
 let emit_label num =
   push buffer_ref (sprintf "L%d:\n" num)
 
+let raise_error fmt =
+  ksprintf (fun s ->
+    fprintf stderr "EmitError: %s (%s)\n" s !fun_name_ref;
+    exit 1
+  ) fmt
+
 let insert_epilogue () =
   if !buffer_ref = [] || peek buffer_ref <> "  ret\n" then begin
     emit "mov r1, 0";
@@ -56,7 +60,7 @@ let flush_buffer oc =
 let reg_alloc () =
   match !free_reg_stack with
   | [] ->
-     raise (EmitError "register starvation!!");
+     raise_error "register starvation!!"
   | x::xs ->
      free_reg_stack := xs;
      x
@@ -64,11 +68,11 @@ let reg_use i =
   if List.mem i !free_reg_stack then
     free_reg_stack := List.filter (fun x->x!=i) !free_reg_stack
   else
-    raise (EmitError (sprintf "Register r%d is not free!!" i))
+    raise_error "Register r%d is not free!!" i
 
 let reg_free i =
   if List.mem i !free_reg_stack then
-    raise (EmitError (sprintf "Register r%d is already free!!" i))
+    raise_error "Register r%d is already free!!" i
   else
     free_reg_stack := i::!free_reg_stack
 
@@ -97,7 +101,7 @@ let resolve_var name =
   try
     List.assoc name !env_ref
   with
-  | Not_found -> raise (EmitError (sprintf "not found %s" name))
+  | Not_found -> raise_error "not found %s" name
 
 let sizeof_decl = function
   | Decl (NoLink,TFun _,_,_)
@@ -161,7 +165,7 @@ let emit_global_var name init =
     | EAddr (TPtr _, EVar (_, Name v)) when List.mem_assoc v !env_ref ->
        emit ".int %s" v
     | ECast (_, _, e) -> go e
-    | _ -> raise (EmitError "global initializer must be constant") in
+    | _ -> raise_error "global initializer must be constant" in
   List.iter go init;
   List.iteri
     (fun i c ->
@@ -202,7 +206,7 @@ let rec ex ret_reg = function
      | VFloat f ->
         emit "mov r%d, %F" ret_reg f
      | VStr _ ->
-        raise (EmitError "logic flaw: EConst at Emitter.ex")
+        raise_error "logic flaw: EConst at Emitter.ex"
      end
   | ECond (_, c, t, e) ->
      let lelse = label_create () in
@@ -422,7 +426,7 @@ let rec ex ret_reg = function
         ex ret_reg e;
        emit "xor r%d, r%d, 0x80000000" ret_reg ret_reg
      | _ ->
-        raise (EmitError "FUnary")
+        raise_error "FUnary"
      end
   | EPPost (TPtr ty, op, e) ->
      let areg = reg_alloc () in
@@ -437,7 +441,7 @@ let rec ex ret_reg = function
      reg_free areg;
      reg_free reg
   | EPPost _ ->
-     raise (EmitError "EPPost: not pointer")
+     raise_error "EPPost: not pointer"
   | ECall (_, EAddr(_, EVar(_, Name "__asm")),
            [ECast(_, _, EAddr (_, EConst(_, VStr asm)))]) ->
      let slist = List.map (Char.chr >> String.make 1) asm in
@@ -470,9 +474,9 @@ let rec ex ret_reg = function
   | EVar (ty, Name name) as expr ->
      begin match resolve_var name with
      | TArray _, _ | TFun _, _ ->
-        raise (EmitError "logic flaw: EVar")
+        raise_error "logic flaw: EVar"
      | TStruct _, _ | TUnion _, _ ->
-        raise (EmitError "EVar: struct as value is unsupported")
+        raise_error "EVar: struct as value is unsupported"
      | _ ->
         let mem = emit_lv_addr ret_reg expr in
         emit "mov r%d, %s" ret_reg (mem_access mem)
@@ -511,7 +515,7 @@ let rec ex ret_reg = function
           | Sub -> "fsub"
           | Mul -> "fmul"
           | Div -> "fdiv"
-          | _   -> raise (EmitError "EFAssign")
+          | _   -> raise_error "EFAssign"
           end in
         emit "%s r%d, r%d, r%d" fop ret_reg tmp_reg ret_reg;
         reg_free tmp_reg
@@ -530,7 +534,7 @@ let rec ex ret_reg = function
      let mem = emit_lv_addr ret_reg expr in
      begin match ty with
      | TArray _ | TStruct _ | TUnion _ ->
-        raise (EmitError "EDot")
+        raise_error "EDot"
      | _ ->
         emit "mov r%d, %s" ret_reg (mem_access mem)
      end
@@ -539,7 +543,7 @@ let rec ex ret_reg = function
      | TStruct _, _ | _, TStruct _
      | TUnion  _, _ | _, TUnion  _
      | TArray  _, _ | _, TArray  _ ->
-        raise (EmitError "ECast")
+        raise_error "ECast"
      | _, _ when t1 = t2 ->
        ex ret_reg e
      | TFloat, TInt ->
@@ -559,10 +563,10 @@ let rec ex ret_reg = function
        reg_free flg
      | TFloat, TUInt
      | TUInt, TFloat ->
-        raise (EmitError "ECast: float <-> unsigned is unsupported")
+        raise_error "ECast: float <-> unsigned is unsupported"
      | TFloat, _
      | _, TFloat ->
-        raise (EmitError "ECast: float")
+        raise_error "ECast: float"
      | _ ->
         ex ret_reg e
      end
@@ -596,7 +600,7 @@ and emit_lv_addr reg = function
         (reg, disp + mem_offset)
      | TUnion _ ->
         emit_lv_addr reg expr
-     | _ -> raise (EmitError "emit_lv_addr dot")
+     | _ -> raise_error "emit_lv_addr dot"
      end
   | EPtr (_, e) ->
      ex reg e;
@@ -608,7 +612,7 @@ and emit_lv_addr reg = function
      emit "mov r%d, %s" reg label;
      (reg, 0)
   | _ ->
-     raise (EmitError "this expr is not lvalue")
+     raise_error "this expr is not lvalue"
 
 let init_local_vars vars =
   let go (Decl (ln, ty, Name nm, init)) =
@@ -629,7 +633,7 @@ let init_local_vars vars =
        | Extern, [] | NoLink, [] ->
           ()                   (* ignore *)
        | Extern, _ | NoLink, _ ->
-          raise (EmitError "local extern variable has initializer") in
+          raise_error"local extern variable has initializer" in
   List.iter go vars
 
 let rec st = function
@@ -828,6 +832,7 @@ let emitter oc = function
      List.iter (fun (name,e) ->
        emit_global_var name e
      ) (List.rev !static_locals_ref);
+     fun_name_ref := "";
      flush_buffer oc
   | DefVar (Decl (ln, ty, Name name, init)) ->
      push env_ref (name, (ty, Global name));

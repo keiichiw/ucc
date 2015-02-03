@@ -1,18 +1,24 @@
 open Ctype
-open Format
+open Printf
 open Util
-
-exception TypingError of string
 
 let venv_ref : (string * ctype) list ref = ref []
 let ret_ty_ref : ctype ref = ref TInt
+let fun_name_ref : string ref = ref "global"
+
+let raise_error fmt =
+  ksprintf (fun s ->
+    fprintf stderr "TypingError: %s (%s)\n" s !fun_name_ref;
+    exit 1
+  ) fmt
+
 let get_ret_ty = function
   | Type.Decl (_, TFun (ty, _), _, _) -> ty
-  | _ -> raise (TypingError "get return type")
+  | _ -> raise_error "get return type"
 
 let resolve_var_type nm =
   let rec go nm  = function
-    | [] -> raise (TypingError (sprintf "variable not found: %s" nm))
+    | [] -> raise_error "variable not found: %s" nm
     | (s, ty)::_ when s=nm -> ty
     | _ :: xs -> go nm xs in
   go nm !venv_ref
@@ -76,10 +82,10 @@ let arith_conv = function
 let initialize ty init =
   let scaler = function
     | Syntax.IVect ((Syntax.IVect _)::_) ->
-       raise (TypingError "too many braces around scalar initializer")
+       raise_error "too many braces around scalar initializer"
     | Syntax.IVect [Syntax.IScal e] -> [e]
     | Syntax.IVect _ ->
-       raise (TypingError "invalid scaler initializer")
+       raise_error "invalid scaler initializer"
     | Syntax.IScal e -> [e] in
   let rec compound ty init idx =
     match ty, init with
@@ -106,7 +112,7 @@ let initialize ty init =
        let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
        let ilist = Syntax.IVect (List.map f str) in
        compound ty ilist 0
-    | _ -> raise (TypingError "requied initializer list")
+    | _ -> raise_error "requied initializer list"
   and inner inner_ty ilist =
     let i, is =
       if ilist = [] then
@@ -117,7 +123,7 @@ let initialize ty init =
     | TStruct _, Syntax.IVect _ | TArray _, Syntax.IVect _ ->
        let res, tail = compound inner_ty i 0 in
        if tail <> Syntax.IVect [] then
-         raise (TypingError "initializer eccess elements");
+         raise_error "initializer eccess elements";
        (res, Syntax.IVect is)
     | TArray (TChar, sz), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
        let str = if sz > 0 then List.rev (List.tl (List.rev str)) else str in
@@ -133,7 +139,7 @@ let initialize ty init =
      | TStruct _ | TUnion _ | TArray _ ->
         let res, tail = compound ty init 0 in
         if tail <> Syntax.IVect [] then
-          raise (TypingError "initializer eccess elements");
+          raise_error "initializer eccess elements";
         res
      | _ -> scaler init
 
@@ -184,7 +190,7 @@ and ex' = function
            | Some ty ->
               Type.EArith (ty, Add, ex1, ex2)
            | None ->
-              raise (TypingError "EArith: add")
+              raise_error "EArith: add"
            end
         end
      | Sub ->
@@ -204,7 +210,7 @@ and ex' = function
            | Some ty ->
               Type.EArith (ty, Sub, ex1, ex2)
            | None ->
-              raise (TypingError "EArith: add")
+              raise_error "EArith: add"
            end
         end
      | _ ->
@@ -216,11 +222,11 @@ and ex' = function
                             Type.ECast(TFloat, ty1, ex1),
                             Type.ECast(TFloat, ty2, ex2))
            | _ ->
-              raise (TypingError "EFArith; float")
+              raise_error "EFArith; float"
            end
         | Some ty ->
            Type.EArith (ty, op, ex1, ex2)
-        | None -> raise (TypingError "EArith")
+        | None -> raise_error "EArith"
         end
      end
   | Syntax.ERel (op, e1, e2) ->
@@ -240,7 +246,7 @@ and ex' = function
         | Some _ ->
            Type.ERel (TInt, op, ex1, ex2)
         | None ->
-           raise (TypingError "relation")
+           raise_error "relation"
         end
      end
   | Syntax.EEq (op, e1, e2) ->
@@ -254,7 +260,7 @@ and ex' = function
         | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
            Type.EEq (TInt, op, ex1, ex2)
         | _ ->
-           raise (TypingError "eq: pointer and non-zero integer")
+           raise_error "eq: pointer and non-zero integer"
         end
      | (TPtr _, t) when is_integral t ->
         ex (Syntax.EEq (op, e2, e1))
@@ -267,7 +273,7 @@ and ex' = function
         | Some _ ->
            Type.EEq (TInt, op, ex1, ex2)
         | _ ->
-           raise (TypingError "eq: otherwise")
+           raise_error "eq: otherwise"
         end
      end
   | Syntax.ELog (op, e1, e2) ->
@@ -278,7 +284,7 @@ and ex' = function
      if (is_num_or_ptr t1) || (is_num_or_ptr t2) then
        Type.ELog (TInt, op, ex1, ex2)
      else
-       raise (TypingError "logical")
+       raise_error "logical"
   | Syntax.EUnary (op, e1) ->
      let ex1 = ex e1 in
      begin match (op, typeof ex1) with
@@ -299,7 +305,7 @@ and ex' = function
      | (_, TUInt) ->
         Type.EUnary(TUInt, op, ex1)
      | _ ->
-        raise (TypingError "unary")
+        raise_error "unary"
      end
   | Syntax.EAssign (op, e1, e2) ->
      let ex1 = ex e1 in
@@ -323,14 +329,14 @@ and ex' = function
            let m_ex2 = ex (Syntax.EUnary(Minus, e2)) in
            Type.EAssign (TPtr ty, Some Add, ex1, m_ex2)
         | _ ->
-           raise (TypingError "EAssign: TPtr")
+           raise_error "EAssign: TPtr"
         end
      | (ty1, ty2) ->
         if op = None then
           Type.EAssign (ty1, op, ex1,
                         Type.ECast(ty1, ty2, ex2))
         else
-          raise (TypingError "EAssign")
+          raise_error "EAssign"
      end
   | Syntax.ECall (e1, elist) ->
      let ex1 = ex e1 in
@@ -349,7 +355,7 @@ and ex' = function
             List.map ex elist in
         Type.ECall (retty, ex1, args)
      | _ ->
-        raise (TypingError "ECall: not a function given")
+        raise_error "ECall: not a function given"
      end
   | Syntax.EAddr e ->
      let ex1 = ex e in
@@ -358,7 +364,7 @@ and ex' = function
      let ex1 = ex e in
      begin match typeof ex1 with
      | TPtr ty -> Type.EPtr (ty, ex1)
-     | _ -> raise (TypingError "ptr")
+     | _ -> raise_error "ptr"
      end
   | Syntax.ECond (e1, e2, e3) ->
      let ex1 = ex e1 in
@@ -375,7 +381,7 @@ and ex' = function
                       Type.ECast (ty, ty2, ex2),
                       Type.ECast (ty, ty3, ex3))
        | None ->
-          raise (TypingError "cond")
+          raise_error "cond"
        end
   | Syntax.EDot (e1, Name nm) ->
      let ex1 = ex e1 in
@@ -468,6 +474,8 @@ let rec st = function
 
 let def = function
   | Syntax.DefFun (d, dlist, b) ->
+     let Syntax.Decl(_,_,Name fname,_) = d in
+     fun_name_ref := fname;
      let d1 = dv d in
      ret_ty_ref := get_ret_ty d1;
      let old_venv = !venv_ref in
@@ -475,6 +483,7 @@ let def = function
      let b1 = st b in
      let ret = Type.DefFun (d1, a1, b1) in
      venv_ref := old_venv;
+     fun_name_ref := "";
      ret
   | Syntax.DefVar decl ->
      Type.DefVar (dv decl)
