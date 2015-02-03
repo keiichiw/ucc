@@ -58,6 +58,8 @@ rule token = parse
   { TLONG }
 | "short"
   { TSHORT }
+| "signed"
+  { TSIGNED }
 | "unsigned"
   { TUNSIGNED }
 | "char"

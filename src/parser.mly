@@ -182,23 +182,22 @@ let epilogue () =
   union_env := List.rev !union_env
 
 let to_unsigned = function
-  | _ -> TUInt
+  | (TInt,   true) -> TUInt
+  | (TShort, true) -> TUShort
+  | (TLong,  true) -> TULong
+  | (TChar,  true) -> TUChar
+  | (t, _) -> t
 
-let create_type = function
-  | (t, TUInt)
-  | (TUInt, t) ->
-     to_unsigned t
-  | (_, TLong)
-  | (TLong, _) ->
-     TLong
-  | (_, TShort)
-  | (TShort, _) ->
-     TShort
-  | (_, TChar)
-  | (TChar, _) ->
-     TChar
-  | _ ->
-     TInt
+let create_type (t1, u1) (t2, u2) =
+  let go = function
+    | (t1, t2) when not (is_integral t1 && is_integral t2) ->
+       failwith "create_type"
+    | (TLong, _)  | (_, TLong)  -> TLong
+    | (TShort, _) | (_, TShort) -> TShort
+    | (TChar, _)  | (_, TChar)  -> TChar
+    | _ -> TInt in
+  (go (t1, t2), u1 || u2)
+
 %}
 
 %token <int> INT
@@ -208,7 +207,7 @@ let create_type = function
 %token <string> ID
 %token <string> TYPEDEF_NAME
 %token <string> ENUM_ID
-%token TINT TUNSIGNED TFLOAT TCHAR TSHORT TLONG TVOID
+%token TINT TUNSIGNED TSIGNED TFLOAT TCHAR TSHORT TLONG TVOID
 %token STRUCT UNION TYPEDEF ENUM
 %token STATIC EXTERN
 %token IF ELSE WHILE DO FOR
@@ -288,32 +287,38 @@ decl_real:
   { typedef (make_decl NoLink $2 ($3, None)); [] }
 
 decl_specs:
+| decl_specs_sub
+  { to_unsigned $1 }
+
+decl_specs_sub:
 | type_spec
   { $1 }
-| type_spec decl_specs
-  { create_type ($1, $2) }
+| type_spec decl_specs_sub
+  { create_type $1 $2 }
 
 type_spec:
 | TINT
-  { TInt }
+  { (TInt, false) }
+| TSIGNED
+  { (TInt, false) }
 | TSHORT
-  { TShort }
+  { (TShort, false) }
 | TLONG
-  { TLong }
+  { (TLong, false) }
 | TUNSIGNED
-  { TUInt }
+  { (TInt, true) }
 | TCHAR
-  { TChar }
+  { (TChar, false) }
 | TFLOAT
-  { TFloat}
+  { (TFloat, false) }
 | TVOID
-  { TVoid }
+  { (TVoid, false) }
 | TYPEDEF_NAME
-    { List.assoc $1 !typedef_env }
+  { List.assoc $1 !typedef_env }
 | struct_spec
-  { $1 }
+  { ($1, false) }
 | enum_spec
-  { $1 }
+  { ($1, false) }
 
 ident_option:
 |

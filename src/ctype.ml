@@ -7,11 +7,8 @@ type size = int
 type name = string
 
 type ctype =
-  | TInt
-  | TShort
-  | TLong
-  | TUInt
-  | TChar
+  | TInt  | TShort  | TLong  | TChar
+  | TUInt | TUShort | TULong | TUChar
   | TFloat
   | TVoid
   | TStruct of int
@@ -33,8 +30,9 @@ let struct_env : (string * ctype) list list ref = ref []
 let union_env  : (string * ctype) list list ref = ref []
 
 let rec sizeof = function
-  | TInt  | TShort | TLong | TUInt
-  | TChar | TFloat | TPtr   _ -> 1
+  | TInt  | TShort  | TLong  | TChar
+  | TUInt | TUShort | TULong | TUChar -> 1
+  | TFloat | TPtr _ -> 1
   | TStruct s_id ->
      s_id |> List.nth !struct_env
           |> List.map (snd >> sizeof)
@@ -101,3 +99,18 @@ let unary2fun = function
   | BitNot -> (lnot)
   | LogNot -> (fun x -> if x=0 then 1 else 0)
   | _ -> failwith "unary2fun: PostInc/PostDec"
+
+let is_integral = function
+  | TInt  | TShort  | TLong  | TChar
+  | TUInt | TUShort | TULong | TUChar -> true
+  | _ -> false
+
+let is_unsigned = function
+  | TUInt | TUShort | TULong | TUChar -> true
+  | _ -> false
+
+let is_num t = is_integral t || t = TFloat
+
+let is_pointer = function
+  | TPtr _ -> true
+  | _ -> false

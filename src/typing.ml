@@ -60,21 +60,13 @@ let typeof = function
   | Type.ECast   (t, _, _) -> t
   | Type.ENil -> failwith "typeof ENil"
 
-let is_integral = function
-  | TInt | TShort | TLong | TUInt | TChar -> true
-  | _ -> false
-let is_num = function
-  | TInt | TShort | TLong | TUInt
-  | TChar | TFloat -> true
-  | _ -> false
-let is_pointer = function
-  | TPtr _ -> true
-  | _ -> false
 let is_num_or_ptr x = is_num x || is_pointer x
 
 let arith_conv = function
   | t1, t2 when not (is_num t1 && is_num t2) -> None
   | TFloat, _ | _, TFloat -> Some TFloat
+  | TULong, _ | _, TULong -> Some TULong
+  | TLong, TUInt | TUInt, TLong  -> Some TULong
   | TLong,  _ | _, TLong  -> Some TLong
   | TUInt,  _ | _, TUInt  -> Some TUInt
   | _ -> Some TInt
@@ -241,7 +233,8 @@ and ex' = function
            Type.EFRel (TInt, op,
                        Type.ECast(TFloat, ty1, ex1),
                        Type.ECast(TFloat, ty2, ex2))
-        | Some TUInt ->
+        | Some TUInt
+        | Some TULong ->
            Type.EURel (TInt, op, ex1, ex2)
         | Some _ ->
            Type.ERel (TInt, op, ex1, ex2)
@@ -295,17 +288,15 @@ and ex' = function
      | (Plus,  TFloat)
      | (Minus, TFloat) ->
         Type.EFUnary(TFloat, op, ex1)
-     | (LogNot, _) (* ! *)
-     | (_, TInt)
-     | (_, TShort)
-     | (_, TChar) ->
+     | (LogNot, _) (* ! *) ->
         Type.EUnary(TInt, op, ex1)
-     | (_, TLong) ->
-        Type.EUnary(TLong, op, ex1)
-     | (_, TUInt) ->
-        Type.EUnary(TUInt, op, ex1)
-     | _ ->
-        raise_error "unary"
+     | (_, t) ->
+        begin match arith_conv (t, TInt) with
+        | Some t ->
+           Type.EUnary(t, op, ex1)
+        | None ->
+           raise_error "unary"
+        end
      end
   | Syntax.EAssign (op, e1, e2) ->
      let ex1 = ex e1 in

@@ -157,9 +157,9 @@ let emit_global_var name init =
   let contents = ref [] in
   emit_raw "%s:\n" name;
   let rec go = function
-    | EConst (TInt, (VInt v)) ->
+    | EConst (_, (VInt v)) ->
        emit ".int %d" v
-    | EAddr (TPtr TInt, EConst (TArray (TInt, _), VStr s)) ->
+    | EAddr (TPtr TInt, EConst (_, VStr s)) ->
        contents := s :: !contents;
        emit ".int %s_contents_%d" name (List.length !contents)
     | EAddr (TPtr _, EVar (_, name)) when List.mem_assoc name !env_ref ->
@@ -197,8 +197,8 @@ let mem_access (reg, disp) =
 let rec int_const = function
   | EConst (_, VInt i) -> Some i
   | ECast (t1, t2, e) ->
-     if not (Typing.is_integral t1 || Typing.is_pointer t1) then None else
-     if not (Typing.is_integral t2 || Typing.is_pointer t2) then None else
+     if not (is_integral t1 || is_pointer t1) then None else
+     if not (is_integral t2 || is_pointer t2) then None else
      int_const e
   | EUnary (_, op, e) ->
      if op = PostInc || op = PostDec then None else
@@ -248,7 +248,7 @@ let rec ex ret_reg = function
               emit "mov r%d, 0" ret_reg
            | Mul, _ ->
               emit "shl r%d, r%d, %d" ret_reg ret_reg (log2 x)
-           | Div, TUInt ->
+           | Div, t when is_unsigned t ->
               emit "shr r%d, r%d, %d" ret_reg ret_reg (log2 x)
            | Div, _ ->
               let reg = reg_alloc () in
@@ -257,7 +257,7 @@ let rec ex ret_reg = function
               emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
               emit "sar r%d, r%d, %d" ret_reg ret_reg (log2 x);
               reg_free reg
-           | Mod, TUInt ->
+           | Mod, t when is_unsigned t ->
               emit "and r%d, r%d, %d" ret_reg ret_reg (x - 1)
            | Mod, _ ->
               let reg = reg_alloc () in
@@ -279,8 +279,8 @@ let rec ex ret_reg = function
         | _ ->
            let fun_name =
              match op, ty with
-             | Div, TUInt -> "__unsigned_div"
-             | Mod, TUInt -> "__unsigned_mod"
+             | Div, t when is_unsigned t -> "__unsigned_div"
+             | Mod, t when is_unsigned t -> "__unsigned_mod"
              | Mul, _ -> "__mul"
              | Div, _ -> "__signed_div"
              | Mod, _ -> "__signed_mod"
@@ -558,25 +558,26 @@ let rec ex ret_reg = function
      | TArray  _, _ | _, TArray  _ ->
         raise_error "ECast"
      | _, _ when t1 = t2 ->
-       ex ret_reg e
-     | TFloat, TInt ->
-       ex ret_reg e;
-       emit "itof r%d, r%d" ret_reg ret_reg
-     | TInt, TFloat ->
-       ex ret_reg e;
-       let flg = reg_alloc () in
-       emit "sar r%d, r%d, 31" flg ret_reg;    (* flg=ret<0?-1:0 *)
-       emit "shl r%d, r%d, 1"  ret_reg ret_reg;
-       emit "shr r%d, r%d, 1"  ret_reg ret_reg;(* fabs(ret_reg)*)
-       emit "floor r%d, r%d" ret_reg ret_reg;
-       emit "ftoi  r%d, r%d" ret_reg ret_reg;
-       (* (x^flg)-flg equals (flg==-1?-x:x) *)
-       emit "xor r%d, r%d, r%d" ret_reg ret_reg flg;
-       emit "sub r%d, r%d, r%d" ret_reg ret_reg flg;
-       reg_free flg
-     | TFloat, TUInt
-     | TUInt, TFloat ->
-        raise_error "ECast: float <-> unsigned is unsupported"
+        ex ret_reg e
+     | TFloat, t when is_integral t ->
+        if is_unsigned t then
+          raise_error "ECast: unsigned -> float is unsupported";
+        ex ret_reg e;
+        emit "itof r%d, r%d" ret_reg ret_reg
+     | t, TFloat when is_integral t ->
+        if is_unsigned t then
+          raise_error "ECast: float -> unsigned is unsupported";
+        ex ret_reg e;
+        let flg = reg_alloc () in
+        emit "sar r%d, r%d, 31" flg ret_reg;    (* flg=ret<0?-1:0 *)
+        emit "shl r%d, r%d, 1"  ret_reg ret_reg;
+        emit "shr r%d, r%d, 1"  ret_reg ret_reg;(* fabs(ret_reg)*)
+        emit "floor r%d, r%d" ret_reg ret_reg;
+        emit "ftoi  r%d, r%d" ret_reg ret_reg;
+        (* (x^flg)-flg equals (flg==-1?-x:x) *)
+        emit "xor r%d, r%d, r%d" ret_reg ret_reg flg;
+        emit "sub r%d, r%d, r%d" ret_reg ret_reg flg;
+        reg_free flg
      | TFloat, _
      | _, TFloat ->
         raise_error "ECast: float"
