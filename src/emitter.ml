@@ -35,9 +35,11 @@ let emit_label num =
   push buffer_ref (sprintf "L%d:\n" num)
 
 let insert_epilogue () =
-  emit "mov r1, r0";
-  emit "leave";
-  emit "ret"
+  if !buffer_ref = [] || peek buffer_ref <> "  ret\n" then begin
+    emit "mov r1, 0";
+    emit "leave";
+    emit "ret"
+  end
 
 let insert_halt () =
   let trap s = if s = "  ret\n" then "  halt\n" else s in
