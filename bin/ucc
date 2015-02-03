@@ -13,11 +13,11 @@ OFLAG=0
 FILE1=$1
 
 usage_exit() {
-    echo "Usage: $0 [-s] [-o file] file" 1>&2
+    echo "Usage: $0 [-a ASMOPTS] [-s] [-o file] file" 1>&2
     exit 1
 }
 
-while getopts sSI:o:h OPT
+while getopts sSa:I:o:h OPT
 do
     case $OPT in
         s|S)
@@ -26,6 +26,9 @@ do
         o)
             OUTFILE=$OPTARG;
             OFLAG=1
+            ;;
+        a)
+            ASM_OPTS=$OPTARG
             ;;
         I)
             INCLUDE_DIR=$OPTARG
@@ -63,7 +66,7 @@ function compile() {
 
     # rename & push
     cp /tmp/$FILENAME.x.s $FILEDIR/${FILENAME%.*}.s
-    ASMS="$FILEDIR/${FILENAME%.*}.s $ASMS"
+    ASMS="$ASMS $FILEDIR/${FILENAME%.*}.s"
 }
 
 for f in $@; do
@@ -78,4 +81,4 @@ if [ $ASM_MODE ]; then
 fi
 
 # assemble
-$AS $ASMS -l $UCCLIB -o $OUTFILE -f __UCC_HEAP_START || exit 1
+$AS $ASM_OPTS $ASMS -l $UCCLIB -o $OUTFILE -f __UCC_HEAP_START || exit 1
