@@ -194,6 +194,17 @@ let mem_access (reg, disp) =
   if disp < 0 then sprintf "[%s - %d]" reg (-disp) else
   sprintf "[%s]" reg
 
+let rec int_const = function
+  | EConst (_, VInt i) -> Some i
+  | ECast (t1, t2, e) ->
+     if not (Typing.is_integral t1 || Typing.is_pointer t1) then None else
+     if not (Typing.is_integral t2 || Typing.is_pointer t2) then None else
+     int_const e
+  | EUnary (_, op, e) ->
+     if op = PostInc || op = PostDec then None else
+     opMap (unary2fun op) (int_const e)
+  | _ -> None
+
 let rec ex ret_reg = function
   | ENil -> ()
   | EComma(_, ex1, ex2) ->
@@ -225,8 +236,8 @@ let rec ex ret_reg = function
           let rec go n acc =
             if n <= 1 then acc else go (n / 2) (acc + 1) in
           go n 0 in
-        begin match e1, e2 with
-        | _, EConst (_, VInt x) when x land (x - 1) = 0 ->
+        begin match int_const e1, int_const e2 with
+        | _, Some x when x land (x - 1) = 0 ->
            ex ret_reg e1;
            begin match op, ty with
            | Mul, _ | Div, _ when x = 1 ->
@@ -263,7 +274,7 @@ let rec ex ret_reg = function
            | _ ->
               assert false
            end
-        | EConst (_, VInt x), _ when x land (x - 1) = 0 && op = Mul ->
+        | Some x, _ when x land (x - 1) = 0 && op = Mul ->
            ex ret_reg (EArith (ty, op, e2, e1))
         | _ ->
            let fun_name =
@@ -294,10 +305,10 @@ let rec ex ret_reg = function
      end
   | EFArith (ty, op, e1, e2) ->
      let op = match op with
-       | Add    -> "fadd"
-       | Sub    -> "fsub"
-       | Mul    -> "fmul"
-       | Div    -> "fdiv"
+       | Add -> "fadd"
+       | Sub -> "fsub"
+       | Mul -> "fmul"
+       | Div -> "fdiv"
        | _ -> assert false in
      emit_bin ret_reg op e1 e2
   | ERel (_, op, e1, e2) ->
@@ -526,7 +537,9 @@ let rec ex ret_reg = function
      let (reg, disp) = emit_lv_addr ret_reg e in
      if not (ret_reg = reg && disp = 0) then
        let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
-       emit "add r%d, %s, %d" ret_reg reg disp
+       if disp > 0 then emit "add r%d, %s, %d" ret_reg reg disp else
+       if disp < 0 then emit "sub r%d, %s, %d" ret_reg reg (-disp) else
+       emit "mov r%d, %s" ret_reg reg
   | EPtr (_, e) ->
      ex ret_reg e;
      emit "mov r%d, [r%d]" ret_reg ret_reg
@@ -572,11 +585,19 @@ let rec ex ret_reg = function
      end
 
 and emit_bin ret_reg op e1 e2 =
-  ex ret_reg e1;
-  let reg = reg_alloc () in
-  ex reg e2;
-  emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
-  reg_free reg
+  match int_const e1, int_const e2 with
+  | _, Some n ->
+     ex ret_reg e1;
+     emit "%s r%d, r%d, %d" op ret_reg ret_reg n
+  | Some n, _ when List.mem op ["add"; "and"; "or"; "xor"; "cmpeq"; "cmpne"] ->
+     ex ret_reg e2;
+     emit "%s r%d, r%d, %d" op ret_reg ret_reg n
+  | _ ->
+     ex ret_reg e1;
+     let reg = reg_alloc () in
+     ex reg e2;
+     emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
+     reg_free reg
 
 and emit_lv_addr reg = function
   | EVar (_, name) ->
