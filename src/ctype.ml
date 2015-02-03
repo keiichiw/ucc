@@ -4,8 +4,7 @@ exception TODO of string
 
 type size = int
 
-type name =
-  | Name of string
+type name = string
 
 type ctype =
   | TInt

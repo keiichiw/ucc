@@ -16,12 +16,12 @@ let get_ret_ty = function
   | Type.Decl (_, TFun (ty, _), _, _) -> ty
   | _ -> raise_error "get return type"
 
-let resolve_var_type nm =
-  let rec go nm  = function
-    | [] -> raise_error "variable not found: %s" nm
-    | (s, ty)::_ when s=nm -> ty
-    | _ :: xs -> go nm xs in
-  go nm !venv_ref
+let resolve_var_type name =
+  let rec go name  = function
+    | [] -> raise_error "variable not found: %s" name
+    | (s, ty)::_ when s=name -> ty
+    | _ :: xs -> go name xs in
+  go name !venv_ref
 
 let resolve_member_type ty mem_name =
   match ty with
@@ -161,11 +161,11 @@ and ex' = function
        | Syntax.VFloat f -> TFloat, Type.VFloat f
        | Syntax.VStr   s -> TArray (TInt, List.length s), Type.VStr s in
      Type.EConst (ty, v)
-  | Syntax.EVar (Name n)->
-     if n = "__asm" then
-       Type.EVar (TFun (TVoid, [TPtr TChar]), Name n)
+  | Syntax.EVar name->
+     if name = "__asm" then
+       Type.EVar (TFun (TVoid, [TPtr TChar]), name)
      else
-       Type.EVar (resolve_var_type n, Name n)
+       Type.EVar (resolve_var_type name, name)
   | Syntax.EComma (e1, e2) ->
      let e = ex e2 in
      Type.EComma(typeof e, ex e1, e)
@@ -383,10 +383,10 @@ and ex' = function
        | None ->
           raise_error "cond"
        end
-  | Syntax.EDot (e1, Name nm) ->
+  | Syntax.EDot (e1, name) ->
      let ex1 = ex e1 in
-     let ty = resolve_member_type (typeof ex1) nm in
-     Type.EDot(ty, ex1, Name nm)
+     let ty = resolve_member_type (typeof ex1) name in
+     Type.EDot(ty, ex1, name)
   | Syntax.ECast (ty, e) ->
      let e = ex e in
      let ty2 = typeof e in
@@ -405,15 +405,15 @@ let ex_opt = function
      None
 
 let dv = function
-  | Syntax.Decl(ln, ty, Name n, x) ->
+  | Syntax.Decl(ln, ty, name, x) ->
      let init = initialize ty x in
      let ty =
        match ty with
        | TArray (t, 0) ->
           TArray (t, List.length init / sizeof t)
        | _ -> ty in
-     push venv_ref (n, ty);
-     Type.Decl(ln, ty, Name n, List.map ex init)
+     push venv_ref (name, ty);
+     Type.Decl(ln, ty, name, List.map ex init)
 
 let rec st = function
   | Syntax.SNil -> Type.SNil
@@ -474,7 +474,7 @@ let rec st = function
 
 let def = function
   | Syntax.DefFun (d, dlist, b) ->
-     let Syntax.Decl(_,_,Name fname,_) = d in
+     let Syntax.Decl( _, _, fname, _) = d in
      fun_name_ref := fname;
      let d1 = dv d in
      ret_ty_ref := get_ret_ty d1;

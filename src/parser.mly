@@ -24,7 +24,7 @@ let get_ty = function
      ty
 
 let make_decl ln ty (decl, exp) =
-  let name = ref (Name "") in
+  let name = ref "" in
   let ty =
     let rec go k = function
       | DeclIdent n ->
@@ -51,7 +51,7 @@ let rec get_params = function
 
 let make_type ty decl =
   (match make_decl NoLink ty (decl, None) with
-   | Decl (_, ty, Name "", None) ->
+   | Decl (_, ty, "", None) ->
       ty
    | _ ->
       raise (ParserError "make_type"))
@@ -91,7 +91,7 @@ let insert_union_decl uid decl =
   union_env := go (!union_env, List.length !union_env - 1)
 
 let make_structty name_opt decl =
-  let go (Decl (_, ty, Name n, _)) = (n, ty) in
+  let go (Decl (_, ty, nm, _)) = (nm, ty) in
   let decl = List.map go decl in
   match name_opt with
   | Some name ->
@@ -104,7 +104,7 @@ let make_structty name_opt decl =
      TStruct sid
 
 let make_unionty name_opt decl =
-  let go (Decl (_, ty, Name n, _)) = (n, ty) in
+  let go (Decl (_, ty, nm, _)) = (nm, ty) in
   let decl = List.map go decl in
   match name_opt with
   | Some name ->
@@ -381,7 +381,7 @@ declarator:
 
 direct_declarator:
 | ID
-  { DeclIdent(Name $1) }
+  { DeclIdent $1 }
 | LPAREN declarator RPAREN
   { $2 }
 | direct_declarator LBRACKET const_expr RBRACKET
@@ -407,7 +407,7 @@ param_decl:
 | decl_specs abstract_declarator
   { make_decl NoLink $1 ($2, None) }
 | decl_specs
-  { make_decl NoLink $1 (DeclIdent (Name ""), None) }
+  { make_decl NoLink $1 (DeclIdent "", None) }
 
 initializer_: /* 'initializer' is an OCaml's keyword! */
 | assign_expr
@@ -423,13 +423,13 @@ initializer_list:
 
 type_name:
 | decl_specs
-  { make_type $1 (DeclIdent (Name "")) }
+  { make_type $1 (DeclIdent "") }
 | decl_specs abstract_declarator
   { make_type $1 $2 }
 
 abstract_declarator:
 | STAR
-  { DeclPtr (DeclIdent (Name "")) }
+  { DeclPtr (DeclIdent "") }
 | STAR abstract_declarator
   { DeclPtr $2 }
 | direct_abstract_declarator
@@ -439,9 +439,9 @@ direct_abstract_declarator:
 | LPAREN abstract_declarator RPAREN
   { $2 }
 | LBRACKET const_expr RBRACKET
-  { DeclArray (DeclIdent (Name ""), $2) }
+  { DeclArray (DeclIdent "", $2) }
 | LPAREN param_decl_list RPAREN
-  { DeclFun (DeclIdent (Name ""), $2) }
+  { DeclFun (DeclIdent "", $2) }
 | direct_abstract_declarator LBRACKET RBRACKET
   { DeclArray ($1, 0) }
 | direct_abstract_declarator LBRACKET const_expr RBRACKET
@@ -687,9 +687,9 @@ postfix_expr:
 | postfix_expr LPAREN arg_expr_list RPAREN
   { ECall($1, $3) }
 | postfix_expr DOT ident
-  { EDot($1, Name $3) }
+  { EDot($1, $3) }
 | postfix_expr ARROW ident
-  { EDot(EPtr $1, Name $3) }
+  { EDot(EPtr $1, $3) }
 
 primary_expr:
 | INT
@@ -701,7 +701,7 @@ primary_expr:
 | string_literal
   { EConst (VStr $1) }
 | ID
-  { EVar (Name $1)}
+  { EVar $1 }
 | LPAREN expr RPAREN
   { $2 }
 | ENUM_ID

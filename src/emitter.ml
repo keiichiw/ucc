@@ -130,21 +130,21 @@ let rec sizeof_block = function
 let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
-    | (Decl (_, ty, Name name, _))::xs ->
+    | (Decl (_, ty, name, _))::xs ->
        env_ref := (name, (ty, Mem i))::!env_ref;
        go (i-4) xs in
   go (-4) args
 
 let push_local_vars vars =
   let go = function
-    | Decl (NoLink, ((TFun _) as ty), Name name, _)
-    | Decl (Extern, ty, Name name, _) ->
+    | Decl (NoLink, ((TFun _) as ty), name, _)
+    | Decl (Extern, ty, name, _) ->
        push env_ref (name, (ty, Global name))
-    | Decl (NoLink, ty, Name name, _) ->
+    | Decl (NoLink, ty, name, _) ->
        let sz = sizeof ty in
        sp_offset_ref := !sp_offset_ref + sz*4;
        push env_ref (name, (ty, Mem !sp_offset_ref))
-    | Decl (Static, ty, Name name, _) ->
+    | Decl (Static, ty, name, _) ->
        let label_id = label_create () in
        let label = sprintf "L_%s_%d" name label_id in
        push env_ref (name, (ty, Global label)) in
@@ -162,8 +162,8 @@ let emit_global_var name init =
     | EAddr (TPtr TInt, EConst (TArray (TInt, _), VStr s)) ->
        contents := s :: !contents;
        emit ".int %s_contents_%d" name (List.length !contents)
-    | EAddr (TPtr _, EVar (_, Name v)) when List.mem_assoc v !env_ref ->
-       emit ".int %s" v
+    | EAddr (TPtr _, EVar (_, name)) when List.mem_assoc name !env_ref ->
+       emit ".int %s" name
     | ECast (_, _, e) -> go e
     | _ -> raise_error "global initializer must be constant" in
   List.iter go init;
@@ -442,7 +442,7 @@ let rec ex ret_reg = function
      reg_free reg
   | EPPost _ ->
      raise_error "EPPost: not pointer"
-  | ECall (_, EAddr(_, EVar(_, Name "__asm")),
+  | ECall (_, EAddr(_, EVar(_, "__asm")),
            [ECast(_, _, EAddr (_, EConst(_, VStr asm)))]) ->
      let slist = List.map (Char.chr >> String.make 1) asm in
      emit_raw "%s" (String.concat "" (Util.take (List.length slist - 1) slist))
@@ -471,7 +471,7 @@ let rec ex ret_reg = function
                 reg_use i;
                 emit "pop r%d" i)
                (List.rev used_reg)
-  | EVar (ty, Name name) as expr ->
+  | EVar (ty, name) as expr ->
      begin match resolve_var name with
      | TArray _, _ | TFun _, _ ->
         raise_error "logic flaw: EVar"
@@ -530,7 +530,7 @@ let rec ex ret_reg = function
   | EPtr (_, e) ->
      ex ret_reg e;
      emit "mov r%d, [r%d]" ret_reg ret_reg
-  | EDot (ty, e, Name name) as expr ->
+  | EDot (ty, e, name) as expr ->
      let mem = emit_lv_addr ret_reg expr in
      begin match ty with
      | TArray _ | TStruct _ | TUnion _ ->
@@ -579,7 +579,7 @@ and emit_bin ret_reg op e1 e2 =
   reg_free reg
 
 and emit_lv_addr reg = function
-  | EVar (_, Name name) ->
+  | EVar (_, name) ->
      begin match resolve_var name with
      | (_, Mem offset) ->
         (31, -offset)  (* rbp = r31 *)
@@ -587,7 +587,7 @@ and emit_lv_addr reg = function
         emit "mov r%d, %s" reg label;
         (reg, 0)
      end
-  | EDot (_, expr, Name mem) ->
+  | EDot (_, expr, mem) ->
      begin match Typing.typeof expr with
      | TStruct s_id ->
         let rec go i s = function
@@ -615,8 +615,8 @@ and emit_lv_addr reg = function
      raise_error "this expr is not lvalue"
 
 let init_local_vars vars =
-  let go (Decl (ln, ty, Name nm, init)) =
-    match resolve_var nm with
+  let go (Decl (ln, ty, name, init)) =
+    match resolve_var name with
     | (_, Mem offset) ->
        let reg = reg_alloc () in
        List.iteri (fun i e ->
@@ -801,7 +801,7 @@ let rec st = function
      reg_free temp
 
 let emitter oc = function
-  | DefFun(Decl(ln, ty, Name name, _), args, b) ->
+  | DefFun(Decl(ln, ty, name, _), args, b) ->
      push env_ref (name, (ty, Global name));
      fun_name_ref := name;
      static_locals_ref := [];
@@ -817,7 +817,7 @@ let emitter oc = function
      let old_env = !env_ref in
      push_args args;
      begin match b with
-     | SBlock ([], [SExpr (ECall (_, EAddr (_, EVar(_, Name "__asm")),
+     | SBlock ([], [SExpr (ECall (_, EAddr (_, EVar(_, "__asm")),
                     [ECast (_, _, EAddr (_, EConst(_, VStr asm)))]))]) ->
         ()
      | _ ->
@@ -834,7 +834,7 @@ let emitter oc = function
      ) (List.rev !static_locals_ref);
      fun_name_ref := "";
      flush_buffer oc
-  | DefVar (Decl (ln, ty, Name name, init)) ->
+  | DefVar (Decl (ln, ty, name, init)) ->
      push env_ref (name, (ty, Global name));
      begin match (ln, init) with
      | NoLink, [] when not (is_funty ty) ->
