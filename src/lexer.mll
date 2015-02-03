@@ -21,22 +21,26 @@ let cast_char_to_int s =
       int_of_string ("0x" ^ String.sub s 2 (len - 2))
     else
       int_of_string ("0o" ^ String.sub s 1 (len - 1))
+
+let stoi s =
+  if String.length s >= 2 && s.[0] = '0' && s.[1] < '8' then
+    int_of_string ("0o" ^ s)
+  else
+    int_of_string s
 }
 
 let digit = ['0'-'9']
 let dec = ['1'-'9'] digit*
 let hex = '0' ['x' 'X'] ['0'-'9' 'a'-'f' 'A'-'F']+
 let bin = '0' ['b' 'B'] ['0' '1']+
-let integer = (dec | hex | bin)
+let oct = '0' ['0'-'7']*
+let integer = dec | hex | bin | oct
 let f = ('f'|'F')
 let exp = ['E' 'e'] ['+' '-']? digit+
 let float1 = digit+ exp f?
 let float2 = digit* '.' digit+ exp? f?
 let float3 = digit+ '.' digit* exp? f?
 let fnum = float1 | float2 | float3
-let oct = '0' ['0'-'7']*
-let uint = integer ['u' 'U']
-let uoct = oct ['u' 'U']
 let space = [' ' '\t' '\r']
 let alpha = ['a'-'z' 'A'-'Z' '_' ]
 let ident = alpha (alpha | digit)*
@@ -207,13 +211,13 @@ rule token = parse
 | "/*"
   { comment lexbuf }
 | integer as i
-  { INT (int_of_string i) }
-| oct as i
-  { INT (int_of_string ("0o"^i)) }
-| uint as u
-  { UINT (int_of_string (sub u 0 (length u -1))) }
-| uoct as u
-  { UINT (int_of_string ("0o"^(sub u 0 (length u -1)))) }
+  { INT (stoi i) }
+| (integer as i) ['u' 'U']
+  { UINT (stoi i) }
+| (integer as i) ['l' 'L']
+  { LINT (stoi i) }
+| (integer as i) ("ul" | "UL")
+  { ULINT (stoi i) }
 | '\'' (char as c) '\''
   { INT (cast_char_to_int c) }
 | fnum as f

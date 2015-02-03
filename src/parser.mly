@@ -200,8 +200,7 @@ let create_type (t1, u1) (t2, u2) =
 
 %}
 
-%token <int> INT
-%token <int> UINT
+%token <int> INT UINT LINT ULINT
 %token <float> FLOAT
 %token <int list> STR
 %token <string> ID
@@ -699,10 +698,14 @@ postfix_expr:
 primary_expr:
 | INT
   { EConst (VInt $1) }
-| FLOAT
-  { EConst (VFloat $1) }
 | UINT
   { ECast (TUInt, EConst (VInt $1)) }
+| LINT
+  { ECast (TLong, EConst (VInt $1)) }
+| ULINT
+  { ECast (TULong, EConst (VInt $1)) }
+| FLOAT
+  { EConst (VFloat $1) }
 | string_literal
   { EConst (VStr $1) }
 | ID
