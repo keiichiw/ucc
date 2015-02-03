@@ -635,13 +635,10 @@ and emit_lv_addr ret_reg = function
      ex ret_reg e;
      (ret_reg, 0)
   | EConst (_, VStr s) ->
-     let ldata = label_create () in
-     let ltext = label_create () in
-     emit "br L%d" ltext;
-     emit_label ldata;
-     List.iter (fun i -> emit ".int %d" i) s;
-     emit_label ltext;
-     emit "mov r%d, L%d" ret_reg ldata;
+     let label = sprintf "L%d" (label_create ()) in
+     let t = List.map (fun i -> EConst (TInt, VInt i)) s in
+     push static_locals_ref (label, t);
+     emit "mov r%d, %s" ret_reg label;
      (ret_reg, 0)
   | _ ->
      raise (EmitError "this expr is not lvalue")
@@ -863,7 +860,7 @@ let emitter oc = function
        insert_halt ();
      List.iter (fun (name,e) ->
        emit_global_var name e
-     ) !static_locals_ref;
+     ) (List.rev !static_locals_ref);
      flush_buffer oc
   | DefVar (Decl (ln, ty, Name name, init)) ->
      push env_ref (name, (ty, Global name));
