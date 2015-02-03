@@ -11,6 +11,7 @@ void _free(void *);
 void *_realloc(void *, size_t);
 int _rand(void);
 void _srand(unsigned);
+int _abs(int);
 
 #define abort _abort
 #define malloc _malloc
@@ -18,5 +19,6 @@ void _srand(unsigned);
 #define realloc _realloc
 #define rand _rand
 #define srand _srand
+#define abs _abs
 
 #endif  /* stdlib.h */

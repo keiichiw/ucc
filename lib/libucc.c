@@ -284,6 +284,16 @@ void _abort (void) {
   __asm("  halt\n");
 }
 
+int _abs(int n) {
+  __asm("\
+  mov r1, [rbp + 4] \n\
+  sar r2, r1, 31    \n\
+  xor r1, r1, r2    \n\
+  sub r1, r1, r2    \n\
+  ret               \n\
+");
+}
+
 
 #define NALLOC 1024
 
