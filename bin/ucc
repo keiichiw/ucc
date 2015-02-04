@@ -47,7 +47,7 @@ if [ \( $# -gt 1 \) -a \( $OFLAG = 1 \) ]; then
     exit 1
 fi
 
-CPPOPTS="-undef -std=c89 -I$INCLUDE_DIR -I$UCCLIB_INCLUDE_DIR -D__UCC__=1"
+CPPOPTS="-undef -ansi -I$INCLUDE_DIR -I$UCCLIB_INCLUDE_DIR -D__UCC__ -nostdinc"
 
 ASMS=''
 
