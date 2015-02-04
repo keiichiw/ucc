@@ -285,6 +285,17 @@ void _longjmp (jmp_buf buf, int val) {
   string.h
 */
 
+size_t
+_strlen(const char *str)
+{
+  size_t len = 0;
+
+  while (str[len]) {
+    ++len;
+  }
+  return len;
+}
+
 void *
 _memcpy(void *dst, const void *src, size_t n)
 {
@@ -475,6 +486,7 @@ void _srand(unsigned seed)
   ridx = 2;
   rbuf[0] = seed ? seed : 1;
   for (i = 1; i < 31; ++i) {
+    // rbuf[i] = (16807ll * (int)rbuf[i - 1] % mod + mod) % mod;
     tmp = rbuf[i - 1];
     if ((int)tmp < 0) tmp = -tmp;
     lo = 16807 * (tmp & 0xffff);
@@ -486,3 +498,28 @@ void _srand(unsigned seed)
   rbuf[31] = rbuf[0]; rbuf[0] = rbuf[1]; rbuf[1] = rbuf[2];
   for (i = 34; i < 344; ++i) _rand();
 }
+
+
+/*
+  assert.h
+*/
+
+void _assert_fail(const char *expr, const char *file, int line)
+{
+  _printf("%s:%d: Assertion `%s' failed.\n", file, line, expr);
+  _abort();
+}
+
+
+/*
+  ctype.h
+*/
+
+int _isdigit(int c) { return '0' <= c && c <= '9'; }
+int _islower(int c) { return 'a' <= c && c <= 'z'; }
+int _isupper(int c) { return 'A' <= c && c <= 'Z'; }
+int _isalpha(int c) { return _islower(c) || _isupper(c); }
+int _isalnum(int c) { return _isalpha(c) || _isdigit(c); }
+int _isspace(int c) { return c == ' ' || ('\t' <= c && c <= '\r'); }
+int _tolower(int c) { return _isupper(c) ? c - 'A' + 'a' : c; }
+int _toupper(int c) { return _islower(c) ? c - 'a' + 'A' : c; }
