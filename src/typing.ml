@@ -372,6 +372,14 @@ and ex' = function
      let ty3 = typeof ex3 in
      if ty2 = ty3 then
        Type.ECond (ty2, ex1, ex2, ex3)
+     else if is_pointer ty2 || is_pointer ty3 then
+       let f e t = e = Type.EConst (TInt, Type.VInt 0) || t = TPtr TVoid in
+       if f ex2 ty2 then
+         Type.ECond (ty3, ex1, Type.ECast (ty3, ty2, ex2), ex3)
+       else if f ex3 ty3 then
+         Type.ECond (ty2, ex1, ex2, Type.ECast (ty2, ty3, ex3))
+       else
+         raise_error "cond: pointer"
      else
        begin match arith_conv (ty2, ty3) with
        | Some ty ->
