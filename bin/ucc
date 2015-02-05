@@ -10,7 +10,6 @@ INCLUDE_DIR=.
 UCCLIB_INCLUDE_DIR=$BIN_DIR/../include
 OUTFILE=a.out
 OFLAG=0
-FILE1=$1
 
 usage_exit() {
     echo "Usage: $0 [-a ASMOPTS] [-s] [-o file] file" 1>&2
@@ -42,12 +41,14 @@ done
 
 shift $((OPTIND - 1))
 
+FILE1=$1
+
 if [ \( $# -gt 1 \) -a \( $OFLAG = 1 \) ]; then
     echo '-o option got but more than one files given'
     exit 1
 fi
 
-CPPOPTS="-undef -ansi -I$INCLUDE_DIR -I$UCCLIB_INCLUDE_DIR -D__UCC__ -nostdinc"
+CPPOPTS="-undef -I$INCLUDE_DIR -I$UCCLIB_INCLUDE_DIR -D__UCC__ -nostdinc"
 
 ASMS=''
 
@@ -75,7 +76,7 @@ done
 
 if [ $ASM_MODE ]; then
     if [ $OFLAG = 1 ]; then
-        cp /tmp/`dirname $FILE1`.x.s $OUTFILE
+        cp /tmp/`basename $FILE1`.x.s $OUTFILE
     fi
     exit 0
 fi
