@@ -12,10 +12,31 @@ type declarator =
   | DeclArray of declarator * size
   | DeclFun of declarator * (decl list)
 
-let struct_table : (string * int) list ref = ref []
-let union_table  : (string * int) list ref = ref []
+let struct_table : (string * (int * int)) list ref = ref []
+let union_table  : (string * (int * int)) list ref = ref []
 
 let scope_stack = ref []
+
+let get_namety = function
+  | Decl (_, ty, name, _) -> (name, ty)
+
+let add_struct_decl name_opt decl =
+  let id = List.length !struct_env in
+  if is_some name_opt then begin
+    let depth = List.length !scope_stack in
+    push struct_table (from_some name_opt, (id, depth))
+  end;
+  struct_env := !struct_env @ [List.map get_namety decl];
+  TStruct id
+
+let add_union_decl name_opt decl =
+  let id = List.length !union_env in
+  if is_some name_opt then begin
+    let depth = List.length !scope_stack in
+    push union_table (from_some name_opt, (id, depth))
+  end;
+  union_env := !union_env @ [List.map get_namety decl];
+  TUnion id
 
 let get_ty = function
   | Decl (_, TArray (ty, sz), _, _) ->
@@ -25,19 +46,41 @@ let get_ty = function
 
 let make_decl ln ty (decl, exp) =
   let name = ref "" in
-  let ty =
-    let rec go k = function
-      | DeclIdent n ->
-         name := n;
-         k ty
-      | DeclPtr d ->
-         go (fun x -> TPtr (k x)) d
-      | DeclArray (d, sz) ->
-         go (fun x -> TArray (k x, sz)) d
-      | DeclFun (d, dvs) ->
-         go (fun x -> TFun (k x, List.map get_ty dvs)) d in
-    go id decl in
+  let rec go k = function
+    | DeclIdent n ->
+       name := n;
+       k ty
+    | DeclPtr d ->
+       go (fun x -> TPtr (k x)) d
+    | DeclArray (d, sz) ->
+       go (fun x -> TArray (k x, sz)) d
+    | DeclFun (d, dvs) ->
+       go (fun x -> TFun (k x, List.map get_ty dvs)) d in
+  let ty = go id decl in
+  typedef_env := List.filter (((<>) !name) << fst) !typedef_env;
+  enum_env := List.filter (((<>) !name) << fst) !enum_env;
   Decl (ln, ty, !name, exp)
+
+let make_decls ln ty decls =
+  if decls = [] then begin
+    let rec go target = function
+      | (name, (id, depth)) :: _ when id = target ->
+         (depth = List.length !scope_stack, name)
+      | _ :: l ->
+         go target l
+      | [] ->
+         assert false in
+    match ty with
+    | TStruct s_id ->
+       let (flag, name) = go s_id !struct_table in
+       if not flag then ignore (add_struct_decl (Some name) []) else ()
+    | TUnion u_id ->
+       let (flag, name) = go u_id !union_table in
+       if not flag then ignore (add_union_decl (Some name) []) else ()
+    | _ ->
+       ()
+  end;
+  List.map (make_decl ln ty) decls
 
 let rec get_params = function
   | DeclFun (_, dvs) ->
@@ -58,63 +101,49 @@ let make_type ty decl =
 
 let lookup_structty name =
   try
-    List.assoc name !struct_table
-  with
-  | Not_found ->
-     let sid = List.length !struct_env in
-     struct_table := (name, sid) :: !struct_table;
-     struct_env := [] :: !struct_env; (* push a dummy *)
-     sid
+    TStruct (fst (List.assoc name !struct_table))
+  with Not_found ->
+    add_struct_decl (Some name) []
 
 let lookup_unionty name =
   try
-    List.assoc name !union_table
-  with
-  | Not_found ->
-     let uid = List.length !union_env in
-     union_table := (name, uid) :: !union_table;
-     union_env := [] :: !union_env; (* push a dummy *)
-     uid
+    TUnion (fst (List.assoc name !union_table))
+  with Not_found ->
+    add_union_decl (Some name) []
 
-let insert_struct_decl sid decl =
-  let rec go = function
-    | [], _ -> failwith "insert_struct_decl"
-    | _ :: xs, i when i = sid -> decl :: xs
-    | x :: xs, i -> x :: go (xs, (i-1)) in
-  struct_env := go (!struct_env, List.length !struct_env - 1)
+let insert_struct_decl name decl =
+  try
+    let (id, depth) = List.assoc name !struct_table in
+    if depth = List.length !scope_stack then begin
+      struct_env := list_set !struct_env id (List.map get_namety decl);
+      TStruct id
+    end else
+      add_struct_decl (Some name) decl
+  with Not_found ->
+    add_struct_decl (Some name) decl
 
-let insert_union_decl uid decl =
-  let rec go = function
-    | [], _ -> failwith "insert_union_decl"
-    | _ :: xs, i when i = uid -> decl :: xs
-    | x :: xs, i -> x :: go (xs, (i-1)) in
-  union_env := go (!union_env, List.length !union_env - 1)
+let insert_union_decl name decl =
+  try
+    let (id, depth) = List.assoc name !union_table in
+    if depth = List.length !scope_stack then begin
+      union_env := list_set !union_env id (List.map get_namety decl);
+      TUnion id
+    end else
+      add_union_decl (Some name) decl
+  with Not_found ->
+    add_union_decl (Some name) decl
 
-let make_structty name_opt decl =
-  let go (Decl (_, ty, nm, _)) = (nm, ty) in
-  let decl = List.map go decl in
-  match name_opt with
+let make_structty decl = function
   | Some name ->
-     let sid = lookup_structty name in
-     insert_struct_decl sid decl;
-     TStruct sid
+     insert_struct_decl name decl
   | None ->
-     let sid = List.length !struct_env in
-     struct_env := decl :: !struct_env;
-     TStruct sid
+     add_struct_decl None decl
 
-let make_unionty name_opt decl =
-  let go (Decl (_, ty, nm, _)) = (nm, ty) in
-  let decl = List.map go decl in
-  match name_opt with
+let make_unionty decl = function
   | Some name ->
-     let uid = lookup_unionty name in
-     insert_union_decl uid decl;
-     TUnion uid
+     insert_union_decl name decl
   | None ->
-     let uid = List.length !union_env in
-     union_env := decl :: !union_env;
-     TUnion uid
+     add_union_decl None decl
 
 let make_enumty enums =
   let go num = function
@@ -177,10 +206,6 @@ let rec const_check = function
   | EConst (VInt x) -> x
   | _ -> failwith "const_check"
 
-let epilogue () =
-  struct_env := List.rev !struct_env;
-  union_env := List.rev !union_env
-
 let to_unsigned = function
   | (TInt,   true) -> TUInt
   | (TShort, true) -> TUShort
@@ -241,7 +266,7 @@ let create_type (t1, u1) (t2, u2) =
 
 main:
 | external_decl_list EOF
-  { epilogue (); List.concat $1 }
+  { List.concat $1 }
 | error
   { failwith "parse error" }
 
@@ -269,20 +294,16 @@ linkage:
 | STATIC
   { Static }
 
-decl:
-| decl_real SEMICOLON
-  { $1 }
-
 decl_list:
 |
   { [] }
 | decl decl_list
   { $1 :: $2 }
 
-decl_real:
-| linkage decl_specs init_declarator_list
-  { List.map (make_decl $1 $2) $3 }
-| TYPEDEF decl_specs declarator
+decl:
+| linkage decl_specs init_declarator_list SEMICOLON
+  { make_decls $1 $2 $3 }
+| TYPEDEF decl_specs declarator SEMICOLON
   { typedef (make_decl NoLink $2 ($3, None)); [] }
 
 decl_specs:
@@ -327,13 +348,13 @@ ident_option:
 
 struct_spec:
 | STRUCT ident_option LBRACE struct_decl_list RBRACE
-  { make_structty $2 (List.concat $4) }
+  { make_structty (List.concat $4) $2 }
 | STRUCT ident
-  { TStruct (lookup_structty $2) }
+  { lookup_structty $2 }
 | UNION ident_option LBRACE struct_decl_list RBRACE
-  { make_unionty $2 (List.concat $4) }
+  { make_unionty (List.concat $4) $2 }
 | UNION ident
-  { TUnion (lookup_unionty $2) }
+  { lookup_unionty $2 }
 
 struct_decl:
 | decl
