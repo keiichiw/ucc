@@ -197,6 +197,8 @@ let fold_expr e =
        | Some _ -> Some 1
        | None -> None
        end
+    | ESizeof ty ->
+       Some (sizeof ty)
     | _ -> None in
   match go e with
   | Some x -> EConst (VInt x)
