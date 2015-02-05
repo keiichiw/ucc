@@ -354,6 +354,8 @@ let rec ex ret_reg = function
   | EPAdd (ty, e1, e2) ->
      begin match ty with
      | TPtr ty ->
+        if ty = TVoid then
+          raise_error "EPAdd : addition of void* is unsupported";
         ex ret_reg e1;
         let reg = reg_alloc () in
         ex reg e2;
@@ -366,6 +368,8 @@ let rec ex ret_reg = function
   | EPDiff (_, e1, e2) ->
      begin match (Typing.typeof e1, Typing.typeof e2) with
      | (TPtr t1, TPtr t2) when t1 = t2 ->
+        if ty = TVoid then
+          raise_error "EPDiff : subtraction of void* is unsupported";
         ex ret_reg e1;
         let reg = reg_alloc () in
         ex reg e2;
@@ -440,6 +444,8 @@ let rec ex ret_reg = function
         raise_error "FUnary"
      end
   | EPPost (TPtr ty, op, e) ->
+     if ty = TVoid then
+       raise_error "EPPost : ++/-- of void* is unsupported";
      let areg = reg_alloc () in
      let mem = emit_lv_addr areg e in
      let reg = reg_alloc () in
