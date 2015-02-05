@@ -7,7 +7,7 @@
 
 #else
 
-void _assert_fail(const char, const char, int);
+void _assert_fail(const char *, const char *, int);
 #define assert(expr) \
   ((expr) ? (void) 0 : _assert_fail(#expr, __FILE__, __LINE__))
 
