@@ -21,6 +21,24 @@ let rec take = function
     | []   -> failwith "take"
     | x::xs -> x::take (i-1) xs
 
+let rec list_set = function
+  | [] -> const (const [])
+  | x :: xs -> function
+    | 0 ->
+       fun y -> y :: xs
+    | i ->
+       fun y -> x :: list_set xs (i - 1) y
+
+let is_none x =
+  x = None
+
+let is_some x =
+  not (is_none x)
+
+let from_some = function
+  | Some x -> x
+  | None -> failwith "from_some"
+
 let opMap f = function
   | Some x -> Some (f x)
   | None -> None
