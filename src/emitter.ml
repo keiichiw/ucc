@@ -368,7 +368,7 @@ let rec ex ret_reg = function
   | EPDiff (_, e1, e2) ->
      begin match (Typing.typeof e1, Typing.typeof e2) with
      | (TPtr t1, TPtr t2) when t1 = t2 ->
-        if ty = TVoid then
+        if t1 = TVoid then
           raise_error "EPDiff : subtraction of void* is unsupported";
         ex ret_reg e1;
         let reg = reg_alloc () in
