@@ -50,11 +50,11 @@ let rec get_params = function
   | _ -> raise (ParserError "get_params")
 
 let make_type ty decl =
-  (match make_decl NoLink ty (decl, None) with
+  match make_decl NoLink ty (decl, None) with
    | Decl (_, ty, "", None) ->
       ty
    | _ ->
-      raise (ParserError "make_type"))
+      raise (ParserError "make_type")
 
 let lookup_structty name =
   try
@@ -124,7 +124,7 @@ let make_enumty enums =
     | (enum, None) ->
        enum_def enum num;
        num+1 in
-  let _ = List.fold_left go 0 enums in ()
+  ignore (List.fold_left go 0 enums)
 
 let scope_enter () =
   push scope_stack (!struct_table, !union_table, !typedef_env, !enum_env)
@@ -288,6 +288,8 @@ decl_real:
 decl_specs:
 | decl_specs_sub
   { to_unsigned $1 }
+| TYPEDEF_NAME
+  { List.assoc $1 !typedef_env }
 
 decl_specs_sub:
 | type_spec
@@ -312,8 +314,6 @@ type_spec:
   { (TFloat, false) }
 | TVOID
   { (TVoid, false) }
-| TYPEDEF_NAME
-  { List.assoc $1 !typedef_env }
 | struct_spec
   { ($1, false) }
 | enum_spec
@@ -384,9 +384,9 @@ declarator:
   { DeclPtr $2 }
 
 direct_declarator:
-| ID
+| ident
   { DeclIdent $1 }
-| LPAREN declarator RPAREN
+| LPAREN id_declarator RPAREN
   { $2 }
 | direct_declarator LBRACKET const_expr RBRACKET
   { DeclArray($1, $3) }
@@ -395,6 +395,28 @@ direct_declarator:
 | direct_declarator LPAREN param_decl_list RPAREN
   { DeclFun ($1, $3)}
 | direct_declarator LPAREN RPAREN
+  { DeclFun ($1, [])}
+
+id_declarator:
+| direct_id_declarator
+  { $1 }
+| STAR declarator
+  { DeclPtr $2 }
+
+direct_id_declarator:
+| ID
+  { DeclIdent $1 }
+| ENUM_ID
+  { DeclIdent $1 }
+| LPAREN id_declarator RPAREN
+  { $2 }
+| direct_id_declarator LBRACKET const_expr RBRACKET
+  { DeclArray($1, $3) }
+| direct_id_declarator LBRACKET RBRACKET
+  { DeclArray($1, 0) }
+| direct_id_declarator LPAREN param_decl_list RPAREN
+  { DeclFun ($1, $3)}
+| direct_id_declarator LPAREN RPAREN
   { DeclFun ($1, [])}
 
 param_decl_list:
