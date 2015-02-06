@@ -1,11 +1,12 @@
 # UCC - Udon C Compiler  [![Build Status](https://travis-ci.org/kw-udon/ucc.svg?branch=master)](https://travis-ci.org/kw-udon/ucc)
 
-C compiler for [GAIA](https://github.com/wasabiz/GAIA2) CPU written in OCaml.
+C compiler for [GAIA](https://github.com/wasabiz/GAIA3) CPU written in OCaml.
 
 Requirement
 ==============
 * OCaml 4.0.1
 * ocamlbuild 4.0.1
+* Clang
 
 Build
 ==============
