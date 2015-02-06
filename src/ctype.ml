@@ -1,4 +1,5 @@
 open Util
+open Printf
 
 exception TODO of string
 
@@ -22,12 +23,11 @@ type linkage =
   | Extern
   | NoLink
 
-let is_funty = function
-  | TFun _ -> true
-  | _ -> false
-
 let struct_env : (string * ctype) list list ref = ref []
 let union_env  : (string * ctype) list list ref = ref []
+
+let rev_table_struct : (int * string) list ref = ref []
+let rev_table_union  : (int * string) list ref = ref []
 
 let rec sizeof = function
   | TInt  | TShort  | TLong  | TChar
@@ -100,6 +100,7 @@ let unary2fun = function
   | LogNot -> (fun x -> if x=0 then 1 else 0)
   | _ -> failwith "unary2fun: PostInc/PostDec"
 
+
 let is_integral = function
   | TInt  | TShort  | TLong  | TChar
   | TUInt | TUShort | TULong | TUChar -> true
@@ -114,3 +115,61 @@ let is_num t = is_integral t || t = TFloat
 let is_pointer = function
   | TPtr _ -> true
   | _ -> false
+
+let is_funty = function
+  | TFun _ -> true
+  | _ -> false
+
+
+let rec pp_struct id =
+  try
+    let s = List.assoc id !rev_table_struct in
+    sprintf "struct %s" s
+  with
+    Not_found ->
+      let m  = (List.nth !struct_env id) in
+      let ms = String.concat "; "
+        (List.map (fun (_, ty) -> pp_type ty) m) in
+      sprintf "struct {%s;}" ms
+and pp_union id =
+  try
+    let s = List.assoc id !rev_table_struct in
+    sprintf "union %s" s
+  with
+    Not_found ->
+      let m  = (List.nth !union_env id) in
+      let ms = String.concat "; "
+        (List.map (fun (_, ty) -> pp_type ty) m) in
+      sprintf "union {%s;}" ms
+and pp_type ty =
+  let rec go str = function
+    | TInt    -> "int"   ^ str
+    | TShort  -> "short" ^ str
+    | TLong   -> "long"  ^ str
+    | TChar   -> "char"  ^ str
+    | TUInt   -> "unsigned" ^ str
+    | TUShort -> "unsigned short" ^ str
+    | TULong  -> "unsigned long"  ^ str
+    | TUChar  -> "unsigned char"  ^ str
+    | TFloat  -> "float" ^ str
+    | TVoid   -> "void"  ^ str
+    | TStruct id ->
+      sprintf "%s%s" (pp_struct id) str
+    | TUnion id ->
+      sprintf "%s%s" (pp_union id) str
+    | TPtr ty  ->
+      let s = match ty with
+        | TArray _ | TFun _ ->
+          sprintf "(*%s)" str
+        | TPtr _ ->
+          sprintf "*%s" str
+        | _ ->
+          sprintf " *%s" str in
+      go s ty
+    | TArray (ty, sz) ->
+      go (str ^ "[]") ty
+    | TFun (ty, args)->
+      let a = String.concat ", " (List.map (go "") args) in
+      go (sprintf "%s(%s)" str a) ty
+  in
+  go "" ty

@@ -24,7 +24,8 @@ let add_struct_decl name_opt decl =
   let id = List.length !struct_env in
   if is_some name_opt then begin
     let depth = List.length !scope_stack in
-    push struct_table (from_some name_opt, (id, depth))
+    push struct_table (from_some name_opt, (id, depth));
+    push rev_table_struct (id, from_some name_opt)
   end;
   struct_env := !struct_env @ [List.map get_namety decl];
   TStruct id
@@ -33,7 +34,8 @@ let add_union_decl name_opt decl =
   let id = List.length !union_env in
   if is_some name_opt then begin
     let depth = List.length !scope_stack in
-    push union_table (from_some name_opt, (id, depth))
+    push union_table (from_some name_opt, (id, depth));
+    push rev_table_struct (id, from_some name_opt)
   end;
   union_env := !union_env @ [List.map get_namety decl];
   TUnion id
