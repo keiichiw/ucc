@@ -14,6 +14,7 @@ struct bar {
 int main()
 {
   struct foo *foo;
+  struct bar *bar;
   int i;
 
   /* int -> ??? */
@@ -23,7 +24,7 @@ int main()
   /* ptr -> ??? */
   i = (int)foo;
   foo = (struct foo *)foo;
-  foo = (struct bar *)foo;
+  foo = (struct foo *)bar;
 
   print_int(1);
 

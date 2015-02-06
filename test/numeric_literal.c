@@ -1,14 +1,11 @@
 /*
 171
-10
 83
 */
 #include "test.h"
 int main () {
   int a = 0xab;
-  int b = 0b1010;
-  int c = 0123;
+  int b = 0123;
   print_int(a);
   print_int(b);
-  print_int(c);
 }
