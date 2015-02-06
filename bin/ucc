@@ -64,10 +64,10 @@ fi
 
 function compile() {
     local FILEDIR=`dirname $1`
-    local FILENAME=`basename $1`
+    local FILENAME=`basename $1 .c`
 
     # preprocess
-    clang -E $CPPOPTS $1 > /tmp/$FILENAME.i || return 1
+    clang -E $CPPOPTS $1 -o /tmp/$FILENAME.i || return 1
 
     # syntax check
     clang $CLANGOPTS /tmp/$FILENAME.i || return 1
@@ -76,8 +76,8 @@ function compile() {
     $CC /tmp/$FILENAME.i || return 1
 
     # rename & push
-    cp /tmp/$FILENAME.i.s $FILEDIR/${FILENAME%.*}.s
-    ASMS="$ASMS $FILEDIR/${FILENAME%.*}.s"
+    cp /tmp/$FILENAME.s $FILEDIR/
+    ASMS="$ASMS $FILEDIR/$FILENAME.s"
 }
 
 for f in $@; do
@@ -92,4 +92,4 @@ if [ $ASM_MODE ]; then
 fi
 
 # assemble
-$AS $ASMOPTS $ASMS -l $UCCLIB -o $OUTFILE -f __UCC_HEAP_START || exit 1
+$AS $ASMOPTS $ASMS -l $UCCLIB -o $OUTFILE -f __UCC_HEAP_START

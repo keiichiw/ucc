@@ -3,8 +3,9 @@
 
 let out_file fname =
   let fnlen = String.length fname in
-  if 2 < fnlen && (String.sub fname (fnlen-2) 2) = ".c" then
-    Printf.sprintf "%s.s" (String.sub fname 0 (fnlen-2))
+  let suffix = if 2 < fnlen then String.sub fname (fnlen - 2) 2 else "" in
+  if suffix = ".c" || suffix = ".i" then
+    Printf.sprintf "%s.s" (String.sub fname 0 (fnlen - 2))
   else
     Printf.sprintf "%s.s" fname
 
