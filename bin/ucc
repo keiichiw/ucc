@@ -4,17 +4,15 @@ BIN_DIR=`dirname "$0"`
 CC=$BIN_DIR/cc
 AS=$BIN_DIR/as
 UCCLIB=$BIN_DIR/../lib/libucc.s
-
 UCCLIB_INCLUDE_DIR=$BIN_DIR/../include
 OUTFILE=a.out
-OFLAG=0
 
 CPPOPTS="-undef -nostdinc -I$UCCLIB_INCLUDE_DIR -D__UCC__ -Dinline="
 CLANGOPTS='-fsyntax-only -w -ansi -pedantic-errors -Werror=implicit -Werror=aggregate-return -Wno-overlength-strings'
 ASMOPTS=''
 
 usage_exit() {
-    echo "Usage: $0 [-a ASMOPTS] [-s] [-o file] file" 1>&2
+    echo "Usage: $0 [-a asm_option] [-s] [-o file] files" 1>&2
     exit 1
 }
 
@@ -40,10 +38,7 @@ do
         s|S)
             ASM_MODE=1
             ;;
-        h)
-            usage_exit
-            ;;
-        \?)
+        h|\?)
             usage_exit
             ;;
     esac
@@ -51,45 +46,55 @@ done
 
 shift $((OPTIND - 1))
 
-FILE1=$1
-
-if [ -z $FILE1 ]; then
+if [ -z $1 ]; then
     usage_exit
 fi
 
-if [ \( $# -gt 1 \) -a \( $OFLAG = 1 \) ]; then
-    echo '-o option got but more than one files given'
+if [ $# -gt 1 ] && [ $OFLAG ] && [ $ASM_MODE ]; then
+    echo 'ucc: error: cannot specify -o when generating multiple output files'
     exit 1
 fi
 
+function abort() {
+    rm -f $ASMS
+    exit 1
+}
+
 function compile() {
-    local FILEDIR=`dirname $1`
-    local FILENAME=`basename $1 .c`
+    local FILENAME=${1%.c}
 
     # preprocess
-    clang -E $CPPOPTS $1 -o /tmp/$FILENAME.i || return 1
+    clang -E $CPPOPTS $1 -o $FILENAME.tmp.i || abort
 
     # syntax check
-    clang $CLANGOPTS /tmp/$FILENAME.i || return 1
+    clang $CLANGOPTS $FILENAME.tmp.i || abort
 
     # compile
-    $CC /tmp/$FILENAME.i || return 1
+    $CC $FILENAME.tmp.i || abort
+
+    # remove .i
+    rm -f $FILENAME.tmp.i
 
     # rename & push
-    cp /tmp/$FILENAME.s $FILEDIR/
-    ASMS="$ASMS $FILEDIR/$FILENAME.s"
+    if [ $ASM_MODE ]; then
+        if [ $OFLAG ]; then
+            mv -f $FILENAME.tmp.s $OUTFILE
+        else
+            mv -f $FILENAME.tmp.s ${FILENAME##*/}.s
+        fi
+    else
+        ASMS="$ASMS $FILENAME.tmp.s"
+    fi
 }
 
 for f in $@; do
-    compile $f || exit 1;
+    compile $f
 done
 
 if [ $ASM_MODE ]; then
-    if [ $OFLAG = 1 ]; then
-        cp /tmp/`basename $FILE1`.x.s $OUTFILE
-    fi
     exit 0
 fi
 
 # assemble
-$AS $ASMOPTS $ASMS -l $UCCLIB -o $OUTFILE -f __UCC_HEAP_START
+$AS $ASMOPTS $ASMS -l $UCCLIB -o $OUTFILE -f __UCC_HEAP_START || abort
+rm -f $ASMS

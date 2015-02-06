@@ -5,7 +5,7 @@ bin/cc: FORCE
 	mv main.native bin/cc
 
 lib/libucc.s: lib/libucc.c bin/cc
-	bin/ucc -s lib/libucc.c
+	bin/ucc -s -o lib/libucc.s lib/libucc.c
 
 bin/sim:
 	git submodule update --init
@@ -27,7 +27,7 @@ test-all: test test-benz
 
 clean:
 	ocamlbuild -clean
-	rm -f *~ test/*~ test/*.s test/*.out bin/cc bin/sim bin/as lib/libucc.s
+	rm -f *~ test/*~ test/*.i test/*.s test/*.out bin/cc bin/sim bin/as lib/libucc.s
 	$(MAKE) -C test/benz clean
 
 FORCE:
