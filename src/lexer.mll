@@ -32,9 +32,8 @@ let stoi s =
 let digit = ['0'-'9']
 let dec = ['1'-'9'] digit*
 let hex = '0' ['x' 'X'] ['0'-'9' 'a'-'f' 'A'-'F']+
-let bin = '0' ['b' 'B'] ['0' '1']+
 let oct = '0' ['0'-'7']*
-let integer = dec | hex | bin | oct
+let integer = dec | hex | oct
 let f = ('f'|'F')
 let exp = ['E' 'e'] ['+' '-']? digit+
 let float1 = digit+ exp f?
@@ -87,8 +86,6 @@ rule token = parse
 | "const"
   { token lexbuf }
 | "volatile"
-  { token lexbuf }
-| "inline"
   { token lexbuf }
 | "if"
   { IF }
