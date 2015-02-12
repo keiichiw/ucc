@@ -8,7 +8,7 @@ UCCLIB_INCLUDE_DIR=$BIN_DIR/../include
 OUTFILE=a.out
 
 CPPOPTS="-undef -nostdinc -I$UCCLIB_INCLUDE_DIR -D__UCC__ -Dinline="
-CLANGOPTS='-fsyntax-only -w -ansi -pedantic-errors -Werror=implicit -Werror=aggregate-return -Wno-overlength-strings'
+CLANGOPTS='-fsyntax-only -w -ansi -pedantic-errors -Werror=implicit -Werror=aggregate-return -Wno-overlength-strings -fno-builtin'
 ASMOPTS=''
 
 usage_exit() {
