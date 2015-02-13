@@ -77,13 +77,13 @@ let arith_conv = function
   | _ -> Some TInt
 
 let initialize ty init =
-  let scaler = function
+  let scaler ty = function
     | Syntax.IVect ((Syntax.IVect _)::_) ->
        raise_error "too many braces around scalar initializer"
-    | Syntax.IVect [Syntax.IScal e] -> [e]
+    | Syntax.IVect [Syntax.IScal e] -> [(ty, e)]
     | Syntax.IVect _ ->
        raise_error "invalid scaler initializer"
-    | Syntax.IScal e -> [e] in
+    | Syntax.IScal e -> [(ty, e)] in
   let rec compound ty init idx =
     match ty, init with
     | TStruct s_id, Syntax.IVect ilist ->
@@ -128,7 +128,7 @@ let initialize ty init =
        inner inner_ty (Syntax.IVect (List.map f str) :: is)
     | TStruct _, _ | TArray _, _ ->
        compound inner_ty (Syntax.IVect ilist) 0
-    | _, _ -> (scaler i, Syntax.IVect is) in
+    | _, _ -> (scaler inner_ty i, Syntax.IVect is) in
   match init with
   | None -> []
   | Some init ->
@@ -138,9 +138,10 @@ let initialize ty init =
         if tail <> Syntax.IVect [] then
           raise_error "initializer eccess elements";
         res
-     | _ -> scaler init
+     | _ -> scaler ty init
 
 let rec deref_cast = function
+  | ECast (t1, t2, e) when t1 = t2 -> e
   | ECast (ty, _, e) as expr ->
      begin match deref_cast e with
      | EConst (_, VInt i) when ty = TFloat ->
@@ -250,7 +251,7 @@ and ex' = function
      let (ty, v) = match v with
        | Syntax.VInt   i -> TInt,   VInt i
        | Syntax.VFloat f -> TFloat, VFloat f
-       | Syntax.VStr   s -> TArray (TInt, List.length s), VStr s in
+       | Syntax.VStr   s -> TArray (TChar, List.length s), VStr s in
      EConst (ty, v)
   | Syntax.EVar name ->
      if name = "__asm" then
@@ -508,7 +509,10 @@ let dv = function
           TArray (t, List.length init / sizeof t)
        | _ -> ty in
      push venv_ref (name, ty);
-     Decl(ln, ty, name, List.map ex init)
+     let f (ty, e) =
+       let e = ex e in
+       deref_cast (ECast(ty, typeof e, e)) in
+     Decl(ln, ty, name, List.map f init)
 
 let rec st = function
   | Syntax.SNil -> SNil

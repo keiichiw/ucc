@@ -159,12 +159,15 @@ let emit_global_var name init =
   let rec go = function
     | EConst (_, (VInt v)) ->
        emit ".int %d" v
-    | EAddr (TPtr TInt, EConst (_, VStr s)) ->
+    | EConst (_, (VFloat v)) ->
+      emit ".float %.15F" v
+    | EAddr (TPtr TChar, EConst (_, VStr s)) ->
        contents := s :: !contents;
        emit ".int %s_contents_%d" name (List.length !contents)
     | EAddr (TPtr _, EVar (_, name)) when List.mem_assoc name !env_ref ->
        emit ".int %s" name
-    | ECast (_, _, e) -> go e
+    | ECast (TPtr _, TPtr _, e) ->
+       go e
     | _ -> raise_error "global initializer must be constant" in
   List.iter go init;
   List.iteri
@@ -465,7 +468,7 @@ let rec ex ret_reg = function
   | EPPost _ ->
      raise_error "EPPost: not pointer"
   | ECall (_, EAddr(_, EVar(_, "__asm")),
-           [ECast(_, _, EAddr (_, EConst(_, VStr asm)))]) ->
+           [EAddr (_, EConst(_, VStr asm))]) ->
      let slist = List.map (Char.chr >> String.make 1) asm in
      emit_raw "%s" (String.concat "" (Util.take (List.length slist - 1) slist))
   | ECall (_, f, exlst) ->
