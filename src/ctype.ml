@@ -64,42 +64,6 @@ type unary = Plus | Minus | BitNot | LogNot | PostInc | PostDec
 
 type inc = Inc | Dec
 
-(* functions for fold-expression *)
-let arith2fun = function
-  | Add -> (+)
-  | Sub -> (-)
-  | Mul -> ( * )
-  | Div -> (/)
-  | Mod -> (mod)
-  | LShift -> (lsl)
-  | RShift -> (lsr)
-  | BitAnd -> (land)
-  | BitXor -> (lxor)
-  | BitOr  -> (lor)
-
-let rel2fun rel =
-  let op =
-    match rel with
-    | Lt -> (<)
-    | Le -> (<=)
-    | Gt -> (>)
-    | Ge -> (>=) in
-  (fun a b -> if (op a b) then 1 else 0)
-
-let eq2fun eq =
-  let op =
-    match eq with
-    | Eq -> (=)
-    | Ne -> (!=) in
-  (fun a b -> if (op a b) then 1 else 0)
-
-let unary2fun = function
-  | Plus   -> (+) 0
-  | Minus  -> (-) 0
-  | BitNot -> (lnot)
-  | LogNot -> (fun x -> if x=0 then 1 else 0)
-  | _ -> failwith "unary2fun: PostInc/PostDec"
-
 
 let is_integral = function
   | TInt  | TShort  | TLong  | TChar
@@ -116,10 +80,82 @@ let is_pointer = function
   | TPtr _ -> true
   | _ -> false
 
+let deref_pointer = function
+  | TPtr ty -> ty
+  | _ -> failwith "deref_pointer"
+
 let is_funty = function
   | TFun _ -> true
   | _ -> false
 
+
+(* functions for fold-expression *)
+
+let uint_of_int x =
+  if x < 0 then x + 0x100000000 else x
+
+let arith2fun ty = function
+  | Add -> (+)
+  | Sub -> (-)
+  | Mul -> ( * )
+  | Div ->
+     if is_unsigned ty then
+       fun x y -> uint_of_int x / uint_of_int y
+     else (/)
+  | Mod ->
+     if is_unsigned ty then
+       fun x y -> uint_of_int x mod uint_of_int y
+     else (mod)
+  | LShift -> (lsl)
+  | RShift ->
+     if is_unsigned ty then
+       fun x y -> (x land 0xffffffff) lsr y
+     else (asr)
+  | BitAnd -> (land)
+  | BitXor -> (lxor)
+  | BitOr  -> (lor)
+
+let farith2fun = function
+  | Add -> (+.)
+  | Sub -> (-.)
+  | Mul -> ( *. )
+  | Div -> (/.)
+  | _ -> failwith "farith2fun"
+
+let rel2fun rel =
+  let op =
+    match rel with
+    | Lt -> (<)
+    | Le -> (<=)
+    | Gt -> (>)
+    | Ge -> (>=) in
+  (fun a b -> if (op a b) then 1 else 0)
+
+let urel2fun rel =
+  let op =
+    match rel with
+    | Lt -> (<)
+    | Le -> (<=)
+    | Gt -> (>)
+    | Ge -> (>=) in
+  (fun a b -> if (op (uint_of_int a) (uint_of_int b)) then 1 else 0)
+
+let eq2fun eq =
+  let op =
+    match eq with
+    | Eq -> (=)
+    | Ne -> (<>) in
+  (fun a b -> if (op a b) then 1 else 0)
+
+let unary2fun = function
+  | Plus   -> (+) 0
+  | Minus  -> (-) 0
+  | BitNot -> (lnot)
+  | LogNot -> (fun x -> if x=0 then 1 else 0)
+  | _ -> failwith "unary2fun: PostInc/PostDec"
+
+
+(* pretty-printing *)
 
 let rec pp_struct id =
   try

@@ -140,16 +140,110 @@ let initialize ty init =
         res
      | _ -> scaler init
 
+let rec deref_cast = function
+  | ECast (ty, _, e) as expr ->
+     begin match deref_cast e with
+     | EConst (_, VInt i) when ty = TFloat ->
+        EConst (ty, VFloat (float i))
+     | EConst (_, VFloat f) when is_integral ty ->
+        EConst (ty, VInt (truncate f))
+     | EConst (_, v) ->
+        EConst (ty, v)
+     | _ ->
+        expr
+     end
+  | e -> e
+
+let fold_int_expr f ty e1 e2 expr =
+  match deref_cast e1, deref_cast e2 with
+  | EConst (_, VInt i1), EConst (_, VInt i2) ->
+     EConst (ty, VInt (f i1 i2))
+  | _ -> expr
+
+let fold_float_expr f e1 e2 expr =
+  match deref_cast e1, deref_cast e2 with
+  | EConst (_, VFloat f1), EConst (_, VFloat f2) ->
+     EConst (TFloat, VFloat (f f1 f2))
+  | _ -> expr
+
+let fold_ftoi_expr f e1 e2 expr =
+  match deref_cast e1, deref_cast e2 with
+  | EConst (_, VFloat f1), EConst (_, VFloat f2) ->
+     EConst (TInt, VInt (f f1 f2))
+  | _ -> expr
+
+let fold_expr = function
+  | EConst _ as e -> e
+  | EArith (ty, op, e1, e2) as expr ->
+     fold_int_expr (arith2fun ty op) ty e1 e2 expr
+  | EFArith (_, op, e1, e2) as expr ->
+     fold_float_expr (farith2fun op) e1 e2 expr
+  | EPAdd (ty, e1, e2) as expr ->
+     let sz = sizeof (deref_pointer ty) in
+     fold_int_expr (fun x y -> x + sz * y) ty e1 e2 expr
+  | EPDiff (_, e1, e2) as expr ->
+     let sz = sizeof (deref_pointer (typeof e1)) in
+     fold_int_expr (fun x y -> (x - y) / sz) TInt e1 e2 expr
+  | ERel (_, op, e1, e2) as expr ->
+     fold_int_expr (rel2fun op) TInt e1 e2 expr
+  | EURel (_, op, e1, e2) as expr ->
+     fold_int_expr (urel2fun op) TInt e1 e2 expr
+  | EFRel (_, op, e1, e2) as expr ->
+     fold_ftoi_expr (rel2fun op) e1 e2 expr
+  | EEq (_, op, e1, e2) as expr ->
+     fold_int_expr (eq2fun op) TInt e1 e2 expr
+  | EFEq (_, op, e1, e2) as expr ->
+     fold_ftoi_expr (eq2fun op) e1 e2 expr
+  | ELog (_, LogAnd, e1, e2) as expr ->
+     begin match deref_cast e1, deref_cast e2 with
+     | EConst (_, VInt 0), _
+     | EConst (_, VInt _), EConst (_, VInt 0) ->
+        EConst (TInt, VInt 0)
+     | EConst (_, VInt _), EConst (_, VInt _) ->
+        EConst (TInt, VInt 1)
+     | _ -> expr
+     end
+  | ELog (_, LogOr, e1, e2) as expr ->
+     begin match deref_cast e1, deref_cast e2 with
+     | EConst (_, VInt x), _ when x <> 0 ->
+        EConst (TInt, VInt 1)
+     | EConst (_, VInt 0), EConst (_, VInt x) when x <> 0 ->
+        EConst (TInt, VInt 1)
+     | EConst (_, VInt 0), EConst (_, VInt 0) ->
+        EConst (TInt, VInt 0)
+     | _ -> expr
+     end
+  | EUnary (ty, op, e) as expr ->
+     if op = PostInc || op = PostDec then expr else
+     begin match deref_cast e with
+     | EConst (_, VInt i) ->
+        EConst (ty, VInt ((unary2fun op) i))
+     | _ -> expr
+     end
+  | EFUnary (ty, op, e) as expr ->
+     assert (op = Plus || op = Minus);
+     begin match deref_cast e with
+     | EConst (_, VFloat f) ->
+        EConst (TFloat, VFloat (if op = Plus then f else -.f))
+     | _ -> expr
+     end
+  | ECond (ty, e1, e2, e3) as expr ->
+     begin match deref_cast e1 with
+     | EConst (_, VInt 0) -> deref_cast e3
+     | EConst (_, VInt _) -> deref_cast e2
+     | _ -> expr
+     end
+  | expr -> deref_cast expr
+
 let rec ex e =
   let e = ex' e in
-  let ty = typeof e in
-  match ty with
+  match typeof e with
   | TArray (ty, _) ->
      EAddr (TPtr ty, e)
-  | TFun _ ->
+  | TFun _ as ty ->
      EAddr (TPtr ty, e)
   | _ ->
-     e
+     fold_expr e
 
 and ex' = function
   | Syntax.EConst v ->
@@ -295,7 +389,9 @@ and ex' = function
      | (Plus,  TFloat)
      | (Minus, TFloat) ->
         EFUnary(TFloat, op, ex1)
-     | (LogNot, _) (* ! *) ->
+     | (LogNot, TFloat) ->
+        EFEq (TInt, Ne, ex1, EConst (TFloat, VFloat 0.0))
+     | (LogNot, _) ->
         EUnary(TInt, op, ex1)
      | (_, t) ->
         begin match arith_conv (t, TInt) with
@@ -463,8 +559,11 @@ let rec st = function
      let ex1 = ex e in
      let st1 = st stmt in
      SSwitch (ex1, st1)
-  | Syntax.SCase i ->
-     SCase i
+  | Syntax.SCase e ->
+     begin match ex e with
+     | EConst (_, VInt i) -> SCase i
+     | _ -> raise_error "case: required constant expression"
+     end
   | Syntax.SDefault ->
      SDefault
   | Syntax.SExpr e ->

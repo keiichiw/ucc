@@ -44,7 +44,7 @@ type stmt =
   | SLabel of string * stmt
   | SGoto of string
   | SSwitch of expr * stmt
-  | SCase of int
+  | SCase of expr
   | SDefault
   | SExpr of expr
 

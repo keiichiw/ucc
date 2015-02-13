@@ -168,47 +168,19 @@ let scope_leave () =
   enum_env := e;
   pop scope_stack
 
-let fold_expr e =
+let const_check e =
   let rec go = function
     | EConst (VInt i) ->
        Some i
     | EArith(op, e1, e2) ->
-       opMap2 (arith2fun op) (go e1) (go e2)
-    | ERel (op, e1, e2) ->
-       opMap2 (rel2fun op) (go e1) (go e2)
-    | EEq (op, e1, e2) ->
-       opMap2 (eq2fun op) (go e1) (go e2)
+       opMap2 (arith2fun TInt op) (go e1) (go e2)
     | EUnary(op, e1) ->
        if op = PostInc || op = PostDec then None else
        opMap (unary2fun op) (go e1)
-    | ECond (e1, e2, e3) ->
-       begin match go e1, go e2, go e3 with
-       | Some 0, Some _, Some x -> Some x
-       | Some _, Some x, Some _ -> Some x
-       | _ -> None
-       end
-    | ELog (LogAnd, e1, e2) ->
-       begin match go e1 with
-       | Some 0 -> Some 0
-       | Some _ -> go (EEq (Ne, e2, EConst (VInt 0)))
-       | None -> None
-       end
-    | ELog (LogOr, e1, e2) ->
-       begin match go e1 with
-       | Some 0 -> go (EEq (Ne, e2, EConst (VInt 0)))
-       | Some _ -> Some 1
-       | None -> None
-       end
-    | ESizeof ty ->
-       Some (sizeof ty)
     | _ -> None in
   match go e with
-  | Some x -> EConst (VInt x)
-  | None -> e
-
-let rec const_check = function
-  | EConst (VInt x) -> x
-  | _ -> failwith "const_check"
+  | Some x -> x
+  | None -> failwith "const_check"
 
 let to_unsigned = function
   | (TInt,   true) -> TUInt
@@ -567,7 +539,7 @@ jump_stat:
 labeled_stat:
 | ID COLON stat
   { SLabel($1, $3) }
-| CASE const_expr COLON
+| CASE cond_expr COLON
   { SCase($2) }
 | DEFAULT COLON
   { SDefault }
@@ -612,9 +584,9 @@ assign_expr:
 
 cond_expr:
 | logor_expr
-  { fold_expr $1 }
+  { $1 }
 | logor_expr COND expr COLON cond_expr
-  { fold_expr (ECond($1, $3, $5)) }
+  { ECond($1, $3, $5) }
 
 const_expr:
 | cond_expr
