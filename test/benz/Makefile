@@ -7,7 +7,7 @@ test:
 	cp main.c build/
 	$(UCCDIR)/bin/ucc -a '-Wno-unused-label' -I./build/include build/*.c
 	mv a.out build/benz.out
-	$(UCCDIR)/bin/sim build/benz.out > log.txt
+	$(UCCDIR)/bin/sim -no-mmu -no-interrupt build/benz.out > log.txt
 	diff expected.txt log.txt
 
 clean:
