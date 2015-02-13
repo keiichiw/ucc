@@ -31,6 +31,7 @@ type expr =
   | ECond    of ctype * expr * expr * expr
   | EDot     of ctype * expr * name
   | ECast    of ctype * ctype * expr
+  | EAsm     of ctype * (int list)
 
 type decl =
   | Decl of linkage * ctype * name * (expr list)

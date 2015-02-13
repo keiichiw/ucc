@@ -59,6 +59,7 @@ let typeof = function
   | ECond   (t, _, _, _) -> t
   | EDot    (t, _, _) -> t
   | ECast   (t, _, _) -> t
+  | EAsm    (t, _) -> t
   | ENil -> failwith "typeof ENil"
 
 let is_num_or_ptr x = is_num x || is_pointer x
@@ -430,6 +431,9 @@ and ex' = function
         else
           raise_error "EAssign"
      end
+  | Syntax.ECall (Syntax.EVar ("__asm"),
+                 [Syntax.EConst(Syntax.VStr asm)]) ->
+    EAsm (TVoid, asm)
   | Syntax.ECall (e1, elist) ->
      let ex1 = ex e1 in
      begin match typeof ex1 with

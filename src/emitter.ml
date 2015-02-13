@@ -467,8 +467,7 @@ let rec ex ret_reg = function
      reg_free reg
   | EPPost _ ->
      raise_error "EPPost: not pointer"
-  | ECall (_, EAddr(_, EVar(_, "__asm")),
-           [EAddr (_, EConst(_, VStr asm))]) ->
+  | EAsm (_, asm) ->
      let slist = List.map (Char.chr >> String.make 1) asm in
      emit_raw "%s" (String.concat "" (Util.take (List.length slist - 1) slist))
   | ECall (_, f, exlst) ->
@@ -858,9 +857,8 @@ let emitter oc = function
      let old_env = !env_ref in
      push_args args;
      begin match b with
-     | SBlock ([], [SExpr (ECall (_, EAddr (_, EVar(_, "__asm")),
-                    [ECast (_, _, EAddr (_, EConst(_, VStr asm)))]))]) ->
-        ()
+     | SBlock ([], [SExpr (EAsm _)]) ->
+       ()
      | _ ->
         emit "enter %d" (sizeof_block b)
      end;
