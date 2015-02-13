@@ -63,6 +63,10 @@ let typeof = function
 
 let is_num_or_ptr x = is_num x || is_pointer x
 
+let is_null = function
+  | EConst (_, VInt 0) -> true
+  | _ -> false
+
 let arith_conv = function
   | t1, t2 when not (is_num t1 && is_num t2) -> None
   | TFloat, _ | _, TFloat -> Some TFloat
@@ -256,15 +260,10 @@ and ex' = function
      begin match (typeof ex1, typeof ex2) with
      | (TPtr _, TPtr _) ->
         EEq (TInt, op, ex1, ex2)
-     | (t, TPtr _) when is_integral t ->
-        begin match ex1 with
-        | EConst (_, VInt 0) -> (* null pointer *)
-           EEq (TInt, op, ex1, ex2)
-        | _ ->
-           raise_error "eq: pointer and non-zero integer"
-        end
-     | (TPtr _, t) when is_integral t ->
-        ex (Syntax.EEq (op, e2, e1))
+     | (_, TPtr _) when is_null ex1 ->
+        EEq (TInt, op, ex1, ex2)
+     | (TPtr _, _) when is_null ex2 ->
+        EEq (TInt, op, ex2, ex1)
      | (t1, t2) ->
         begin match arith_conv (t1, t2) with
         | Some TFloat ->
@@ -274,7 +273,7 @@ and ex' = function
         | Some _ ->
            EEq (TInt, op, ex1, ex2)
         | _ ->
-           raise_error "eq: otherwise"
+           raise_error "eq"
         end
      end
   | Syntax.ELog (op, e1, e2) ->
@@ -370,14 +369,10 @@ and ex' = function
      let ty3 = typeof ex3 in
      if ty2 = ty3 then
        ECond (ty2, ex1, ex2, ex3)
-     else if is_pointer ty2 || is_pointer ty3 then
-       let f e t = e = EConst (TInt, VInt 0) || t = TPtr TVoid in
-       if f ex2 ty2 then
-         ECond (ty3, ex1, ECast (ty3, ty2, ex2), ex3)
-       else if f ex3 ty3 then
-         ECond (ty2, ex1, ex2, ECast (ty2, ty3, ex3))
-       else
-         raise_error "cond: pointer"
+     else if is_pointer ty2 && (ty3 = TPtr TVoid || is_null ex3) then
+       ECond (ty2, ex1, ex2, ECast (ty2, ty3, ex3))
+     else if is_pointer ty3 && (ty2 = TPtr TVoid || is_null ex2) then
+       ECond (ty3, ex1, ECast (ty3, ty2, ex2), ex3)
      else
        begin match arith_conv (ty2, ty3) with
        | Some ty ->
