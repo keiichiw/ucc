@@ -1,6 +1,7 @@
 open Ctype
 open Printf
 open Util
+open Type
 
 let venv_ref : (string * ctype) list ref = ref []
 let ret_ty_ref : ctype ref = ref TInt
@@ -13,7 +14,7 @@ let raise_error fmt =
   ) fmt
 
 let get_ret_ty = function
-  | Type.Decl (_, TFun (ty, _), _, _) -> ty
+  | Decl (_, TFun (ty, _), _, _) -> ty
   | _ -> raise_error "get return type"
 
 let resolve_var_type name =
@@ -34,31 +35,31 @@ let resolve_member_type ty mem_name =
   | _ -> failwith "resolve_member_type"
 
 let typeof = function
-  | Type.EArith  (t, _, _, _) -> t
-  | Type.EFArith (t, _, _, _) -> t
-  | Type.ERel    (t, _, _, _) -> t
-  | Type.EURel   (t, _, _, _) -> t
-  | Type.EFRel   (t, _, _, _) -> t
-  | Type.EPAdd   (t, _, _) -> t
-  | Type.EPDiff  (t, _, _) -> t
-  | Type.EEq     (t, _, _, _) -> t
-  | Type.EFEq    (t, _, _, _) -> t
-  | Type.ELog    (t, _, _, _) -> t
-  | Type.EUnary  (t, _, _) -> t
-  | Type.EFUnary (t, _, _) -> t
-  | Type.EPPost  (t, _, _) -> t
-  | Type.EConst  (t, _) -> t
-  | Type.EVar    (t, _) -> t
-  | Type.EComma  (t, _, _) -> t
-  | Type.EAssign (t, _, _, _) -> t
-  | Type.EFAssign(t, _, _, _) -> t
-  | Type.ECall   (t, _, _) -> t
-  | Type.EAddr   (t, _) -> t
-  | Type.EPtr    (t, _) -> t
-  | Type.ECond   (t, _, _, _) -> t
-  | Type.EDot    (t, _, _) -> t
-  | Type.ECast   (t, _, _) -> t
-  | Type.ENil -> failwith "typeof ENil"
+  | EArith  (t, _, _, _) -> t
+  | EFArith (t, _, _, _) -> t
+  | ERel    (t, _, _, _) -> t
+  | EURel   (t, _, _, _) -> t
+  | EFRel   (t, _, _, _) -> t
+  | EPAdd   (t, _, _) -> t
+  | EPDiff  (t, _, _) -> t
+  | EEq     (t, _, _, _) -> t
+  | EFEq    (t, _, _, _) -> t
+  | ELog    (t, _, _, _) -> t
+  | EUnary  (t, _, _) -> t
+  | EFUnary (t, _, _) -> t
+  | EPPost  (t, _, _) -> t
+  | EConst  (t, _) -> t
+  | EVar    (t, _) -> t
+  | EComma  (t, _, _) -> t
+  | EAssign (t, _, _, _) -> t
+  | EFAssign(t, _, _, _) -> t
+  | ECall   (t, _, _) -> t
+  | EAddr   (t, _) -> t
+  | EPtr    (t, _) -> t
+  | ECond   (t, _, _, _) -> t
+  | EDot    (t, _, _) -> t
+  | ECast   (t, _, _) -> t
+  | ENil -> failwith "typeof ENil"
 
 let is_num_or_ptr x = is_num x || is_pointer x
 
@@ -140,27 +141,27 @@ let rec ex e =
   let ty = typeof e in
   match ty with
   | TArray (ty, _) ->
-     Type.EAddr (TPtr ty, e)
+     EAddr (TPtr ty, e)
   | TFun _ ->
-     Type.EAddr (TPtr ty, e)
+     EAddr (TPtr ty, e)
   | _ ->
      e
 
 and ex' = function
   | Syntax.EConst v ->
      let (ty, v) = match v with
-       | Syntax.VInt   i -> TInt,   Type.VInt i
-       | Syntax.VFloat f -> TFloat, Type.VFloat f
-       | Syntax.VStr   s -> TArray (TInt, List.length s), Type.VStr s in
-     Type.EConst (ty, v)
-  | Syntax.EVar name->
+       | Syntax.VInt   i -> TInt,   VInt i
+       | Syntax.VFloat f -> TFloat, VFloat f
+       | Syntax.VStr   s -> TArray (TInt, List.length s), VStr s in
+     EConst (ty, v)
+  | Syntax.EVar name ->
      if name = "__asm" then
-       Type.EVar (TFun (TVoid, [TPtr TChar]), name)
+       EVar (TFun (TVoid, [TPtr TChar]), name)
      else
-       Type.EVar (resolve_var_type name, name)
+       EVar (resolve_var_type name, name)
   | Syntax.EComma (e1, e2) ->
      let e = ex e2 in
-     Type.EComma(typeof e, ex e1, e)
+     EComma(typeof e, ex e1, e)
   | Syntax.EArith (op, e1, e2) ->
      let ex1 = ex e1 in
      let ex2 = ex e2 in
@@ -170,17 +171,17 @@ and ex' = function
      | Add ->
         begin match (ty1, ty2) with
         | (TPtr ty, i) when is_integral i ->
-           Type.EPAdd (TPtr ty, ex1, ex2)
+           EPAdd (TPtr ty, ex1, ex2)
         | (i, TPtr ty) when is_integral i ->
-           Type.EPAdd (TPtr ty, ex2, ex1)
+           EPAdd (TPtr ty, ex2, ex1)
         | _ ->
            begin match arith_conv (ty1, ty2) with
            | Some TFloat ->
-              Type.EFArith (TFloat, Add,
-                            Type.ECast(TFloat, ty1, ex1),
-                            Type.ECast(TFloat, ty2, ex2))
+              EFArith (TFloat, Add,
+                       ECast(TFloat, ty1, ex1),
+                       ECast(TFloat, ty2, ex2))
            | Some ty ->
-              Type.EArith (ty, Add, ex1, ex2)
+              EArith (ty, Add, ex1, ex2)
            | None ->
               raise_error "EArith: add"
            end
@@ -188,19 +189,19 @@ and ex' = function
      | Sub ->
         begin match (ty1, ty2) with
         | (TPtr ty1, TPtr ty2) when ty1 = ty2 ->
-           Type.EPDiff(TInt, ex1, ex2)
+           EPDiff(TInt, ex1, ex2)
         | (TPtr ty1, i) when is_integral i ->
            let m_ex2 = ex (Syntax.EUnary(Minus, e2)) in
            assert (is_integral (typeof m_ex2));
-           Type.EPAdd (TPtr ty1, ex1, m_ex2)
+           EPAdd (TPtr ty1, ex1, m_ex2)
         | _ ->
            begin match arith_conv (ty1, ty2) with
            | Some TFloat ->
-              Type.EFArith (TFloat, Sub,
-                            Type.ECast(TFloat, ty1, ex1),
-                            Type.ECast(TFloat, ty2, ex2))
+              EFArith (TFloat, Sub,
+                       ECast(TFloat, ty1, ex1),
+                       ECast(TFloat, ty2, ex2))
            | Some ty ->
-              Type.EArith (ty, Sub, ex1, ex2)
+              EArith (ty, Sub, ex1, ex2)
            | None ->
               raise_error "EArith: sub"
            end
@@ -208,7 +209,7 @@ and ex' = function
      | LShift | RShift ->
         begin match arith_conv (ty1, TInt) with
         | Some ty when is_integral ty2 ->
-           Type.EArith (ty, op, ex1, ex2)
+           EArith (ty, op, ex1, ex2)
         | _ ->
            raise_error "EArith: shl/shr"
         end
@@ -217,14 +218,14 @@ and ex' = function
         | Some TFloat ->
            begin match op with
            | Mul | Div ->
-              Type.EFArith (TFloat, op,
-                            Type.ECast(TFloat, ty1, ex1),
-                            Type.ECast(TFloat, ty2, ex2))
+              EFArith (TFloat, op,
+                       ECast(TFloat, ty1, ex1),
+                       ECast(TFloat, ty2, ex2))
            | _ ->
               raise_error "EFArith; float"
            end
         | Some ty ->
-           Type.EArith (ty, op, ex1, ex2)
+           EArith (ty, op, ex1, ex2)
         | None -> raise_error "EArith"
         end
      end
@@ -233,18 +234,18 @@ and ex' = function
      let ex2 = ex e2 in
      begin match (typeof ex1, typeof ex2) with
      | (TPtr _, TPtr _) ->
-        Type.EURel (TInt, op, ex1, ex2)
+        EURel (TInt, op, ex1, ex2)
      | (ty1, ty2) ->
         begin match arith_conv (ty1, ty2) with
         | Some TFloat ->
-           Type.EFRel (TInt, op,
-                       Type.ECast(TFloat, ty1, ex1),
-                       Type.ECast(TFloat, ty2, ex2))
+           EFRel (TInt, op,
+                  ECast(TFloat, ty1, ex1),
+                  ECast(TFloat, ty2, ex2))
         | Some TUInt
         | Some TULong ->
-           Type.EURel (TInt, op, ex1, ex2)
+           EURel (TInt, op, ex1, ex2)
         | Some _ ->
-           Type.ERel (TInt, op, ex1, ex2)
+           ERel (TInt, op, ex1, ex2)
         | None ->
            raise_error "relation"
         end
@@ -254,11 +255,11 @@ and ex' = function
      let ex2 = ex e2 in
      begin match (typeof ex1, typeof ex2) with
      | (TPtr _, TPtr _) ->
-        Type.EEq (TInt, op, ex1, ex2)
+        EEq (TInt, op, ex1, ex2)
      | (t, TPtr _) when is_integral t ->
         begin match ex1 with
-        | Type.EConst (_, Type.VInt 0) -> (* null pointer *)
-           Type.EEq (TInt, op, ex1, ex2)
+        | EConst (_, VInt 0) -> (* null pointer *)
+           EEq (TInt, op, ex1, ex2)
         | _ ->
            raise_error "eq: pointer and non-zero integer"
         end
@@ -267,11 +268,11 @@ and ex' = function
      | (t1, t2) ->
         begin match arith_conv (t1, t2) with
         | Some TFloat ->
-           Type.EFEq (TInt, op,
-                      Type.ECast(TFloat, t1, ex1),
-                      Type.ECast(TFloat, t2, ex2))
+           EFEq (TInt, op,
+                 ECast(TFloat, t1, ex1),
+                 ECast(TFloat, t2, ex2))
         | Some _ ->
-           Type.EEq (TInt, op, ex1, ex2)
+           EEq (TInt, op, ex1, ex2)
         | _ ->
            raise_error "eq: otherwise"
         end
@@ -282,25 +283,25 @@ and ex' = function
      let t1 = typeof ex1 in
      let t2 = typeof ex2 in
      if (is_num_or_ptr t1) || (is_num_or_ptr t2) then
-       Type.ELog (TInt, op, ex1, ex2)
+       ELog (TInt, op, ex1, ex2)
      else
        raise_error "logical"
   | Syntax.EUnary (op, e1) ->
      let ex1 = ex e1 in
      begin match (op, typeof ex1) with
      | (PostInc, TPtr t) ->
-        Type.EPPost(TPtr t, Inc, ex1)
+        EPPost(TPtr t, Inc, ex1)
      | (PostDec, TPtr t) ->
-        Type.EPPost(TPtr t, Dec, ex1)
+        EPPost(TPtr t, Dec, ex1)
      | (Plus,  TFloat)
      | (Minus, TFloat) ->
-        Type.EFUnary(TFloat, op, ex1)
+        EFUnary(TFloat, op, ex1)
      | (LogNot, _) (* ! *) ->
-        Type.EUnary(TInt, op, ex1)
+        EUnary(TInt, op, ex1)
      | (_, t) ->
         begin match arith_conv (t, TInt) with
         | Some t ->
-           Type.EUnary(t, op, ex1)
+           EUnary(t, op, ex1)
         | None ->
            raise_error "unary"
         end
@@ -310,29 +311,26 @@ and ex' = function
      let ex2 = ex e2 in
      begin match (typeof ex1, typeof ex2) with
      | (ty1, ty2) when is_integral ty1 && ty1 = ty2 ->
-        Type.EAssign (ty1, op, ex1, ex2)
+        EAssign (ty1, op, ex1, ex2)
      | (ty1, ty2) when is_integral ty1 && is_num ty2 ->
-        Type.EAssign (ty1, op, ex1,
-                      Type.ECast(ty1, ty2, ex2))
+        EAssign (ty1, op, ex1, ECast(ty1, ty2, ex2))
      | (ty1, ty2) when ty1 = TFloat && is_num ty2 ->
-        Type.EFAssign (TFloat, op, ex1,
-                       Type.ECast(ty1, ty2, ex2))
+        EFAssign (TFloat, op, ex1, ECast(ty1, ty2, ex2))
      | (TPtr ty, i) when is_integral i ->
         begin match op with
         | None ->
-           Type.EAssign (TPtr ty, op, ex1, ex2)
+           EAssign (TPtr ty, op, ex1, ex2)
         | Some Add ->
-           Type.EAssign (TPtr ty, op, ex1, ex2)
+           EAssign (TPtr ty, op, ex1, ex2)
         | Some Sub ->
            let m_ex2 = ex (Syntax.EUnary(Minus, e2)) in
-           Type.EAssign (TPtr ty, Some Add, ex1, m_ex2)
+           EAssign (TPtr ty, Some Add, ex1, m_ex2)
         | _ ->
            raise_error "EAssign: TPtr"
         end
      | (ty1, ty2) ->
         if op = None then
-          Type.EAssign (ty1, op, ex1,
-                        Type.ECast(ty1, ty2, ex2))
+          EAssign (ty1, op, ex1, ECast(ty1, ty2, ex2))
         else
           raise_error "EAssign"
      end
@@ -345,23 +343,23 @@ and ex' = function
           if typeof arg = t then
             arg
           else
-            Type.ECast(t, typeof arg, arg) in
+            ECast(t, typeof arg, arg) in
         let args =
           if List.length elist = List.length argtys then
             List.map2 go elist argtys
           else (* for variadic function *)
             List.map ex elist in
-        Type.ECall (retty, ex1, args)
+        ECall (retty, ex1, args)
      | _ ->
         raise_error "ECall: not a function given"
      end
   | Syntax.EAddr e ->
      let ex1 = ex e in
-     Type.EAddr (TPtr (typeof ex1), ex1)
+     EAddr (TPtr (typeof ex1), ex1)
   | Syntax.EPtr e ->
      let ex1 = ex e in
      begin match typeof ex1 with
-     | TPtr ty -> Type.EPtr (ty, ex1)
+     | TPtr ty -> EPtr (ty, ex1)
      | _ -> raise_error "ptr"
      end
   | Syntax.ECond (e1, e2, e3) ->
@@ -371,38 +369,38 @@ and ex' = function
      let ty2 = typeof ex2 in
      let ty3 = typeof ex3 in
      if ty2 = ty3 then
-       Type.ECond (ty2, ex1, ex2, ex3)
+       ECond (ty2, ex1, ex2, ex3)
      else if is_pointer ty2 || is_pointer ty3 then
-       let f e t = e = Type.EConst (TInt, Type.VInt 0) || t = TPtr TVoid in
+       let f e t = e = EConst (TInt, VInt 0) || t = TPtr TVoid in
        if f ex2 ty2 then
-         Type.ECond (ty3, ex1, Type.ECast (ty3, ty2, ex2), ex3)
+         ECond (ty3, ex1, ECast (ty3, ty2, ex2), ex3)
        else if f ex3 ty3 then
-         Type.ECond (ty2, ex1, ex2, Type.ECast (ty2, ty3, ex3))
+         ECond (ty2, ex1, ex2, ECast (ty2, ty3, ex3))
        else
          raise_error "cond: pointer"
      else
        begin match arith_conv (ty2, ty3) with
        | Some ty ->
-          Type.ECond (ty, ex1,
-                      Type.ECast (ty, ty2, ex2),
-                      Type.ECast (ty, ty3, ex3))
+          ECond (ty, ex1,
+                 ECast (ty, ty2, ex2),
+                 ECast (ty, ty3, ex3))
        | None ->
           raise_error "cond"
        end
   | Syntax.EDot (e1, name) ->
      let ex1 = ex e1 in
      let ty = resolve_member_type (typeof ex1) name in
-     Type.EDot(ty, ex1, name)
+     EDot(ty, ex1, name)
   | Syntax.ECast (ty, e) ->
      let e = ex e in
      let ty2 = typeof e in
-     Type.ECast (ty, ty2, e)
+     ECast (ty, ty2, e)
   | Syntax.ESizeof (ty) ->
      let i = sizeof ty in
-     Type.EConst (TUInt, Type.VInt i)
+     EConst (TUInt, VInt i)
   | Syntax.ESizeofExpr (e) ->
      let i = sizeof (typeof (ex' e)) in
-     Type.EConst (TUInt, Type.VInt i)
+     EConst (TUInt, VInt i)
 
 let ex_opt = function
   | Some e ->
@@ -419,64 +417,64 @@ let dv = function
           TArray (t, List.length init / sizeof t)
        | _ -> ty in
      push venv_ref (name, ty);
-     Type.Decl(ln, ty, name, List.map ex init)
+     Decl(ln, ty, name, List.map ex init)
 
 let rec st = function
-  | Syntax.SNil -> Type.SNil
+  | Syntax.SNil -> SNil
   | Syntax.SBlock(x, y) ->
      let x1 = List.map dv x in
      let y1 = List.map st y in
-     Type.SBlock(x1, y1)
+     SBlock(x1, y1)
   | Syntax.SWhile (e, stmt) ->
      let e1 = ex e in
      let s1 = st stmt in
-     Type.SWhile (e1, s1)
+     SWhile (e1, s1)
   | Syntax.SDoWhile (stmt, e) ->
      let s1 = st stmt in
      let e1 = ex e in
-     Type.SDoWhile (s1, e1)
+     SDoWhile (s1, e1)
   | Syntax.SFor (e1, e2, e3, stmt) ->
      let oe1 = ex_opt e1 in
      let oe2 = ex_opt e2 in
      let oe3 = ex_opt e3 in
      let s1 = st stmt in
-     Type.SFor (oe1, oe2, oe3, s1)
+     SFor (oe1, oe2, oe3, s1)
   | Syntax.SIfElse (e, s1, s2) ->
      let ex1 = ex e in
      let st1 = st s1 in
      let st2 = st s2 in
-     Type.SIfElse (ex1, st1, st2)
+     SIfElse (ex1, st1, st2)
   | Syntax.SReturn e ->
      begin match ex_opt e with
      | None ->
-        Type.SReturn (None)
+        SReturn (None)
      | Some ex1 ->
         let ty = typeof ex1 in
         if ty = !ret_ty_ref then
-          Type.SReturn (Some ex1)
+          SReturn (Some ex1)
         else
-          Type.SReturn (Some (Type.ECast(!ret_ty_ref, ty, ex1)))
+          SReturn (Some (ECast(!ret_ty_ref, ty, ex1)))
      end
   | Syntax.SContinue ->
-     Type.SContinue
+     SContinue
   | Syntax.SBreak ->
-     Type.SBreak
+     SBreak
   | Syntax.SLabel (str, stmt) ->
      let st1 = st stmt in
-     Type.SLabel (str, st1)
+     SLabel (str, st1)
   | Syntax.SGoto str ->
-     Type.SGoto str
+     SGoto str
   | Syntax.SSwitch (e, stmt) ->
      let ex1 = ex e in
      let st1 = st stmt in
-     Type.SSwitch (ex1, st1)
+     SSwitch (ex1, st1)
   | Syntax.SCase i ->
-     Type.SCase i
+     SCase i
   | Syntax.SDefault ->
-     Type.SDefault
+     SDefault
   | Syntax.SExpr e ->
      let ex1 = ex e in
-     Type.SExpr ex1
+     SExpr ex1
 
 let def = function
   | Syntax.DefFun (d, dlist, b) ->
@@ -487,12 +485,12 @@ let def = function
      let old_venv = !venv_ref in
      let a1 = List.map dv dlist in
      let b1 = st b in
-     let ret = Type.DefFun (d1, a1, b1) in
+     let ret = DefFun (d1, a1, b1) in
      venv_ref := old_venv;
      fun_name_ref := "";
      ret
   | Syntax.DefVar decl ->
-     Type.DefVar (dv decl)
+     DefVar (dv decl)
 
 let main defs =
   List.map def defs
