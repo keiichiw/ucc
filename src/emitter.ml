@@ -551,6 +551,11 @@ let rec ex ret_reg = function
        if disp > 0 then emit "add r%d, %s, %d" ret_reg reg disp else
        if disp < 0 then emit "sub r%d, %s, %d" ret_reg reg (-disp) else
        emit "mov r%d, %s" ret_reg reg
+  | EPtr (_, EConst (_, VInt i)) ->
+     emit "mov r%d, [%d]" ret_reg i
+  | EPtr (t, EPAdd (_, e, EConst (_, VInt i))) ->
+     ex ret_reg e;
+     emit "mov r%d, %s" ret_reg (mem_access (ret_reg, 4 * sizeof t * i))
   | EPtr (_, e) ->
      ex ret_reg e;
      emit "mov r%d, [r%d]" ret_reg ret_reg
