@@ -357,11 +357,16 @@ let rec ex ret_reg = function
         if ty = TVoid then
           raise_error "EPAdd : addition of void* is unsupported";
         ex ret_reg e1;
-        let reg = reg_alloc () in
-        ex reg e2;
-        ex reg (EArith (TInt, Mul, ENil, EConst (TInt, VInt (4 * sizeof ty))));
-        emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
-        reg_free reg
+        begin match e2 with
+        | EConst (_, VInt i) ->
+           emit "add r%d, r%d, %d" ret_reg ret_reg (4 * sizeof ty * i)
+        | _ ->
+           let reg = reg_alloc () in
+           ex reg e2;
+           ex reg (EArith (TInt, Mul, ENil, EConst (TInt, VInt (4 * sizeof ty))));
+           emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
+           reg_free reg
+        end
      | _ ->
         failwith "EPAdd"
      end
