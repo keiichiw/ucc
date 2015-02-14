@@ -74,19 +74,21 @@ let is_unsigned = function
   | TUInt | TUShort | TULong | TUChar -> true
   | _ -> false
 
-let is_num t = is_integral t || t = TFloat
+let is_arith t = is_integral t || t = TFloat
 
 let is_pointer = function
   | TPtr _ -> true
   | _ -> false
 
-let deref_pointer = function
-  | TPtr ty -> ty
-  | _ -> failwith "deref_pointer"
+let is_scalar t = is_arith t || is_pointer t
 
 let is_funty = function
   | TFun _ -> true
   | _ -> false
+
+let deref_pointer = function
+  | TPtr ty -> ty
+  | _ -> failwith "deref_pointer"
 
 
 (* functions for fold-expression *)

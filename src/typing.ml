@@ -62,14 +62,12 @@ let typeof = function
   | EAsm    (t, _) -> t
   | ENil -> failwith "typeof ENil"
 
-let is_num_or_ptr x = is_num x || is_pointer x
-
 let is_null = function
   | EConst (_, VInt 0) -> true
   | _ -> false
 
 let arith_conv = function
-  | t1, t2 when not (is_num t1 && is_num t2) -> None
+  | t1, t2 when not (is_arith t1 && is_arith t2) -> None
   | TFloat, _ | _, TFloat -> Some TFloat
   | TULong, _ | _, TULong -> Some TULong
   | TLong, TUInt | TUInt, TLong  -> Some TULong
@@ -377,7 +375,7 @@ and ex' = function
      let ex2 = ex e2 in
      let t1 = typeof ex1 in
      let t2 = typeof ex2 in
-     if (is_num_or_ptr t1) || (is_num_or_ptr t2) then
+     if is_scalar t1 || is_scalar t2 then
        ELog (TInt, op, ex1, ex2)
      else
        raise_error "logical"
@@ -409,9 +407,9 @@ and ex' = function
      begin match (typeof ex1, typeof ex2) with
      | (ty1, ty2) when is_integral ty1 && ty1 = ty2 ->
         EAssign (ty1, op, ex1, ex2)
-     | (ty1, ty2) when is_integral ty1 && is_num ty2 ->
+     | (ty1, ty2) when is_integral ty1 && is_arith ty2 ->
         EAssign (ty1, op, ex1, ECast(ty1, ty2, ex2))
-     | (ty1, ty2) when ty1 = TFloat && is_num ty2 ->
+     | (ty1, ty2) when ty1 = TFloat && is_arith ty2 ->
         EFAssign (TFloat, op, ex1, ECast(ty1, ty2, ex2))
      | (TPtr ty, i) when is_integral i ->
         begin match op with
