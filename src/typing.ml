@@ -425,7 +425,10 @@ and ex' = function
         end
      | (ty1, ty2) ->
         if op = None then
-          EAssign (ty1, op, ex1, ECast(ty1, ty2, ex2))
+          if ty1 = ty2 then
+            EAssign (ty1, op, ex1, ex2)
+          else
+            EAssign (ty1, op, ex1, ECast(ty1, ty2, ex2))
         else
           raise_error "EAssign"
      end

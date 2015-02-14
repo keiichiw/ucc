@@ -495,15 +495,17 @@ let rec ex ret_reg = function
                 reg_use i;
                 emit "pop r%d" i)
                (List.rev used_reg)
-  | EVar (ty, name) as expr ->
-     begin match resolve_var name with
-     | TArray _, _ | TFun _, _ ->
+  | EVar (ty, name)
+  | EDot (ty, _, name) as expr ->
+     begin match ty with
+     | TVoid | TArray _ | TFun _ ->
         raise_error "logic flaw: EVar"
-     | TStruct _, _ | TUnion _, _ ->
-        raise_error "EVar: struct as value is unsupported"
      | _ ->
-        let mem = emit_lv_addr ret_reg expr in
-        emit "mov r%d, %s" ret_reg (mem_access mem)
+        if sizeof ty > 1 then
+          ex ret_reg (EAddr (TPtr ty, expr))
+        else
+          let mem = emit_lv_addr ret_reg expr in
+          emit "mov r%d, %s" ret_reg (mem_access mem)
      end
   | EAssign (ty, op, e1, e2) ->
      let reg = reg_alloc () in
@@ -511,7 +513,17 @@ let rec ex ret_reg = function
      begin match op with
      | None ->
         ex ret_reg e2;
-        emit "mov %s, r%d" (mem_access mem) ret_reg
+        if sizeof ty > 1 then begin
+          let tmp = reg_alloc () in
+          for i = 0 to sizeof ty - 1 do
+            let dst = mem_access (fst mem, snd mem + 4 * i) in
+            let src = mem_access (ret_reg, 4 * i) in
+            emit "mov r%d, %s" tmp src;
+            emit "mov %s, r%d" dst tmp
+          done;
+          reg_free tmp
+        end else
+          emit "mov %s, r%d" (mem_access mem) ret_reg
      | Some op ->
         emit "mov r%d, %s" ret_reg (mem_access mem);
         begin match op, ty with
@@ -553,28 +565,20 @@ let rec ex ret_reg = function
        if disp > 0 then emit "add r%d, %s, %d" ret_reg reg disp else
        if disp < 0 then emit "sub r%d, %s, %d" ret_reg reg (-disp) else
        emit "mov r%d, %s" ret_reg reg
+  | EPtr (ty, e) when sizeof ty > 1 ->
+     ex ret_reg e;
   | EPtr (_, EConst (_, VInt i)) ->
      emit "mov r%d, [%d]" ret_reg i
-  | EPtr (t, EPAdd (_, e, EConst (_, VInt i))) ->
+  | EPtr (ty, EPAdd (_, e, EConst (_, VInt i))) ->
      ex ret_reg e;
-     emit "mov r%d, %s" ret_reg (mem_access (ret_reg, 4 * sizeof t * i))
+     emit "mov r%d, %s" ret_reg (mem_access (ret_reg, 4 * sizeof ty * i))
   | EPtr (_, e) ->
      ex ret_reg e;
-     emit "mov r%d, [r%d]" ret_reg ret_reg
-  | EDot (ty, e, name) as expr ->
-     let mem = emit_lv_addr ret_reg expr in
-     begin match ty with
-     | TArray _ | TStruct _ | TUnion _ ->
-        raise_error "EDot"
-     | _ ->
-        emit "mov r%d, %s" ret_reg (mem_access mem)
-     end
+     emit "mov r%d, [r%d]" ret_reg ret_reg;
   | ECast (t1, t2, e) ->
      begin match t1, t2 with
-     | TStruct _, _ | _, TStruct _
-     | TUnion  _, _ | _, TUnion  _
-     | TArray  _, _ | _, TArray  _ ->
-        raise_error "ECast"
+     | _, _ when not (t1 = TVoid || (is_scalar t1 && is_scalar t2)) ->
+        raise_error "ECast: %s, %s" (pp_type t1) (pp_type t2)
      | _, _ when t1 = t2 ->
         ex ret_reg e
      | TFloat, t when is_integral t ->
