@@ -78,12 +78,12 @@ let arith_conv = function
   | _ -> Some TInt
 
 let initialize ty init =
-  let scaler ty = function
+  let scalar ty = function
     | Syntax.IVect ((Syntax.IVect _)::_) ->
        raise_error "too many braces around scalar initializer"
     | Syntax.IVect [Syntax.IScal e] -> [(ty, e)]
     | Syntax.IVect _ ->
-       raise_error "invalid scaler initializer"
+       raise_error "invalid scalar initializer"
     | Syntax.IScal e -> [(ty, e)] in
   let rec compound ty init idx =
     match ty, init with
@@ -129,7 +129,7 @@ let initialize ty init =
        inner inner_ty (Syntax.IVect (List.map f str) :: is)
     | TStruct _, _ | TArray _, _ ->
        compound inner_ty (Syntax.IVect ilist) 0
-    | _, _ -> (scaler inner_ty i, Syntax.IVect is) in
+    | _, _ -> (scalar inner_ty i, Syntax.IVect is) in
   match init with
   | None -> []
   | Some init ->
@@ -139,7 +139,7 @@ let initialize ty init =
         if tail <> Syntax.IVect [] then
           raise_error "initializer eccess elements";
         res
-     | _ -> scaler ty init
+     | _ -> scalar ty init
 
 let rec deref_cast = function
   | ECast (t1, t2, e) when t1 = t2 -> e
