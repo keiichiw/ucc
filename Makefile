@@ -1,4 +1,4 @@
-all: bin/cc lib/libucc.s bin/sim bin/as
+all: bin/cc lib/libucc.s lib/libm.s bin/sim bin/as
 
 bin/cc: FORCE
 	ocamlbuild src/main.native
@@ -6,6 +6,9 @@ bin/cc: FORCE
 
 lib/libucc.s: lib/libucc.c bin/cc
 	bin/ucc -s -o lib/libucc.s lib/libucc.c
+
+lib/libm.s: lib/libm.c bin/cc
+	bin/ucc -s -o lib/libm.s lib/libm.c
 
 bin/sim:
 	git submodule update --init

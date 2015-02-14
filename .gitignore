@@ -9,3 +9,4 @@ lib/libucc.s
 test/*.s
 test/benz/log.txt
 test/benz/build/
+/lib/libm.s

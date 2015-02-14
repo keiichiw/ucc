@@ -3,7 +3,7 @@
 BIN_DIR=`dirname "$0"`
 CC=$BIN_DIR/cc
 AS=$BIN_DIR/as
-UCCLIB=$BIN_DIR/../lib/libucc.s
+LIBS="-l $BIN_DIR/../lib/libucc.s"
 UCCLIB_INCLUDE_DIR=$BIN_DIR/../include
 OUTFILE=a.out
 
@@ -16,7 +16,7 @@ usage_exit() {
     exit 1
 }
 
-while getopts a:c:I:o:p:sSh OPT
+while getopts a:c:I:o:p:l:sSh OPT
 do
     case $OPT in
         a)
@@ -34,6 +34,9 @@ do
             ;;
         p)
             CPPOPTS="$CPPOPTS $OPTARG"
+            ;;
+        l)
+            LIBS="$LIBS -l $BIN_DIR/../lib/lib${OPTARG}.s"
             ;;
         s|S)
             ASM_MODE=1
@@ -96,5 +99,5 @@ if [ $ASM_MODE ]; then
 fi
 
 # assemble
-$AS $ASMOPTS $ASMS -l $UCCLIB -o $OUTFILE -f __UCC_HEAP_START || abort
+$AS $ASMOPTS $ASMS $LIBS -o $OUTFILE -f __UCC_HEAP_START || abort
 rm -f $ASMS
