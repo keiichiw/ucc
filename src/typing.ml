@@ -468,6 +468,10 @@ and ex' = function
      let ex3 = ex e3 in
      let ty2 = typeof ex2 in
      let ty3 = typeof ex3 in
+     let ex1 =
+       if typeof ex1 = TFloat then
+         fold_expr (EFEq (TInt, Ne, ex1, EConst (TFloat, VFloat 0.0)))
+       else ex1 in
      if ty2 = ty3 then
        ECond (ty2, ex1, ex2, ex3)
      else if is_pointer ty2 && (ty3 = TPtr TVoid || is_null ex3) then
@@ -540,6 +544,10 @@ let rec st = function
      SFor (oe1, oe2, oe3, s1)
   | Syntax.SIfElse (e, s1, s2) ->
      let ex1 = ex e in
+     let ex1 =
+       if typeof ex1 = TFloat then
+         fold_expr (EFEq (TInt, Ne, ex1, EConst (TFloat, VFloat 0.0)))
+       else ex1 in
      let st1 = st s1 in
      let st2 = st s2 in
      SIfElse (ex1, st1, st2)
