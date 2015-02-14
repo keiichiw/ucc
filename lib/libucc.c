@@ -641,7 +641,7 @@ float _cos(float x){
     case 0:
       return __kernel_cos(y);
     case 1:
-      return __kernel_sin(0.7853981 - y); 
+      return __kernel_sin(0.7853981 - y);
     case 2:
       return - __kernel_sin(y);
     case 3:
@@ -804,7 +804,7 @@ float _exp(float x){
 float _log(float x){
   int i, m;
   float z, y, t;
-  
+
   if(x <= 0)
     return -1;
 
@@ -840,4 +840,16 @@ float _cosh(float x){
 }
 float _tanh(float x){
   return _sinh(x)/_cosh(x);
+}
+
+/*
+ * floor
+ */
+
+float _floor(float x) {
+  __asm("\
+  mov r1, [rbp + 4]     \n                      \
+  floor r1, r1          \n                      \
+  ret                   \n                      \
+");
 }
