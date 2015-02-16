@@ -69,7 +69,7 @@ def set_flags(args):
     CPPOPTS.extend(['-I{inc}'.format(inc = i) for i in args.I])
     CPPOPTS.extend(['-D{df}'.format(df = d) for d in args.D])
 
-    ASMOPTS.extend(args.a)
+    ASMOPTS.extend(['-' + a for a in args.a])
     CLANGOPTS.extend(args.c)
 
 
