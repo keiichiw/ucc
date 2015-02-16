@@ -1,103 +1,151 @@
-#!/bin/bash
+#!/usr/bin/env python2.7
 
-BIN_DIR=`dirname "$0"`
-CC=$BIN_DIR/cc
-AS=$BIN_DIR/as
-LIBS="-l $BIN_DIR/../lib/libucc.s"
-UCCLIB_INCLUDE_DIR=$BIN_DIR/../include
-OUTFILE=a.out
+import os
+import sys
+import subprocess
+import argparse
 
-CPPOPTS="-undef -nostdinc -I$UCCLIB_INCLUDE_DIR -D__UCC__ -Dinline="
-CLANGOPTS='-fsyntax-only -w -ansi -pedantic-errors -Werror=implicit -Werror=aggregate-return -Wno-overlength-strings -fno-builtin'
-ASMOPTS=''
+BIN_DIR = os.path.dirname(__file__)
+CC = BIN_DIR+'/cc'
+AS = BIN_DIR+'/as'
+LIBS = ['{b}/../lib/libucc.s'.format(b = BIN_DIR)]
+UCCLIB_INCLUDE_DIR = '{b}/../include'.format(b = BIN_DIR)
+OUTFILE = 'a.out'
+OFLAG = False
 
-usage_exit() {
-    echo "Usage: $0 [-a asm_option] [-s] [-o file] files" 1>&2
-    exit 1
-}
+CPPOPTS = ['-undef', '-nostdinc',
+         '-D__UCC__', '-Dinline=',
+         '-I{d}'.format(d = UCCLIB_INCLUDE_DIR)]
+CLANGOPTS = ['-fsyntax-only', '-w', '-ansi',
+           '-pedantic-errors', '-Werror=implicit',
+           '-Werror=aggregate-return', '-Wno-overlength-strings',
+           '-fno-builtin']
 
-while getopts a:c:I:o:p:l:sSh OPT
-do
-    case $OPT in
-        a)
-            ASMOPTS=$OPTARG
-            ;;
-        c)
-            CLANGOPTS="$CLANGOPTS $OPTARG"
-            ;;
-        I)
-            CPPOPTS="$CPPOPTS -I$OPTARG"
-            ;;
-        o)
-            OUTFILE=$OPTARG;
-            OFLAG=1
-            ;;
-        p)
-            CPPOPTS="$CPPOPTS $OPTARG"
-            ;;
-        l)
-            LIBS="$LIBS -l $BIN_DIR/../lib/lib${OPTARG}.s"
-            ;;
-        s|S)
-            ASM_MODE=1
-            ;;
-        h|\?)
-            usage_exit
-            ;;
-    esac
-done
+ASMOPTS = []
+ASMS = []
+ASM_MODE = False
 
-shift $((OPTIND - 1))
+# parse command line arguments
+argparser = argparse.ArgumentParser(usage = '%(prog)s [options] file...')
 
-if [ -z $1 ]; then
-    usage_exit
-fi
+argparser.add_argument('inputs', nargs = '*', help = 'input files', metavar = 'file...')
+argparser.add_argument('-a', help = 'set assembler option',
+                       action = 'append', default = [], metavar = '<option>')
+argparser.add_argument('-c', help = 'set clang\'s syntax check option',
+                       action = 'append', default = [], metavar = '<option>')
+argparser.add_argument('-I', help = 'set include path',
+                       action = 'append', default = [],metavar = '<dir>')
+argparser.add_argument('-o', help = 'set output file name',
+                       metavar = '<outfile>')
+argparser.add_argument('-s', help = 'do not assemble',
+                       action = 'store_true')
+argparser.add_argument('-l', help = 'search the library when linking',
+                       action = 'append', default = [], metavar = '<library>')
+argparser.add_argument('-D', help = 'predefine name as a macro when preprocessing',
+                       action = 'append', default = [], metavar = '<macro>')
 
-if [ $# -gt 1 ] && [ $OFLAG ] && [ $ASM_MODE ]; then
-    echo 'ucc: error: cannot specify -o when generating multiple output files'
-    exit 1
-fi
 
-function abort() {
-    rm -f $ASMS
-    exit 1
-}
+def set_flags(args):
+    global ASM_MODE
+    global OUTFILE
+    global OFLAG
+    global LIBS
+    global CPPOPTS
+    global ASMOPTS
+    global CLANGOPTS
 
-function compile() {
-    local FILENAME=${1%.c}
+    if args.inputs == []:
+        argparser.print_help(sys.stderr)
+        exit(1)
+
+    ASM_MODE  = args.s
+
+    if args.o:
+        OUTFILE = args.o
+        OFLAG = True
+
+    LIBS.extend(['{b}/../lib/lib{arg}.s'.format(b = BIN_DIR, l = lib) for lib in args.l])
+
+    CPPOPTS.extend(['-I{inc}'.format(inc = i) for i in args.I])
+    CPPOPTS.extend(['-D{df}'.format(df = d) for d in args.D])
+
+    ASMOPTS.extend(args.a)
+    CLANGOPTS.extend(args.c)
+
+
+def call(cmd):
+    try:
+        subprocess.check_output(cmd.split())
+    except:
+        sys.stderr.write('Error: ' + cmd)
+        rm = 'rm -f {a}'.format(a=' '.join(ASMS))
+        subprocess.call(rm.split())
+        exit(1)
+
+def compile(filename) :
+    global ASMS
+    fname, ext = os.path.splitext(filename)
+    dic = {
+        'cppopt': ' '.join(CPPOPTS),
+        'file'  : filename,
+        'f'     : fname,
+        'sopt'  : ' '.join(CLANGOPTS),
+        'cc'    : CC,
+        'out'   : OUTFILE
+    }
 
     # preprocess
-    clang -E $CPPOPTS $1 -o $FILENAME.tmp.i || abort
+    cmd = 'clang -E {cppopt} {file} -o {f}.tmp.i'.format(**dic)
+    call(cmd)
 
     # syntax check
-    clang $CLANGOPTS $FILENAME.tmp.i || abort
+    cmd = 'clang {sopt} {f}.tmp.i'.format(**dic)
+    call(cmd)
 
     # compile
-    $CC $FILENAME.tmp.i || abort
+    cmd = '{cc} {f}.tmp.i'.format(**dic)
+    call(cmd)
 
     # remove .i
-    rm -f $FILENAME.tmp.i
+    cmd = 'rm -f {f}.tmp.i'.format(**dic)
+    call(cmd)
 
     # rename & push
-    if [ $ASM_MODE ]; then
-        if [ $OFLAG ]; then
-            mv -f $FILENAME.tmp.s $OUTFILE
-        else
-            mv -f $FILENAME.tmp.s ${FILENAME##*/}.s
-        fi
-    else
-        ASMS="$ASMS $FILENAME.tmp.s"
-    fi
-}
+    if ASM_MODE:
+        if OFLAG:
+            call('mv -f {f}.tmp.s {out}'.format(**dic))
+        else:
+            call('mv -f {f}.tmp.s {f}.s'.format(**dic))
+    else:
+        ASMS.append('{f}.tmp.s'.format(**dic))
 
-for f in $@; do
-    compile $f
-done
+def assemble():
+    dic = {
+        'as' :AS,
+        'opt' : ' '.join(ASMOPTS),
+        'asms': ' '.join(ASMS),
+        'lib' : ' '.join(map(lambda s: '-l '+s, LIBS)),
+        'out' : OUTFILE
+    }
 
-if [ $ASM_MODE ]; then
-    exit 0
-fi
+    cmd = '{as} {opt} {asms} {lib} -o {out} -f __UCC_HEAP_START'.format(**dic)
 
-# assemble
-$AS $ASMOPTS $ASMS $LIBS -o $OUTFILE -f __UCC_HEAP_START || abort
-rm -f $ASMS
+    call(cmd)
+
+    call('rm -f {asms}'.format(**dic))
+
+
+
+if __name__ == '__main__':
+
+    args = argparser.parse_args()
+
+    set_flags(args)
+
+    for f in args.inputs:
+        compile(f)
+
+    if ASM_MODE:
+        exit(0)
+
+    assemble()
