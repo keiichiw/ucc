@@ -21,7 +21,7 @@ CLANGOPTS = ['-fsyntax-only', '-w', '-ansi',
            '-Werror=aggregate-return', '-Wno-overlength-strings',
            '-fno-builtin']
 
-ASMOPTS = []
+ASMOPTS = ""
 ASMS = []
 ASM_MODE = False
 
@@ -30,7 +30,7 @@ argparser = argparse.ArgumentParser(usage = '%(prog)s [options] file...')
 
 argparser.add_argument('inputs', nargs = '*', help = 'input files', metavar = 'file...')
 argparser.add_argument('-a', help = 'set assembler option',
-                       action = 'append', default = [], metavar = '<option>')
+                       default="", metavar = '=<option>', type=str)
 argparser.add_argument('-c', help = 'set clang\'s syntax check option',
                        action = 'append', default = [], metavar = '<option>')
 argparser.add_argument('-I', help = 'set include path',
@@ -64,12 +64,14 @@ def set_flags(args):
         OUTFILE = args.o
         OFLAG = True
 
+    if args.a:
+        ASMOPTS = args.a
+
     LIBS.extend(['{b}/../lib/lib{l}.s'.format(b = BIN_DIR, l = lib) for lib in args.l])
 
     CPPOPTS.extend(['-I{inc}'.format(inc = i) for i in args.I])
     CPPOPTS.extend(['-D{df}'.format(df = d) for d in args.D])
 
-    ASMOPTS.extend(['-' + a for a in args.a])
     CLANGOPTS.extend(args.c)
 
 
@@ -122,7 +124,7 @@ def compile(filename) :
 def assemble():
     dic = {
         'as' :AS,
-        'opt' : ' '.join(ASMOPTS),
+        'opt' : ASMOPTS,
         'asms': ' '.join(ASMS),
         'lib' : ' '.join(map(lambda s: '-l '+s, LIBS)),
         'out' : OUTFILE
