@@ -64,7 +64,7 @@ def set_flags(args):
         OUTFILE = args.o
         OFLAG = True
 
-    LIBS.extend(['{b}/../lib/lib{arg}.s'.format(b = BIN_DIR, l = lib) for lib in args.l])
+    LIBS.extend(['{b}/../lib/lib{l}.s'.format(b = BIN_DIR, l = lib) for lib in args.l])
 
     CPPOPTS.extend(['-I{inc}'.format(inc = i) for i in args.I])
     CPPOPTS.extend(['-D{df}'.format(df = d) for d in args.D])
