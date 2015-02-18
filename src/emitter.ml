@@ -92,7 +92,8 @@ let escape_label s =
   sprintf "L_label_%s_%s" !fun_name_ref s
 
 let escape_case i =
-  sprintf "L_case_%s_%d_%d" !fun_name_ref (peek switch_stack) i
+  let c = if i < 0 then "m" else "" in
+  sprintf "L_case_%s_%d_%s%d" !fun_name_ref (peek switch_stack) c (abs i)
 
 let escape_default () =
   sprintf "L_default_%s_%d" !fun_name_ref (peek switch_stack)
