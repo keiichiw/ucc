@@ -10,7 +10,7 @@ type name = string
 type ctype =
   | TInt  | TShort  | TLong  | TChar
   | TUInt | TUShort | TULong | TUChar
-  | TFloat
+  | TFloat| TDouble
   | TVoid
   | TStruct of int
   | TUnion of int
@@ -32,7 +32,7 @@ let rev_table_union  : (int * string) list ref = ref []
 let rec sizeof = function
   | TInt  | TShort  | TLong  | TChar
   | TUInt | TUShort | TULong | TUChar -> 1
-  | TFloat | TPtr _ -> 1
+  | TFloat| TDouble | TPtr _ -> 1
   | TStruct s_id ->
      s_id |> List.nth !struct_env
           |> List.map (snd >> sizeof)
@@ -70,11 +70,15 @@ let is_integral = function
   | TUInt | TUShort | TULong | TUChar -> true
   | _ -> false
 
+let is_real = function
+  | TFloat | TDouble -> true
+  | _ -> false
+
 let is_unsigned = function
   | TUInt | TUShort | TULong | TUChar -> true
   | _ -> false
 
-let is_arith t = is_integral t || t = TFloat
+let is_arith t = is_integral t || is_real t
 
 let is_pointer = function
   | TPtr _ -> true
@@ -190,6 +194,7 @@ and pp_type ty =
     | TULong  -> "unsigned long"  ^ str
     | TUChar  -> "unsigned char"  ^ str
     | TFloat  -> "float" ^ str
+    | TDouble -> "double" ^ str
     | TVoid   -> "void"  ^ str
     | TStruct id ->
       sprintf "%s%s" (pp_struct id) str

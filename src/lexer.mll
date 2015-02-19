@@ -34,11 +34,10 @@ let dec = ['1'-'9'] digit*
 let hex = '0' ['x' 'X'] ['0'-'9' 'a'-'f' 'A'-'F']+
 let oct = '0' ['0'-'7']*
 let integer = dec | hex | oct
-let f = ('f'|'F')
 let exp = ['E' 'e'] ['+' '-']? digit+
-let float1 = digit+ exp f?
-let float2 = digit* '.' digit+ exp? f?
-let float3 = digit+ '.' digit* exp? f?
+let float1 = digit+ exp
+let float2 = digit* '.' digit+ exp?
+let float3 = digit+ '.' digit* exp?
 let fnum = float1 | float2 | float3
 let space = [' ' '\t' '\r']
 let alpha = ['a'-'z' 'A'-'Z' '_' ]
@@ -69,6 +68,8 @@ rule token = parse
   { TCHAR }
 | "float"
   { TFLOAT }
+| "double"
+  { TDOUBLE }
 | "void"
   { TVOID }
 | "struct"
@@ -217,16 +218,10 @@ rule token = parse
   { ULINT (stoi i) }
 | '\'' (char as c) '\''
   { INT (cast_char_to_int c) }
-| fnum as f
-  {
-    let len = String.length f in
-    let lst = f.[len-1] in
-    if lst = 'f' || lst = 'F' then
-      FLOAT (float_of_string (String.sub f 0 (len-1)))
-    else
-      FLOAT (float_of_string f)
-  }
-
+| (fnum as f) [ 'f' 'F' ]?
+  { FLOAT (float_of_string f) }
+| (fnum as f) [ 'l' 'L' ]
+  { DOUBLE (float_of_string f) }
 | '\"'
   { STR (string_elements lexbuf) }
 | ident  as n

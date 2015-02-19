@@ -202,12 +202,12 @@ let create_type (t1, u1) (t2, u2) =
 %}
 
 %token <int> INT UINT LINT ULINT
-%token <float> FLOAT
+%token <float> FLOAT DOUBLE
 %token <int list> STR
 %token <string> ID
 %token <string> TYPEDEF_NAME
 %token <string> ENUM_ID
-%token TINT TUNSIGNED TSIGNED TFLOAT TCHAR TSHORT TLONG TVOID
+%token TINT TUNSIGNED TSIGNED TFLOAT TDOUBLE TCHAR TSHORT TLONG TVOID
 %token STRUCT UNION TYPEDEF ENUM
 %token STATIC EXTERN
 %token IF ELSE WHILE DO FOR
@@ -309,6 +309,8 @@ type_spec:
   { (TChar, false) }
 | TFLOAT
   { (TFloat, false) }
+| TDOUBLE
+  { (TDouble, false) }
 | TVOID
   { (TVoid, false) }
 | struct_spec
@@ -725,6 +727,8 @@ primary_expr:
   { ECast (TULong, EConst (VInt $1)) }
 | FLOAT
   { EConst (VFloat $1) }
+| DOUBLE
+  { ECast (TDouble, EConst (VFloat $1)) }
 | string_literal
   { EConst (VStr $1) }
 | ID

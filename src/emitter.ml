@@ -582,13 +582,13 @@ let rec ex ret_reg = function
         raise_error "ECast: %s, %s" (pp_type t1) (pp_type t2)
      | _, _ when t1 = t2 ->
         ex ret_reg e
-     | TFloat, t when is_integral t ->
-        if is_unsigned t then
+     | t1, t2 when is_real t1 && is_integral t2 ->
+        if is_unsigned t2 then
           raise_error "ECast: unsigned -> float is unsupported";
         ex ret_reg e;
         emit "itof r%d, r%d" ret_reg ret_reg
-     | t, TFloat when is_integral t ->
-        if is_unsigned t then
+     | t1, t2 when is_integral t1 && is_real t2 ->
+        if is_unsigned t1 then
           raise_error "ECast: float -> unsigned is unsupported";
         ex ret_reg e;
         let flg = reg_alloc () in
@@ -601,8 +601,9 @@ let rec ex ret_reg = function
         emit "xor r%d, r%d, r%d" ret_reg ret_reg flg;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg flg;
         reg_free flg
-     | TFloat, _
-     | _, TFloat ->
+     | t, _ when is_real t ->
+        raise_error "ECast: float"
+     | _, t when is_real t ->
         raise_error "ECast: float"
      | _ ->
         ex ret_reg e

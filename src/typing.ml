@@ -68,8 +68,9 @@ let is_null = function
 
 let arith_conv = function
   | t1, t2 when not (is_arith t1 && is_arith t2) -> None
-  | TFloat, _ | _, TFloat -> Some TFloat
-  | TULong, _ | _, TULong -> Some TULong
+  | TDouble, _ | _, TDouble -> Some TDouble
+  | TFloat,  _ | _, TFloat  -> Some TFloat
+  | TULong,  _ | _, TULong  -> Some TULong
   | TLong, TUInt | TUInt, TLong  -> Some TULong
   | TLong,  _ | _, TLong  -> Some TLong
   | TUInt,  _ | _, TUInt  -> Some TUInt
@@ -143,7 +144,7 @@ let rec deref_cast = function
   | ECast (t1, t2, e) when t1 = t2 -> e
   | ECast (ty, _, e) as expr ->
      begin match deref_cast e with
-     | EConst (_, VInt i) when ty = TFloat ->
+     | EConst (_, VInt i) when is_real ty ->
         EConst (ty, VFloat (float i))
      | EConst (_, VFloat f) when is_integral ty ->
         EConst (ty, VInt (truncate f))
@@ -160,10 +161,10 @@ let fold_int_expr f ty e1 e2 expr =
      EConst (ty, VInt (f i1 i2))
   | _ -> expr
 
-let fold_float_expr f e1 e2 expr =
+let fold_float_expr f ty e1 e2 expr =
   match deref_cast e1, deref_cast e2 with
   | EConst (_, VFloat f1), EConst (_, VFloat f2) ->
-     EConst (TFloat, VFloat (f f1 f2))
+     EConst (ty, VFloat (f f1 f2))
   | _ -> expr
 
 let fold_ftoi_expr f e1 e2 expr =
@@ -176,8 +177,8 @@ let fold_expr = function
   | EConst _ as e -> e
   | EArith (ty, op, e1, e2) as expr ->
      fold_int_expr (arith2fun ty op) ty e1 e2 expr
-  | EFArith (_, op, e1, e2) as expr ->
-     fold_float_expr (farith2fun op) e1 e2 expr
+  | EFArith (ty, op, e1, e2) as expr ->
+     fold_float_expr (farith2fun op) ty e1 e2 expr
   | EPAdd (ty, e1, e2) as expr ->
      let sz = sizeof (deref_pointer ty) in
      fold_int_expr (fun x y -> x + sz * y) ty e1 e2 expr
@@ -223,8 +224,8 @@ let fold_expr = function
   | EFUnary (ty, op, e) as expr ->
      assert (op = Plus || op = Minus);
      begin match deref_cast e with
-     | EConst (_, VFloat f) ->
-        EConst (TFloat, VFloat (if op = Plus then f else -.f))
+     | EConst (ty, VFloat f) ->
+        EConst (ty, VFloat (if op = Plus then f else -.f))
      | _ -> expr
      end
   | ECond (ty, e1, e2, e3) as expr ->
@@ -274,10 +275,10 @@ and ex' = function
            EPAdd (TPtr ty, ex2, ex1)
         | _ ->
            begin match arith_conv (ty1, ty2) with
-           | Some TFloat ->
-              EFArith (TFloat, Add,
-                       ECast(TFloat, ty1, ex1),
-                       ECast(TFloat, ty2, ex2))
+           | Some ty when is_real ty ->
+              EFArith (ty, Add,
+                       ECast(ty, ty1, ex1),
+                       ECast(ty, ty2, ex2))
            | Some ty ->
               EArith (ty, Add, ex1, ex2)
            | None ->
@@ -294,10 +295,10 @@ and ex' = function
            EPAdd (TPtr ty1, ex1, m_ex2)
         | _ ->
            begin match arith_conv (ty1, ty2) with
-           | Some TFloat ->
-              EFArith (TFloat, Sub,
-                       ECast(TFloat, ty1, ex1),
-                       ECast(TFloat, ty2, ex2))
+           | Some ty when is_real ty ->
+              EFArith (ty, Sub,
+                       ECast(ty, ty1, ex1),
+                       ECast(ty, ty2, ex2))
            | Some ty ->
               EArith (ty, Sub, ex1, ex2)
            | None ->
@@ -313,12 +314,12 @@ and ex' = function
         end
      | _ ->
         begin match arith_conv (ty1, ty2) with
-        | Some TFloat ->
+        | Some ty when is_real ty ->
            begin match op with
            | Mul | Div ->
-              EFArith (TFloat, op,
-                       ECast(TFloat, ty1, ex1),
-                       ECast(TFloat, ty2, ex2))
+              EFArith (ty, op,
+                       ECast(ty, ty1, ex1),
+                       ECast(ty, ty2, ex2))
            | _ ->
               raise_error "EFArith; float"
            end
@@ -335,10 +336,10 @@ and ex' = function
         EURel (TInt, op, ex1, ex2)
      | (ty1, ty2) ->
         begin match arith_conv (ty1, ty2) with
-        | Some TFloat ->
+        | Some ty when is_real ty ->
            EFRel (TInt, op,
-                  ECast(TFloat, ty1, ex1),
-                  ECast(TFloat, ty2, ex2))
+                  ECast(ty, ty1, ex1),
+                  ECast(ty, ty2, ex2))
         | Some TUInt
         | Some TULong ->
            EURel (TInt, op, ex1, ex2)
@@ -360,10 +361,10 @@ and ex' = function
         EEq (TInt, op, ex2, ex1)
      | (t1, t2) ->
         begin match arith_conv (t1, t2) with
-        | Some TFloat ->
+        | Some ty when is_real ty ->
            EFEq (TInt, op,
-                 ECast(TFloat, t1, ex1),
-                 ECast(TFloat, t2, ex2))
+                 ECast(ty, t1, ex1),
+                 ECast(ty, t2, ex2))
         | Some _ ->
            EEq (TInt, op, ex1, ex2)
         | _ ->
@@ -386,11 +387,11 @@ and ex' = function
         EPPost(TPtr t, Inc, ex1)
      | (PostDec, TPtr t) ->
         EPPost(TPtr t, Dec, ex1)
-     | (Plus,  TFloat)
-     | (Minus, TFloat) ->
-        EFUnary(TFloat, op, ex1)
-     | (LogNot, TFloat) ->
-        EFEq (TInt, Ne, ex1, EConst (TFloat, VFloat 0.0))
+     | (Plus,  ty)
+     | (Minus, ty) when is_real ty ->
+        EFUnary(ty, op, ex1)
+     | (LogNot, ty) when is_real ty ->
+        EFEq (TInt, Ne, ex1, EConst (ty, VFloat 0.0))
      | (LogNot, _) ->
         EUnary(TInt, op, ex1)
      | (_, t) ->
@@ -409,8 +410,8 @@ and ex' = function
         EAssign (ty1, op, ex1, ex2)
      | (ty1, ty2) when is_integral ty1 && is_arith ty2 ->
         EAssign (ty1, op, ex1, ECast(ty1, ty2, ex2))
-     | (ty1, ty2) when ty1 = TFloat && is_arith ty2 ->
-        EFAssign (TFloat, op, ex1, ECast(ty1, ty2, ex2))
+     | (ty1, ty2) when is_real ty1 && is_arith ty2 ->
+        EFAssign (ty1, op, ex1, ECast(ty1, ty2, ex2))
      | (TPtr ty, i) when is_integral i ->
         begin match op with
         | None ->
@@ -467,11 +468,12 @@ and ex' = function
      let ex1 = ex e1 in
      let ex2 = ex e2 in
      let ex3 = ex e3 in
+     let ty1 = typeof ex1 in
      let ty2 = typeof ex2 in
      let ty3 = typeof ex3 in
      let ex1 =
-       if typeof ex1 = TFloat then
-         fold_expr (EFEq (TInt, Ne, ex1, EConst (TFloat, VFloat 0.0)))
+       if is_real ty1 then
+         fold_expr (EFEq (TInt, Ne, ex1, EConst (ty1, VFloat 0.0)))
        else ex1 in
      if ty2 = ty3 then
        ECond (ty2, ex1, ex2, ex3)
@@ -545,9 +547,10 @@ let rec st = function
      SFor (oe1, oe2, oe3, s1)
   | Syntax.SIfElse (e, s1, s2) ->
      let ex1 = ex e in
+     let ty1 = typeof ex1 in
      let ex1 =
-       if typeof ex1 = TFloat then
-         fold_expr (EFEq (TInt, Ne, ex1, EConst (TFloat, VFloat 0.0)))
+       if is_real ty1 then
+         fold_expr (EFEq (TInt, Ne, ex1, EConst (ty1, VFloat 0.0)))
        else ex1 in
      let st1 = st s1 in
      let st2 = st s2 in
