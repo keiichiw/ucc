@@ -1,153 +1,114 @@
 #!/usr/bin/env python2.7
 
-import os
+import os.path
 import sys
 import subprocess
 import argparse
 
 BIN_DIR = os.path.dirname(__file__)
-CC = BIN_DIR+'/cc'
-AS = BIN_DIR+'/as'
-LIBS = ['{b}/../lib/libucc.s'.format(b = BIN_DIR)]
-UCCLIB_INCLUDE_DIR = '{b}/../include'.format(b = BIN_DIR)
-OUTFILE = 'a.out'
-OFLAG = False
 
-CPPOPTS = ['-undef', '-nostdinc',
-         '-D__UCC__', '-Dinline=',
-         '-I{d}'.format(d = UCCLIB_INCLUDE_DIR)]
-CLANGOPTS = ['-fsyntax-only', '-w', '-ansi',
-           '-pedantic-errors', '-Werror=implicit',
-           '-Werror=aggregate-return', '-Wno-overlength-strings',
-           '-fno-builtin']
+CC = BIN_DIR + '/cc'
+AS = BIN_DIR + '/as'
 
-ASMOPTS = ""
+MACROS  = ['__UCC__', 'inline=']
+INCDIRS = [BIN_DIR + '/../include']
+CPPOPTS = ['-undef', '-nostdinc']
+CHKOPTS = ['-fsyntax-only', '-w', '-ansi', '-pedantic-errors', '-Werror=implicit',
+           '-Werror=aggregate-return', '-Wno-overlength-strings', '-fno-builtin']
+LIBS    = ['ucc']
+ASOPTS  = ['-f__UCC_HEAP_START']
+
 ASMS = []
-ASM_MODE = False
 
 # parse command line arguments
-argparser = argparse.ArgumentParser(usage = '%(prog)s [options] file...')
+argparser = argparse.ArgumentParser(
+    usage='%(prog)s [options] file...',
+    formatter_class=argparse.RawTextHelpFormatter)
+argparser.add_argument('inputs',
+    nargs='*', help='input files', metavar='file...')
+argparser.add_argument('-D',
+    help='predefine <macro> when preprocessing', metavar='<macro>',
+    action='append', default=MACROS)
+argparser.add_argument('-I',
+    help='add <directory> to include search path', metavar='<directory>',
+    action='append', default=INCDIRS)
+argparser.add_argument('-l',
+    help='search <library> when linking', metavar='<library>',
+    action='append', default=LIBS)
+argparser.add_argument('-o',
+    help='set output file name', metavar='<file>')
+argparser.add_argument('-S', '-s',
+    help='conpile only; do not assemble or link', action='store_true')
+argparser.add_argument('-Wa',
+    help='  pass comma-separated <args> to the assembler', metavar='\b=<args>')
+argparser.add_argument('-Wc',
+    help='  pass comma-separated <args> to the clang', metavar='\b=<args>')
+argparser.add_argument('-Wp',
+    help='  pass comma-separated <args> to the preprocessor', metavar='\b=<args>')
 
-argparser.add_argument('inputs', nargs = '*', help = 'input files', metavar = 'file...')
-argparser.add_argument('-a', help = 'set assembler option',
-                       default="", metavar = '=<option>', type=str)
-argparser.add_argument('-c', help = 'set clang\'s syntax check option',
-                       action = 'append', default = [], metavar = '<option>')
-argparser.add_argument('-I', help = 'set include path',
-                       action = 'append', default = [],metavar = '<dir>')
-argparser.add_argument('-o', help = 'set output file name',
-                       metavar = '<outfile>')
-argparser.add_argument('-s', help = 'do not assemble',
-                       action = 'store_true')
-argparser.add_argument('-l', help = 'search the library when linking',
-                       action = 'append', default = [], metavar = '<library>')
-argparser.add_argument('-D', help = 'predefine name as a macro when preprocessing',
-                       action = 'append', default = [], metavar = '<macro>')
+args = argparser.parse_args()
 
+if args.inputs == []:
+    argparser.print_help(sys.stderr)
+    exit(1)
 
-def set_flags(args):
-    global ASM_MODE
-    global OUTFILE
-    global OFLAG
-    global LIBS
-    global CPPOPTS
-    global ASMOPTS
-    global CLANGOPTS
+if len(args.inputs) > 1 and args.S and args.o:
+    print >> sys.stderr, 'ucc: error: cannot specify -o when generating multiple output files'
+    exit(1)
 
-    if args.inputs == []:
-        argparser.print_help(sys.stderr)
+def comma_sep_list(arg):
+    if not arg:
+        return []
+    return filter(None, map(str.strip, arg.split(',')))
+
+args.D = map(lambda s: '-D' + s, args.D)
+args.I = map(lambda s: '-I' + s, args.I)
+args.l = map(lambda s: '-l{}/../lib/lib{}.s'.format(BIN_DIR, s), args.l)
+args.Wa = comma_sep_list(args.Wa)
+args.Wc = comma_sep_list(args.Wc)
+args.Wp = comma_sep_list(args.Wp)
+
+def call(*cmd):
+    if subprocess.call(cmd):
+        subprocess.call(['rm', '-f'] + ASMS)
         exit(1)
 
-    ASM_MODE  = args.s
-
-    if args.o:
-        OUTFILE = args.o
-        OFLAG = True
-
-    if args.a:
-        ASMOPTS = args.a
-
-    LIBS.extend(['{b}/../lib/lib{l}.s'.format(b = BIN_DIR, l = lib) for lib in args.l])
-
-    CPPOPTS.extend(['-I{inc}'.format(inc = i) for i in args.I])
-    CPPOPTS.extend(['-D{df}'.format(df = d) for d in args.D])
-
-    CLANGOPTS.extend(args.c)
-
-
-def call(cmd):
-    try:
-        subprocess.check_output(cmd.split())
-    except:
-        sys.stderr.write('Error: ' + cmd)
-        rm = 'rm -f {a}'.format(a=' '.join(ASMS))
-        subprocess.call(rm.split())
-        exit(1)
-
-def compile(filename) :
-    global ASMS
-    fname, ext = os.path.splitext(filename)
-    dic = {
-        'cppopt': ' '.join(CPPOPTS),
-        'file'  : filename,
-        'f'     : fname,
-        'sopt'  : ' '.join(CLANGOPTS),
-        'cc'    : CC,
-        'out'   : OUTFILE
-    }
-
-    # preprocess
-    cmd = 'clang -E {cppopt} {file} -o {f}.tmp.i'.format(**dic)
-    call(cmd)
-
-    # syntax check
-    cmd = 'clang {sopt} {f}.tmp.i'.format(**dic)
-    call(cmd)
-
-    # compile
-    cmd = '{cc} {f}.tmp.i'.format(**dic)
-    call(cmd)
-
-    # remove .i
-    cmd = 'rm -f {f}.tmp.i'.format(**dic)
-    call(cmd)
-
-    # rename & push
-    if ASM_MODE:
-        if OFLAG:
-            call('mv -f {f}.tmp.s {out}'.format(**dic))
+def move_asm(fname):
+    if args.S:
+        if args.o:
+            call('mv', '-f', fname + '.tmp.s', args.o)
         else:
-            call('mv -f {f}.tmp.s {f}.s'.format(**dic))
+            call('mv', '-f', fname + '.tmp.s', os.path.basename(fname) + '.s')
     else:
-        ASMS.append('{f}.tmp.s'.format(**dic))
+        ASMS.append(fname + '.tmp.s')
 
-def assemble():
-    dic = {
-        'as' :AS,
-        'opt' : ASMOPTS,
-        'asms': ' '.join(ASMS),
-        'lib' : ' '.join(map(lambda s: '-l '+s, LIBS)),
-        'out' : OUTFILE
-    }
+for filename in args.inputs:
+    if not os.path.isfile(filename):
+        print >> sys.stderr, 'ucc: error: file does not exist:', filename
+        exit(1)
+    fname, ext = os.path.splitext(filename)
+    if ext == '.c':
+        call('clang', '-E', filename, '-o', fname + '.tmp.i', *(CPPOPTS + args.D + args.I + args.Wp))
+        call('clang', fname + '.tmp.i', *(CHKOPTS + args.Wc))
+        call(CC, fname + '.tmp.i')
+        call('rm', '-f', fname + '.tmp.i')
+        move_asm(fname)
+    elif ext == '.S':
+        call('clang', '-E', filename, '-o', fname + '.tmp.s', *(CPPOPTS + args.D + args.I + args.Wp))
+        move_asm(fname)
+    elif exp == '.s':
+        ASMS.append(filename)
+    else:
+        print >> sys.stderr, 'ucc: error: unknown extension:', ext
+        call('rm', '-f', *ASMS)
+        exit(1)
 
-    cmd = '{as} {opt} {asms} {lib} -o {out} -f __UCC_HEAP_START'.format(**dic)
+if args.S:
+    exit(0)
 
-    call(cmd)
+if not args.o:
+    args.o = 'a.out'
 
-    call('rm -f {asms}'.format(**dic))
+call(AS, '-o', args.o, *(ASOPTS + args.Wa + args.l + ASMS))
+call('rm', '-f', *ASMS)
 
-
-
-if __name__ == '__main__':
-
-    args = argparser.parse_args()
-
-    set_flags(args)
-
-    for f in args.inputs:
-        compile(f)
-
-    if ASM_MODE:
-        exit(0)
-
-    assemble()
