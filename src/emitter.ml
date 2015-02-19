@@ -14,7 +14,8 @@ let env_ref : (string * (ctype * storageplace)) list ref = ref []
 let fun_name_ref = ref ""
 let sp_offset_ref = ref 0
 let static_locals_ref = ref []
-let for_continue_flg_ref = ref 0
+let continue_flg_ref = ref false
+let break_flg_ref = ref false
 
 (* label management *)
 let created_label_num = ref 0
@@ -715,12 +716,12 @@ let rec st = function
      push con_stack condlabel;
      push brk_stack endlabel;
      emit_label beginlabel;
-     let continue_flg = !for_continue_flg_ref in
-     for_continue_flg_ref := 0;
+     let continue_flg = !continue_flg_ref in
+     continue_flg_ref := false;
      st b;
-     if !for_continue_flg_ref = 1 then
+     if !continue_flg_ref then
        emit_label condlabel;
-     for_continue_flg_ref := continue_flg;
+     continue_flg_ref := continue_flg;
      let cond_reg = reg_alloc () in
      ex cond_reg cond;
      emit "bz r%d, L%d" cond_reg endlabel;
@@ -743,20 +744,23 @@ let rec st = function
      | _ -> ()
      end;
      emit_label startlnum;
+     let break_flg = !break_flg_ref in
+     break_flg_ref := false;
      begin match cond with
      | Some cex ->
         let cond_reg = reg_alloc () in
         ex cond_reg cex;
         emit "bz r%d, L%d" cond_reg endlnum;
-        reg_free cond_reg
+        reg_free cond_reg;
+        break_flg_ref := true
      | _ -> ()
      end;
-     let continue_flg = !for_continue_flg_ref in
-     for_continue_flg_ref := 0;
+     let continue_flg = !continue_flg_ref in
+     continue_flg_ref := false;
      st b;
-     if !for_continue_flg_ref = 1 then
+     if !continue_flg_ref then
        emit_label iterlnum;
-     for_continue_flg_ref := continue_flg;
+     continue_flg_ref := continue_flg;
      begin match iter with
      | Some itex ->
         let temp = reg_alloc () in
@@ -765,7 +769,9 @@ let rec st = function
      |  _ -> ()
      end;
      emit "br L%d" startlnum;
-     emit_label endlnum;
+     if !break_flg_ref then
+       emit_label endlnum;
+     break_flg_ref := break_flg;
      pop con_stack;
      pop brk_stack
   | SIfElse (cond, b1, b2) ->
@@ -796,10 +802,11 @@ let rec st = function
   | SContinue ->
      let lbl = peek con_stack in
      emit "br L%d" lbl;
-     for_continue_flg_ref := 1
+     continue_flg_ref := true
   | SBreak ->
      let lbl = peek brk_stack in
-     emit "br L%d" lbl
+     emit "br L%d" lbl;
+     break_flg_ref := true
   | SLabel (label, s) ->
      emit_raw "%s:\n" (escape_label label);
      st s
