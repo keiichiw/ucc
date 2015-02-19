@@ -7,6 +7,7 @@
 
 void abort(void);
 int abs(int);
+long strtol(const char *, char **, int);
 int rand(void);
 void srand(unsigned);
 void *malloc(size_t);

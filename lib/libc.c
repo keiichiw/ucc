@@ -626,6 +626,51 @@ int abs(int n)
 }
 
 
+long strtol(const char *str, char **end, int base)
+{
+  long l = 0;
+
+  if (base > 36) {
+    if (end)
+      *end = (char *)str;
+    return 0;
+  }
+
+  if (base == 0) {
+    if (*str == '0') {
+      ++str;
+      if (*str == 'x' || *str == 'X') {
+        ++str;
+        base = 16;
+      } else {
+        base = 8;
+      }
+    } else {
+      base = 10;
+    }
+  }
+
+  while (1) {
+    char c = *str;
+    long n = base;
+
+    if (isdigit(c)) n = c - '0';
+    if (islower(c)) n = c - 'a' + 10;
+    if (isupper(c)) n = c - 'A' + 10;
+
+    if (base <= n)
+      break;
+
+    ++str;
+    l = l * base + n;
+  }
+
+  if (end)
+    *end = (char *)str;
+  return l;
+}
+
+
 static unsigned rbuf[32], ridx = -1;
 
 int rand(void)
