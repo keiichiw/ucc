@@ -38,7 +38,7 @@ argparser.add_argument('-l',
 argparser.add_argument('-o',
     help='set output file name', metavar='<file>')
 argparser.add_argument('-S', '-s',
-    help='conpile only; do not assemble or link', action='store_true')
+    help='compile only; do not assemble or link', action='store_true')
 argparser.add_argument('-Wa',
     help='  pass comma-separated <args> to the assembler', metavar='\b=<args>')
 argparser.add_argument('-Wc',
