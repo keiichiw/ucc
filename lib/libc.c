@@ -1,14 +1,78 @@
 
-#define NULL 0
-typedef unsigned size_t;
-typedef int ptrdiff_t;
+#include <assert.h>
+#include <ctype.h>
+#include <limits.h>
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 
-/*
-  stdio.h
-*/
 
-int _putchar(int c) {
+/* assert.h */
+
+void __assert_fail(const char *expr, const char *file, int line)
+{
+  printf("%s:%d: Assertion `%s' failed.\n", file, line, expr);
+  abort();
+}
+
+
+
+/* ctype.h */
+
+int isalnum(int c) { return isalpha(c) || isdigit(c); }
+int isalpha(int c) { return islower(c) || isupper(c); }
+int isdigit(int c) { return '0' <= c && c <= '9'; }
+int islower(int c) { return 'a' <= c && c <= 'z'; }
+int isspace(int c) { return c == ' ' || ('\t' <= c && c <= '\r'); }
+int isupper(int c) { return 'A' <= c && c <= 'Z'; }
+int tolower(int c) { return isupper(c) ? c - 'A' + 'a' : c; }
+int toupper(int c) { return islower(c) ? c - 'a' + 'A' : c; }
+
+
+
+/* setjmp.h */
+
+int setjmp(jmp_buf buf)
+{
+  __asm("\
+  mov r1, [rbp + 4]     # r1 <- buf                    \n\
+  mov r2, [rbp]         # r2 <- caller rbp             \n\
+  mov [r1], r2          # save caller rbp              \n\
+  mov [r1 + 4], r28     # save r28 (return address)    \n\
+  mov [r1 + 8], rbp     # save current rbp             \n\
+  jl  r2, 0             # get PC                       \n\
+  add r2, r2, 12        # r2 <- address of 'ret'       \n\
+  mov [r1 + 12], r2     # save r2                      \n\
+  mov r1, 0             # return 0                     \n\
+  ret                                                  \n\
+");
+}
+
+void longjmp(jmp_buf buf, int val)
+{
+  __asm("\
+  mov r1, [rbp + 8]     # r1 <- val                   \n\
+  mov r2, [rbp + 4]     # r2 <- buf                   \n\
+  mov r3, [r2]          # r3 <- caller rbp            \n\
+  mov r28, [r2 + 4]     # restore r28                 \n\
+  mov rbp, [r2 + 8]     # restore setjmp rbp          \n\
+  mov [rbp], r3         # restore setjmp's caller rbp \n\
+  mov r2, [r2 + 12]     # r2 <- address of 'ret'      \n\
+  jr  r2                # jump                        \n\
+");
+}
+
+
+
+/* stdio.h */
+
+int putchar(int c)
+{
   __asm("\
   mov r1, [rbp + 4] \n\
   write r1          \n\
@@ -16,14 +80,16 @@ int _putchar(int c) {
 ");
 }
 
-int _getchar(void) {
+int getchar(void)
+{
   __asm("\
     read r1 \n\
     ret     \n\
 ");
 }
 
-static void print_int(int xx, int base, int sgn) {
+static void print_int(int xx, int base, int sgn)
+{
   char digits[20] = "0123456789ABCDEF";
   char buf[16];
   int i, neg;
@@ -46,10 +112,11 @@ static void print_int(int xx, int base, int sgn) {
     buf[i++] = '-';
 
   while(--i >= 0)
-    _putchar(buf[i]);
+    putchar(buf[i]);
 }
 
-static void print_float (float f, unsigned round) {
+static void print_float (float f, unsigned round)
+{
   int num, frac, diff, t;
   float abs = f<0 ? -f : f;
   unsigned i;
@@ -59,22 +126,22 @@ static void print_float (float f, unsigned round) {
   }
   num  = (int) abs;
   frac = (int) ((abs - num) * (float)diff);
-  if (f < 0) _putchar('-');
+  if (f < 0) putchar('-');
   print_int( num, 10, 1);
-  _putchar('.');
+  putchar('.');
   t = frac;
   i=1;
   while (t>1) {
     t /= 10; ++i;
   }
   while (i<round) {
-    _putchar('0');++i;
+    putchar('0');++i;
   }
   print_int(frac, 10, 1);
 }
 
-
-int _printf(const char *fmt, ...) {
+int printf(const char *fmt, ...)
+{
   // Print to the given fd. Only understands %d, %x, %f, %s.
   char *s;
   int c, i, state;
@@ -88,7 +155,7 @@ int _printf(const char *fmt, ...) {
       if (c == '%') {
         state = '%';
       } else {
-        _putchar(c);
+        putchar(c);
       }
     } else if (state == '%'){
       if (c == '.') {
@@ -112,18 +179,18 @@ int _printf(const char *fmt, ...) {
           if(s == 0)
             s = "(null)";
           while(*s != 0){
-            _putchar(*s);
+            putchar(*s);
             s+=1;
           }
         } else if(c == 'c'){
-          _putchar(*ap);
+          putchar(*ap);
           ap++;
         } else if(c == '%'){
-          _putchar(c);
+          putchar(c);
         } else {
           // Unknown % sequence.  Print it to draw attention.
-          _putchar('%');
-          _putchar(c);
+          putchar('%');
+          putchar(c);
         }
         state = 0;
       }
@@ -139,10 +206,10 @@ int _printf(const char *fmt, ...) {
         state = 0;
       } else {
         // Unknown %. sequence.  Print it to draw attention.
-        _putchar('@');
-        _putchar('.');
+        putchar('@');
+        putchar('.');
         print_int(round, 10, 0);
-        _putchar(c);
+        putchar(c);
         round = 4;
         state = 0;
       }
@@ -152,79 +219,17 @@ int _printf(const char *fmt, ...) {
 }
 
 
-/*
-  setjmp.h
-*/
 
-typedef int jmp_buf[4];
+/* stdlib.h */
 
-int _setjmp (jmp_buf buf) {
-  __asm("\
-  mov r1, [rbp + 4]     # r1 <- buf                    \n\
-  mov r2, [rbp]         # r2 <- caller rbp             \n\
-  mov [r1], r2          # save caller rbp              \n\
-  mov [r1 + 4], r28     # save r28 (return address)    \n\
-  mov [r1 + 8], rbp     # save current rbp             \n\
-  jl  r2, 0             # get PC                       \n\
-  add r2, r2, 12        # r2 <- address of 'ret'       \n\
-  mov [r1 + 12], r2     # save r2                      \n\
-  mov r1, 0             # return 0                     \n\
-  ret                                                  \n\
-");
-}
-
-void _longjmp (jmp_buf buf, int val) {
-  __asm("\
-  mov r1, [rbp + 8]     # r1 <- val                   \n\
-  mov r2, [rbp + 4]     # r2 <- buf                   \n\
-  mov r3, [r2]          # r3 <- caller rbp            \n\
-  mov r28, [r2 + 4]     # restore r28                 \n\
-  mov rbp, [r2 + 8]     # restore setjmp rbp          \n\
-  mov [rbp], r3         # restore setjmp's caller rbp \n\
-  mov r2, [r2 + 12]     # r2 <- address of 'ret'      \n\
-  jr  r2                # jump                        \n\
-");
-}
-
-
-/*
-  string.h
-*/
-
-size_t
-_strlen(const char *str)
+void abort(void)
 {
-  size_t len = 0;
-
-  while (str[len]) {
-    ++len;
-  }
-  return len;
-}
-
-void *
-_memcpy(void *dst, const void *src, size_t n)
-{
-  const char *s = src;
-  char *d = dst;
-
-  while (n-- > 0) {
-    *d++ = *s++;
-  }
-  return d;
-}
-
-
-/*
-  stdlib.h
-*/
-
-void _abort (void) {
-  _printf("abort!\n");
+  printf("abort!\n");
   __asm("  halt\n");
 }
 
-int _abs(int n) {
+int abs(int n)
+{
   __asm("\
   mov r1, [rbp + 4] \n\
   sar r2, r1, 31    \n\
@@ -232,6 +237,42 @@ int _abs(int n) {
   sub r1, r1, r2    \n\
   ret               \n\
 ");
+}
+
+
+static unsigned rbuf[32], ridx = -1;
+
+int rand(void)
+{
+  if (ridx >= 32) srand(1);
+  if (ridx == 31) {
+    ridx = 0;
+    return (rbuf[31] = rbuf[0] + rbuf[28]) >> 1;
+  } else {
+    int tmp = rbuf[ridx + 1] + rbuf[ridx + (ridx < 3 ? 29 : -3)];
+    return (rbuf[ridx++] = tmp) >> 1;
+  }
+}
+
+void srand(unsigned seed)
+{
+  int i;
+  unsigned tmp, lo, hi;
+  const unsigned mod = 0x7fffffff;
+  ridx = 2;
+  rbuf[0] = seed ? seed : 1;
+  for (i = 1; i < 31; ++i) {
+    /* rbuf[i] = (16807ll * (int)rbuf[i - 1] % mod + mod) % mod; */
+    tmp = rbuf[i - 1];
+    if ((int)tmp < 0) tmp = -tmp;
+    lo = 16807 * (tmp & 0xffff);
+    hi = 16807 * (tmp >> 16);
+    tmp = (lo + ((hi & 0x7fff) << 16) + (hi >> 15));
+    if (tmp >= mod) tmp -= mod;
+    rbuf[i] = (int)rbuf[i - 1] < 0 && tmp ? mod - tmp : tmp;
+  }
+  rbuf[31] = rbuf[0]; rbuf[0] = rbuf[1]; rbuf[1] = rbuf[2];
+  for (i = 34; i < 344; ++i) rand();
 }
 
 
@@ -249,8 +290,7 @@ static Header *freep;
 
 static Header *morecore(size_t);
 
-void *
-_malloc(size_t nbytes)
+void *malloc(size_t nbytes)
 {
   Header *p, *prevp;
   size_t nunits;
@@ -278,8 +318,7 @@ _malloc(size_t nbytes)
   }
 }
 
-void
-_free(void *ap)
+void free(void *ap)
 {
   Header *bp, *p;
 
@@ -308,8 +347,7 @@ _free(void *ap)
   freep = p;
 }
 
-static size_t
-malloc_size(void *ap)
+static size_t malloc_size(void *ap)
 {
   Header *p;
 
@@ -317,29 +355,27 @@ malloc_size(void *ap)
   return (p->size - 1) * sizeof(Header);
 }
 
-void *
-_realloc(void *ptr, size_t size)
+void *realloc(void *ptr, size_t size)
 {
   void *new;
 
   if (! ptr)
-    return _malloc(size);
+    return malloc(size);
 
   if (size <= malloc_size(ptr))
     return ptr;
 
-  new = _malloc(size);
+  new = malloc(size);
   if (! new)
     return NULL;
 
-  _memcpy(new, ptr, malloc_size(ptr));
-  _free(ptr);
+  memcpy(new, ptr, malloc_size(ptr));
+  free(ptr);
 
   return new;
 }
 
-static void *
-sbrk(size_t s) {
+static void *sbrk(size_t s) {
   extern char __UCC_HEAP_START;
   static char *ptr = NULL;
 
@@ -353,8 +389,7 @@ sbrk(size_t s) {
   return ptr - s;
 }
 
-static Header *
-morecore(size_t nunits)
+static Header *morecore(size_t nunits)
 {
   Header *p;
 
@@ -363,70 +398,32 @@ morecore(size_t nunits)
   if (! p)
     return NULL;
   p->size = nunits;
-  _free(p + 1);
+  free(p + 1);
   return freep;
 }
 
 
-static unsigned rbuf[32], ridx = -1;
 
-void _srand(unsigned);
+/* string.h */
 
-int _rand(void)
+size_t strlen(const char *str)
 {
-  if (ridx >= 32) _srand(1);
-  if (ridx == 31) {
-    ridx = 0;
-    return (rbuf[31] = rbuf[0] + rbuf[28]) >> 1;
-  } else {
-    int tmp = rbuf[ridx + 1] + rbuf[ridx + (ridx < 3 ? 29 : -3)];
-    return (rbuf[ridx++] = tmp) >> 1;
+  size_t len = 0;
+
+  while (str[len]) {
+    ++len;
   }
+  return len;
 }
 
-void _srand(unsigned seed)
+void *memcpy(void *dst, const void *src, size_t n)
 {
-  int i;
-  unsigned tmp, lo, hi;
-  const unsigned mod = 0x7fffffff;
-  ridx = 2;
-  rbuf[0] = seed ? seed : 1;
-  for (i = 1; i < 31; ++i) {
-    // rbuf[i] = (16807ll * (int)rbuf[i - 1] % mod + mod) % mod;
-    tmp = rbuf[i - 1];
-    if ((int)tmp < 0) tmp = -tmp;
-    lo = 16807 * (tmp & 0xffff);
-    hi = 16807 * (tmp >> 16);
-    tmp = (lo + ((hi & 0x7fff) << 16) + (hi >> 15));
-    if (tmp >= mod) tmp -= mod;
-    rbuf[i] = (int)rbuf[i - 1] < 0 && tmp ? mod - tmp : tmp;
+  const char *s = src;
+  char *d = dst;
+
+  while (n-- > 0) {
+    *d++ = *s++;
   }
-  rbuf[31] = rbuf[0]; rbuf[0] = rbuf[1]; rbuf[1] = rbuf[2];
-  for (i = 34; i < 344; ++i) _rand();
+  return d;
 }
-
-
-/*
-  assert.h
-*/
-
-void _assert_fail(const char *expr, const char *file, int line)
-{
-  _printf("%s:%d: Assertion `%s' failed.\n", file, line, expr);
-  _abort();
-}
-
-
-/*
-  ctype.h
-*/
-
-int _isdigit(int c) { return '0' <= c && c <= '9'; }
-int _islower(int c) { return 'a' <= c && c <= 'z'; }
-int _isupper(int c) { return 'A' <= c && c <= 'Z'; }
-int _isalpha(int c) { return _islower(c) || _isupper(c); }
-int _isalnum(int c) { return _isalpha(c) || _isdigit(c); }
-int _isspace(int c) { return c == ' ' || ('\t' <= c && c <= '\r'); }
-int _tolower(int c) { return _isupper(c) ? c - 'A' + 'a' : c; }
-int _toupper(int c) { return _islower(c) ? c - 'a' + 'A' : c; }
 

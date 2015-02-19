@@ -1,22 +1,13 @@
-#ifndef _CTYPE_H
-#define _CTYPE_H
+#ifndef _UCC_CTYPE_H
+#define _UCC_CTYPE_H
 
-int _isalnum(int);
-int _isalpha(int);
-int _isdigit(int);
-int _islower(int);
-int _isspace(int);
-int _isupper(int);
-int _tolower(int);
-int _toupper(int);
-
-#define isalnum _isalnum
-#define isalpha _isalpha
-#define isdigit _isdigit
-#define islower _islower
-#define isspace _isspace
-#define isupper _isupper
-#define tolower _tolower
-#define toupper _toupper
+int isalnum(int);
+int isalpha(int);
+int isdigit(int);
+int islower(int);
+int isspace(int);
+int isupper(int);
+int tolower(int);
+int toupper(int);
 
 #endif  /* ctype.h */

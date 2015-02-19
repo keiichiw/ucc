@@ -1,5 +1,5 @@
-#ifndef _STDBOOL_H
-#define _STDBOOL_H
+#ifndef _UCC_STDBOOL_H
+#define _UCC_STDBOOL_H
 
 #define bool int
 #define true 1

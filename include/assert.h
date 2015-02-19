@@ -1,5 +1,5 @@
-#ifndef _ASSERT_H
-#define _ASSERT_H
+#ifndef _UCC_ASSERT_H
+#define _UCC_ASSERT_H
 
 #ifdef NDEBUG
 
@@ -7,9 +7,9 @@
 
 #else
 
-void _assert_fail(const char *, const char *, int);
+void __assert_fail(const char *, const char *, int);
 #define assert(expr) \
-  ((expr) ? (void) 0 : _assert_fail(#expr, __FILE__, __LINE__))
+  ((expr) ? (void) 0 : __assert_fail(#expr, __FILE__, __LINE__))
 
 #endif
 

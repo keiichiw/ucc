@@ -1,5 +1,5 @@
-#ifndef _LIMITS_H
-#define _LIMITS_H
+#ifndef _UCC_LIMITS_H
+#define _UCC_LIMITS_H
 
 #define CHAR_BIT   32
 #define INT_MIN  (-2147483648)

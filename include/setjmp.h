@@ -1,11 +1,8 @@
-#ifndef _SETJMP_H
-#define _SETJMP_H
+#ifndef _UCC_SETJMP_H
+#define _UCC_SETJMP_H
 
 typedef int jmp_buf[4];
-int _setjmp(jmp_buf);
-void _longjmp(jmp_buf, int);
-
-#define setjmp(env) _setjmp(env)
-#define longjmp _longjmp
+int setjmp(jmp_buf);
+void longjmp(jmp_buf, int);
 
 #endif  /* setjmp.h */

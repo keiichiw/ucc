@@ -1,12 +1,8 @@
-#ifndef _STDIO_H
-#define _STDIO_H
+#ifndef _UCC_STDIO_H
+#define _UCC_STDIO_H
 
-int _putchar(int);
-int _getchar(void);
-int _printf(const char*, ...);
-
-#define putchar(c) _putchar(c)
-#define getchar() _getchar()
-#define printf _printf
+int putchar(int);
+int getchar(void);
+int printf(const char *, ...);
 
 #endif  /* stdio.h */

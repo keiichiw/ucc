@@ -1,12 +1,9 @@
-#ifndef _STRING_H
-#define _STRING_H
+#ifndef _UCC_STRING_H
+#define _UCC_STRING_H
 
 #include <stddef.h>
 
-size_t _strlen(const char *);
-void *_memcpy(void *, const void *, size_t);
-
-#define strlen _strlen
-#define memcpy _memcpy
+size_t strlen(const char *);
+void *memcpy(void *, const void *, size_t);
 
 #endif  /* string.h */

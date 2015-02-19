@@ -1,5 +1,5 @@
-#ifndef _STDDEF_H
-#define _STDDEF_H
+#ifndef _UCC_STDDEF_H
+#define _UCC_STDDEF_H
 
 #define NULL 0
 typedef unsigned size_t;
