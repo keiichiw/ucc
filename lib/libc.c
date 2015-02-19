@@ -410,10 +410,48 @@ size_t strlen(const char *str)
 {
   size_t len = 0;
 
-  while (str[len]) {
+  while (*str++) {
     ++len;
   }
   return len;
+}
+
+int strcmp(const char *l, const char *r)
+{
+  while (*l) {
+    if (*l++ != *r++) {
+      return l[-1] < r[-1] ? -1 : 1;
+    }
+  }
+  return *r ? -1 : 0;
+}
+
+char *strchr(const char *str, int c)
+{
+  do {
+    if (*str == c) {
+      return (char *)str;
+    }
+  } while (*str++);
+  return NULL;
+}
+
+char *strcpy(char *dst, const char *src)
+{
+  char *d = dst;
+
+  while (*d++ = *src++);
+  return dst;
+}
+
+void *memset(void *dst, int c, size_t n)
+{
+  char *d = dst;
+
+  while (n-- > 0) {
+    *d++ = c;
+  }
+  return dst;
 }
 
 void *memcpy(void *dst, const void *src, size_t n)
@@ -424,6 +462,6 @@ void *memcpy(void *dst, const void *src, size_t n)
   while (n-- > 0) {
     *d++ = *s++;
   }
-  return d;
+  return dst;
 }
 
