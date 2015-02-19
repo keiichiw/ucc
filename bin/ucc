@@ -68,10 +68,18 @@ args.Wa = comma_sep_list(args.Wa)
 args.Wc = comma_sep_list(args.Wc)
 args.Wp = comma_sep_list(args.Wp)
 
+def abort():
+    subprocess.call(['rm', '-f'] + ASMS)
+    exit(1)
+
 def call(*cmd):
-    if subprocess.call(cmd):
-        subprocess.call(['rm', '-f'] + ASMS)
-        exit(1)
+    try:
+        if subprocess.call(cmd):
+            abort()
+    except Exception as e:
+        print >> sys.stderr, e
+        print >> sys.stderr, ' '.join(cmd)
+        abort()
 
 def move_asm(fname):
     if args.S:
@@ -85,7 +93,7 @@ def move_asm(fname):
 for filename in args.inputs:
     if not os.path.isfile(filename):
         print >> sys.stderr, 'ucc: error: file does not exist:', filename
-        exit(1)
+        abort()
     fname, ext = os.path.splitext(filename)
     if ext == '.c':
         call('clang', '-E', filename, '-o', fname + '.tmp.i', *(CPPOPTS + args.D + args.I + args.Wp))
@@ -100,8 +108,7 @@ for filename in args.inputs:
         ASMS.append(filename)
     else:
         print >> sys.stderr, 'ucc: error: unknown extension:', ext
-        call('rm', '-f', *ASMS)
-        exit(1)
+        abort()
 
 if args.S:
     exit(0)
