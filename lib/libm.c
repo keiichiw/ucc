@@ -16,16 +16,13 @@ static float __pow_fi(float a,int n){
  *
  */
 float sqrt(float x){
-  int i;
-  float xn;
-
-  xn = x/128.0;
-
-  for(i=0; i<10; i++){
-    xn = (xn + x/xn)/2.0;
-  }
-  return xn;
+  __asm("\
+  mov r1, [rbp + 4]     \n                      \
+  fsqrt r1, r1          \n                      \
+  ret                   \n                      \
+");
 }
+
 float fabs(float x){
   return x < 0 ? -x : x;
 }
