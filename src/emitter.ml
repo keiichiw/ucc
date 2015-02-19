@@ -568,7 +568,7 @@ let rec ex ret_reg = function
        emit "mov r%d, %s" ret_reg reg
   | EPtr (ty, e) when sizeof ty > 1 ->
      ex ret_reg e;
-  | EPtr (_, EConst (_, VInt i)) ->
+  | EPtr (_, EConst (_, VInt i)) when abs i < 1 lsl 17 ->
      emit "mov r%d, [%d]" ret_reg i
   | EPtr (ty, EPAdd (_, e, EConst (_, VInt i))) ->
      ex ret_reg e;
