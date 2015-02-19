@@ -1,14 +1,14 @@
-all: bin/cc lib/libucc.s lib/libm.s bin/sim bin/as
+
+LIBS = lib/libucc.s lib/libc.s lib/libm.s
+
+all: bin/cc $(LIBS) bin/sim bin/as
 
 bin/cc: FORCE
 	ocamlbuild src/main.native
 	mv main.native bin/cc
 
-lib/libucc.s: lib/libucc.c bin/cc
-	bin/ucc -s -o lib/libucc.s lib/libucc.c
-
-lib/libm.s: lib/libm.c bin/cc
-	bin/ucc -s -o lib/libm.s lib/libm.c
+%.s: %.c bin/cc
+	bin/ucc -s -o $@ $<
 
 bin/sim:
 	git submodule update --init
@@ -30,7 +30,7 @@ test-all: test test-benz
 
 clean:
 	ocamlbuild -clean
-	rm -f *~ test/*~ test/*.i test/*.s test/*.out bin/cc bin/sim bin/as lib/libucc.s
+	rm -f *~ test/*~ test/*.i test/*.s test/*.out bin/cc bin/sim bin/as lib/*.s
 	$(MAKE) -C test/benz clean
 
 FORCE:

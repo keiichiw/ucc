@@ -15,7 +15,7 @@ INCDIRS = [BIN_DIR + '/../include']
 CPPOPTS = ['-undef', '-nostdinc']
 CHKOPTS = ['-fsyntax-only', '-w', '-ansi', '-pedantic-errors', '-Werror=implicit',
            '-Werror=aggregate-return', '-Wno-overlength-strings', '-fno-builtin']
-LIBS    = ['ucc']
+LIBS    = ['ucc', 'c']
 ASOPTS  = ['-f__UCC_HEAP_START']
 
 ASMS = []
