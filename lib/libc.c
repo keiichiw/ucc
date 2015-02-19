@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define max(m, n)   ((m) > (n) ? (m) : (n))
+#define min(m, n)   ((m) < (n) ? (m) : (n))
+
 
 
 /* assert.h */
@@ -71,6 +74,13 @@ void longjmp(jmp_buf buf, int val)
 
 /* stdio.h */
 
+static FILE stdin_entity  = { getchar, NULL };
+static FILE stdout_entity = { NULL, putchar };
+
+FILE *stdin  = &stdin_entity;
+FILE *stdout = &stdout_entity;
+FILE *stderr = &stdout_entity;
+
 int putchar(int c)
 {
   __asm("\
@@ -88,134 +98,510 @@ int getchar(void)
 ");
 }
 
-static void print_int(int xx, int base, int sgn)
+int putc(int c, FILE *stream)
 {
-  char digits[20] = "0123456789ABCDEF";
-  char buf[16];
-  int i, neg;
-  unsigned x;
-
-  neg = 0;
-  if(sgn && xx < 0) {
-    neg = 1;
-    x = -xx;
-  } else {
-    x = xx;
-  }
-
-  i = 0;
-  do{
-    buf[i++] = digits[x % base];
-  }while((x /= base) != 0);
-
-  if(neg)
-    buf[i++] = '-';
-
-  while(--i >= 0)
-    putchar(buf[i]);
+  return fputc(c, stream);
 }
 
-static void print_float (float f, unsigned round)
+int fputc(int c, FILE *stream)
 {
-  int num, frac, diff, t;
-  float abs = f<0 ? -f : f;
-  unsigned i;
-  diff = 1;
-  for (i=0; i<round; i++) {
-    diff *= 10;
+  if (! stream->write)
+    return EOF;
+  return stream->write(c);
+}
+
+int getc(FILE *stream)
+{
+  return fgetc(stream);
+}
+
+int fgetc(FILE *stream)
+{
+  if (! stream->read)
+    return EOF;
+  return stream->read();
+}
+
+
+#define LEFT      (1 << 0)
+#define ZEROPAD   (1 << 1)
+#define SIGN      (1 << 2)
+#define PLUS      (1 << 3)
+#define SPACE     (1 << 4)
+#define OCTPRE    (1 << 5)
+#define HEXPRE    (1 << 6)
+#define CAP       (1 << 7)
+#define DOT       (1 << 8)
+#define TRUNC     (1 << 9)
+
+static int prints(FILE *fp, const char *str, int w, int prec, int flag)
+{
+  int i, len;
+
+  if (! str)
+    str = "(null)";
+
+  len = strlen(str);;
+  if (prec >= 0 && len > prec)
+    len = prec;
+
+  if (! (flag & LEFT))
+    for (i = 0; i < w - len; ++i)
+      fp->write(' ');
+
+  for (i = 0; i < len; ++i)
+    fp->write(str[i]);
+
+  if (flag & LEFT)
+    for (i = 0; i < w - len; ++i)
+      fp->write(' ');
+
+  return max(len, w);
+}
+
+static int printi(FILE *fp, int x, int base, int w, int prec, int flag)
+{
+  char buf[12], pbuf[2];
+  int i, n, len = 0, plen = 0;
+  unsigned u = x;
+
+  if (flag & SIGN) {
+    if (x < 0) {
+      u = -x;
+      pbuf[plen++] = '-';
+    } else if (flag & (PLUS | SPACE)) {
+      pbuf[plen++] = flag & PLUS ? '+' : ' ';
+    }
   }
-  num  = (int) abs;
-  frac = (int) ((abs - num) * (float)diff);
-  if (f < 0) putchar('-');
-  print_int( num, 10, 1);
-  putchar('.');
-  t = frac;
-  i=1;
-  while (t>1) {
-    t /= 10; ++i;
+  if (x && flag & HEXPRE) {
+    pbuf[plen++] = '0';
+    pbuf[plen++] = flag & CAP ? 'X' : 'x';
   }
-  while (i<round) {
-    putchar('0');++i;
+
+  while (u > 0) {
+    int t = u % base;
+    buf[len++] = (t < 10) ? (t + '0') : (t - 10 + (flag & CAP ? 'A' : 'a'));
+    u /= base;
   }
-  print_int(frac, 10, 1);
+  if (x == 0 || flag & OCTPRE)
+    buf[len++] = '0';
+
+  n = max(len, prec) + plen;
+
+  if (! (flag & LEFT || (flag & ZEROPAD && prec < 0)))
+    for (i = 0; i < w - n; ++i)
+      fp->write(' ');
+
+  for (i = 0; i < plen; ++i)
+    fp->write(pbuf[i]);
+
+  if (!(flag & LEFT) && flag & ZEROPAD && prec < 0)
+    for (i = 0; i < w - n; ++i)
+      fp->write('0');
+
+  for (i = 0; i < prec - len; ++i)
+    fp->write('0');
+
+  for (i = len - 1; i >= 0; --i)
+    fp->write(buf[i]);
+
+  if (flag & LEFT)
+    for (i = 0; i < w - n; ++i)
+      fp->write(' ');
+
+  return max(w, n);
+}
+
+static float normalize(float f, int *e)
+{
+  static float table_p[] = { 1e1, 1e2, 1e4, 1e8, 1e16, 1e32 };
+  static float table_m[] = { 1e-1, 1e-2, 1e-4, 1e-8, 1e-16, 1e-32 };
+  static float table_m1[] = { 1e0, 1e-1, 1e-3, 1e-7, 1e-15, 1e-31 };
+
+  int i;
+
+  *e = 0;
+  for (i = 5; i >= 0; --i) {
+    if (f >= table_p[i]) {
+      *e += 1 << i;
+      f *= table_m[i];
+    }
+    if (f < table_m1[i]) {
+      *e -= 1 << i;
+      f *= table_p[i];
+    }
+  }
+
+  return f;
+}
+
+static int printef(FILE *fp, float f, int w, int prec, int flag)
+{
+  char buf[10], pbuf[1];
+  int i, n, expo = 0, len = 0, plen = 0, sp = 0;
+  union { float f; unsigned i; } u;
+
+  u.f = f;
+
+  if (prec < 0)
+    prec = 6;
+
+  if (u.i >> 31) {
+    f = -f;
+    pbuf[plen++] = '-';
+  } else if (flag & (PLUS | SPACE)) {
+    pbuf[plen++] = flag & PLUS ? '+' : ' ';
+  }
+
+  if ((u.i >> 23 & 255) == 255) {
+    int ofs = flag & CAP ? 'A' - 'a' : 0;
+    sp = 1;
+    if ((u.i & 0x7fffff) == 0) {
+      buf[len++] = 'i' + ofs;
+      buf[len++] = 'n' + ofs;
+      buf[len++] = 'f' + ofs;
+    } else {
+      buf[len++] = 'n' + ofs;
+      buf[len++] = 'a' + ofs;
+      buf[len++] = 'n' + ofs;
+    }
+  } else if (f == 0.0) {
+    buf[len++] = '0';
+    buf[len++] = '.';
+    /* prec >= 9 is treated as prec = 8 */
+    for (i = 0; i < min(prec, 8); ++i)
+      buf[len++] = '0';
+  } else {
+    int x = 0;
+    f = normalize(f, &expo);
+
+    len = min(prec, 8) + 2;
+    for (i = 0; i < len - 1; ++i) {
+      int d = f;
+      x = x * 10 + d;
+      f = (f - d) * 10.0;
+    }
+    if (f >= 5.0) ++x;
+
+    buf[1] = '.';
+    for (i = len - 1; i >= 2; --i) {
+      buf[i] = x % 10 + '0';
+      x /= 10;
+    }
+    if (x == 10) {
+      ++expo;
+      buf[0] = '1';
+    } else {
+      buf[0] = x + '0';
+    }
+  }
+
+  if (flag & TRUNC)
+    while (buf[len - 1] == '0')
+      --len;
+  if (buf[len - 1] == '.' && !(flag & DOT))
+    --len;
+
+  n = len + plen + (sp || flag & TRUNC ? 0 : max(prec - 8, 0)) + (sp ? 0 : 4);
+
+  if (! (flag & LEFT || (flag & ZEROPAD && !sp)))
+    for (i = 0; i < w - n; ++i)
+      fp->write(' ');
+
+  for (i = 0; i < plen; ++i)
+    fp->write(pbuf[i]);
+
+  if (!(flag & LEFT) && flag & ZEROPAD && !sp)
+    for (i = 0; i < w - n; ++i)
+      fp->write('0');
+
+  for (i = 0; i < len; ++i)
+    fp->write(buf[i]);
+
+  if (! (sp || flag & TRUNC))
+    for (i = 0; i < prec - 8; ++i)
+      fp->write('0');
+
+  if (! sp) {
+    fp->write(flag & CAP ? 'E' : 'e');
+    fp->write(expo < 0 ? '-' : '+');
+    if (expo < 0) expo = -expo;
+    fp->write(expo / 10 + '0');
+    fp->write(expo % 10 + '0');
+  }
+
+  if (flag & LEFT)
+    for (i = 0; i < w - n; ++i)
+      fp->write(' ');
+
+  return max(w, n);
+}
+
+static int printff(FILE *fp, float f, int w, int prec, int flag)
+{
+  static float round_table[] = {
+    5e-1, 5e-2, 5e-3, 5e-4, 5e-5, 5e-6, 5e-7, 5e-8, 5e-9, 5e-10
+  };
+
+  char buf[49], pbuf[1];
+  int i, n, len = 0, plen = 0, sp = 0;
+  union { float f; unsigned i; } u;
+
+  u.f = f;
+
+  if (prec < 0)
+    prec = 6;
+
+  if (u.i >> 31) {
+    f = -f;
+    pbuf[plen++] = '-';
+  } else if (flag & (PLUS | SPACE)) {
+    pbuf[plen++] = flag & PLUS ? '+' : ' ';
+  }
+
+  if ((u.i >> 23 & 255) == 255) {
+    int ofs = flag & CAP ? 'A' - 'a' : 0;
+    sp = 1;
+    if ((u.i & 0x7fffff) == 0) {
+      buf[len++] = 'i' + ofs;
+      buf[len++] = 'n' + ofs;
+      buf[len++] = 'f' + ofs;
+    } else {
+      buf[len++] = 'n' + ofs;
+      buf[len++] = 'a' + ofs;
+      buf[len++] = 'n' + ofs;
+    }
+  } else {
+    int expo;
+    float g;
+
+    /* prec >= 10 is treated as prec = 9 */
+    f += round_table[min(prec, 9)];
+
+    g = normalize(f, &expo);
+    if (expo < 0)
+      expo = 0;
+    else
+      f = g;
+
+    for (; expo >= 0; --expo) {
+      int d = f;
+      buf[len++] = d + '0';
+      f = (f - d) * 10.0;
+    }
+
+    buf[len++] = '.';
+    for (i = 0; i < min(prec, 9); ++i) {
+      int d = f;
+      buf[len++] = d + '0';
+      f = (f - d) * 10.0;
+    }
+  }
+
+  if (flag & TRUNC)
+    while (buf[len - 1] == '0')
+      --len;
+  if (buf[len - 1] == '.' && !(flag & DOT))
+    --len;
+
+  n = len + plen + (sp || flag & TRUNC ? 0 : max(prec - 9, 0));
+
+  if (! (flag & LEFT || (flag & ZEROPAD && !sp)))
+    for (i = 0; i < w - n; ++i)
+      fp->write(' ');
+
+  for (i = 0; i < plen; ++i)
+    fp->write(pbuf[i]);
+
+  if (! (flag & LEFT) && flag & ZEROPAD && !sp)
+    for (i = 0; i < w - n; ++i)
+      fp->write('0');
+
+  for (i = 0; i < len; ++i)
+    fp->write(buf[i]);
+
+  if (! (sp || flag & TRUNC))
+    for (i = 0; i < prec - 9; ++i)
+      fp->write('0');
+
+  if (flag & LEFT)
+    for (i = 0; i < w - n; ++i)
+      fp->write(' ');
+
+  return max(w, n);
+}
+
+static int printgf(FILE *fp, float f, int w, int prec, int flag)
+{
+  int expo;
+
+  if (prec < 0)
+    prec = 6;
+  if (prec == 0)
+    prec = 1;
+
+  normalize(f, &expo);
+
+  if (-4 <= expo && expo < prec) {
+    return printff(fp, f, w, prec - expo - 1, flag);
+  } else {
+    return printef(fp, f, w, prec - 1, flag);
+  }
+}
+
+static char *write_string_dst;
+static int write_string(int c)
+{
+  *write_string_dst = c;
+  ++write_string_dst;
+  return c;
 }
 
 int printf(const char *fmt, ...)
 {
-  // Print to the given fd. Only understands %d, %x, %f, %s.
-  char *s;
-  int c, i, state;
-  unsigned* ap;
-  unsigned round = 4;
-  state = 0;
-  ap = (unsigned*)(void*)&fmt + 1;
-  for (i = 0; fmt[i]; i++){
-    c = fmt[i] & 0xff;
-    if (state == 0) {
-      if (c == '%') {
-        state = '%';
-      } else {
-        putchar(c);
+  va_list ap;
+  va_start(ap, fmt);
+  return vfprintf(stdout, fmt, ap);
+}
+
+int fprintf(FILE *fp, const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  return vfprintf(fp, fmt, ap);
+}
+
+int sprintf(char *s, const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  return vsprintf(s, fmt, ap);
+}
+
+int vprintf(const char *fmt, va_list ap)
+{
+  return vfprintf(stdout, fmt, ap);
+}
+
+int vfprintf(FILE *fp, const char *fmt, va_list ap)
+{
+  int ret = 0;
+
+  if (! fp->write)
+    return -1;
+
+  for (; *fmt; ++fmt) {
+    if (*fmt == '%') {
+      int flag = 0;
+      int alt = 0;
+      int w = 0;
+      int prec = -1;
+      const char *bak = fmt++;
+      if (*fmt == '%') {
+        ++ret;
+        fp->write('%');
+        continue;
       }
-    } else if (state == '%'){
-      if (c == '.') {
-        state = '.';
-        round = 0;
-      } else {
-        if (c == 'd'){
-          print_int(*ap, 10, 1);
-          ap++;
-        } else if (c == 'f') {
-          union {float f;unsigned u;} t;
-          t.u = *ap;
-          print_float(t.f, round);
-          ap++;
-        } else if(c == 'x' || c == 'p'){
-          print_int(*ap, 16, 0);
-          ap++;
-        } else if(c == 's'){
-          s = (char*)*ap;
-          ap++;
-          if(s == 0)
-            s = "(null)";
-          while(*s != 0){
-            putchar(*s);
-            s+=1;
-          }
-        } else if(c == 'c'){
-          putchar(*ap);
-          ap++;
-        } else if(c == '%'){
-          putchar(c);
-        } else {
-          // Unknown % sequence.  Print it to draw attention.
-          putchar('%');
-          putchar(c);
+      while (strchr("-+ #0", *fmt)) {
+        switch (*(fmt++)) {
+          case '-': flag |= LEFT; break;
+          case '+': flag |= PLUS; break;
+          case ' ': flag |= SPACE; break;
+          case '#': alt = -1; break;
+          case '0': flag |= ZEROPAD; break;
         }
-        state = 0;
       }
-    } else if (state == '.') {
-      if ('0'<=c && c<='9') {
-        round = round*10 + (c-'0');
-      } else if (c == 'f') {
-        union {float f;unsigned u;} t;
-        t.u = *ap;
-        print_float(t.f, round);
-        ap++;
-        round = 4;
-        state = 0;
-      } else {
-        // Unknown %. sequence.  Print it to draw attention.
-        putchar('@');
-        putchar('.');
-        print_int(round, 10, 0);
-        putchar(c);
-        round = 4;
-        state = 0;
+      if (*fmt == '*') {
+        ++fmt;
+        w = va_arg(ap, int);
+      } else while (isdigit(*fmt)) {
+        w = w * 10 + *(fmt++) - '0';
       }
+      if (*fmt == '.') {
+        ++fmt;
+        prec = 0;
+        if (*fmt == '*') {
+          ++fmt;
+          prec = va_arg(ap, int);
+        } else while (isdigit(*fmt)) {
+          prec = prec * 10 + *(fmt++) - '0';
+        }
+      }
+      while (strchr("hlL", *fmt))
+        ++fmt;
+      switch (*fmt) {
+        case 'c':
+          ++ret;
+          fp->write(va_arg(ap, int));
+          break;
+        case 's':
+          ret += prints(fp, va_arg(ap, char*), w, prec, flag);
+          break;
+        case 'd':
+        case 'i':
+          ret += printi(fp, va_arg(ap, int), 10, w, prec, flag | SIGN);
+          break;
+        case 'o':
+          ret += printi(fp, va_arg(ap, int),  8, w, prec, flag | (alt & OCTPRE));
+          break;
+        case 'x':
+          ret += printi(fp, va_arg(ap, int), 16, w, prec, flag | (alt & HEXPRE));
+          break;
+        case 'X':
+          ret += printi(fp, va_arg(ap, int), 16, w, prec, flag | (alt & HEXPRE) | CAP);
+          break;
+        case 'u':
+          ret += printi(fp, va_arg(ap, int), 10, w, prec, flag);
+          break;
+        case 'p':
+          ret += printi(fp, va_arg(ap, int), 16, w, prec, flag | HEXPRE);
+          break;
+        case 'e':
+          ret += printef(fp, va_arg(ap, float), w, prec, flag | (alt & DOT));
+          break;
+        case 'E':
+          ret += printef(fp, va_arg(ap, float), w, prec, flag | (alt & DOT) | CAP);
+          break;
+        case 'f':
+          ret += printff(fp, va_arg(ap, float), w, prec, flag | (alt & DOT));
+          break;
+        case 'F':
+          ret += printff(fp, va_arg(ap, float), w, prec, flag | (alt & DOT) | CAP);
+          break;
+        case 'g':
+          ret += printgf(fp, va_arg(ap, float), w, prec, flag | (~alt & TRUNC));
+          break;
+        case 'G':
+          ret += printgf(fp, va_arg(ap, float), w, prec, flag | (~alt & TRUNC) | CAP);
+          break;
+        case 'n':
+          *va_arg(ap, int*) = ret;
+          break;
+        default:
+          ret += fmt - bak;
+          for (; bak < fmt; ++bak){
+            fp->write(*bak);
+          }
+          --fmt;
+          break;
+      }
+    } else {
+      ++ret;
+      fp->write(*fmt);
     }
   }
-  return 0;
+
+  return ret;
+}
+
+int vsprintf(char *s, const char *fmt, va_list ap)
+{
+  int ret;
+  FILE stream = { NULL, write_string };
+  write_string_dst = s;
+  ret = vfprintf(&stream, fmt, ap);
+  *write_string_dst = '\0';
+  return ret;
 }
 
 

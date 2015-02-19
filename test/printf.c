@@ -2,7 +2,7 @@
 Hello! UCC
 ABC
 1 + 2 = 3
-42 = 0x2A
+42 = 0x2a
 */
 
 #include "test.h"
