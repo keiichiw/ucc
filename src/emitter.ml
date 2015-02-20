@@ -683,6 +683,11 @@ let init_local_vars vars =
           raise_error"local extern variable has initializer" in
   List.iter go vars
 
+let const_bool = function
+  | EConst (_, VInt i) -> Some (i <> 0)
+  | EConst (_, VFloat f) -> Some (f <> 0.0)
+  | _ -> None
+
 let rec st = function
   | SNil ->
      ()
@@ -695,82 +700,100 @@ let rec st = function
      sp_offset_ref := old_sp;
      env_ref := old_env;
   | SWhile (cond, b) ->
+     let loop = const_bool cond = Some true in
      let beginlabel = label_create () in
+     let condlabel = label_create () in
      let endlabel = label_create () in
-     push con_stack beginlabel;
+     let continue_flg = !continue_flg_ref in
+     let break_flg = !break_flg_ref in
+     push con_stack (if loop then beginlabel else condlabel);
      push brk_stack endlabel;
+     break_flg_ref := false;
+     if not loop then
+       emit "br L%d" condlabel;
      emit_label beginlabel;
-     let cond_reg = reg_alloc () in
-     ex cond_reg cond;
-     emit "bz r%d, L%d" cond_reg endlabel;
-     reg_free cond_reg;
      st b;
-     emit "br L%d" beginlabel;
-     emit_label endlabel;
+     if loop then
+       emit "br L%d" beginlabel
+     else begin
+       emit_label condlabel;
+       let cond_reg = reg_alloc () in
+       ex cond_reg cond;
+       emit "bnz r%d, L%d" cond_reg beginlabel;
+       reg_free cond_reg
+     end;
+     if !break_flg_ref then
+       emit_label endlabel;
+     continue_flg_ref := continue_flg;
+     break_flg_ref := break_flg;
      pop con_stack;
      pop brk_stack
+  | SDoWhile (b, cond) when const_bool cond = Some false ->
+     st b
   | SDoWhile (b, cond) ->
      let beginlabel = label_create () in
      let condlabel = label_create () in
      let endlabel = label_create () in
+     let continue_flg = !continue_flg_ref in
+     let break_flg = !break_flg_ref in
      push con_stack condlabel;
      push brk_stack endlabel;
-     emit_label beginlabel;
-     let continue_flg = !continue_flg_ref in
      continue_flg_ref := false;
+     break_flg_ref := false;
+     emit_label beginlabel;
      st b;
      if !continue_flg_ref then
        emit_label condlabel;
-     continue_flg_ref := continue_flg;
      let cond_reg = reg_alloc () in
      ex cond_reg cond;
-     emit "bz r%d, L%d" cond_reg endlabel;
-     emit "br L%d" beginlabel;
-     emit_label endlabel;
+     emit "bnz r%d, L%d" cond_reg beginlabel;
      reg_free cond_reg;
+     if !break_flg_ref then
+       emit_label endlabel;
+     continue_flg_ref := continue_flg;
+     break_flg_ref := break_flg;
      pop con_stack;
      pop brk_stack
   | SFor(init, cond, iter, b) ->
+     let loop = cond = None || const_bool (from_some cond) = Some true in
      let startlnum = label_create () in
      let iterlnum = label_create () in
+     let condlnum = if loop then 0 else label_create () in
      let endlnum = label_create () in
+     let continue_flg = !continue_flg_ref in
+     let break_flg = !break_flg_ref in
      push con_stack iterlnum;
      push brk_stack endlnum;
-     begin match init with
-     | Some iex ->
-        let temp = reg_alloc () in
-        ex temp iex;
-        reg_free temp
-     | _ -> ()
-     end;
-     emit_label startlnum;
-     let break_flg = !break_flg_ref in
-     break_flg_ref := false;
-     begin match cond with
-     | Some cex ->
-        let cond_reg = reg_alloc () in
-        ex cond_reg cex;
-        emit "bz r%d, L%d" cond_reg endlnum;
-        reg_free cond_reg;
-        break_flg_ref := true
-     | _ -> ()
-     end;
-     let continue_flg = !continue_flg_ref in
      continue_flg_ref := false;
-     st b;
-     if !continue_flg_ref then
-       emit_label iterlnum;
-     continue_flg_ref := continue_flg;
-     begin match iter with
-     | Some itex ->
-        let temp = reg_alloc () in
-        ex temp itex;
-        reg_free temp
-     |  _ -> ()
+     break_flg_ref := false;
+     if is_some init then begin
+       let temp = reg_alloc () in
+       ex temp (from_some init);
+       reg_free temp
      end;
-     emit "br L%d" startlnum;
+     if not loop then
+       emit "br L%d" condlnum;
+     emit_label startlnum;
+     st b;
+     if is_some iter then begin
+       if !continue_flg_ref then
+         emit_label iterlnum;
+       let temp = reg_alloc () in
+       ex temp (from_some iter);
+       reg_free temp
+     end;
+     if loop then
+       emit "br L%d" startlnum
+     else begin
+       emit_label condlnum;
+       let cond_reg = reg_alloc () in
+       ex cond_reg (from_some cond);
+       emit "bnz r%d, L%d" cond_reg startlnum;
+       reg_free cond_reg
+     end;
      if !break_flg_ref then
        emit_label endlnum;
+     continue_flg_ref := continue_flg;
      break_flg_ref := break_flg;
      pop con_stack;
      pop brk_stack
@@ -782,10 +805,13 @@ let rec st = function
      emit "bz r%d, L%d" cond_reg lnum;
      reg_free cond_reg;
      st b1;
-     emit "br L%d" endlnum;
+     if b2 <> SNil then
+       emit "br L%d" endlnum;
      emit_label lnum;
-     st b2;
-     emit_label endlnum
+     if b2 <> SNil then begin
+       st b2;
+       emit_label endlnum
+     end
   | SReturn exp ->
      begin match exp with
      | Some exp ->
@@ -819,6 +845,7 @@ let rec st = function
      peek switch_defaults := true;
      emit_raw "%s:\n" (escape_default ())
   | SSwitch (e,s) ->
+     let break_flg = !break_flg_ref in
      switch_counter := !switch_counter + 1;
      switch_stack := !switch_counter :: !switch_stack;
      switch_cases := [] :: !switch_cases;
@@ -839,12 +866,13 @@ let rec st = function
        (fun i ->
         emit "mov r%d, %d" rreg i;
         emit "beq r%d, r%d, %s" lreg rreg (escape_case i))
-       (peek switch_cases);
+       (List.rev (peek switch_cases));
      reg_free lreg;
      reg_free rreg;
      if !(peek switch_defaults) then
        emit "br %s" (escape_default ());
      emit_label l2;
+     break_flg_ref := break_flg;
      switch_defaults := List.tl !switch_defaults;
      switch_cases := List.tl !switch_cases;
      switch_stack := List.tl !switch_stack
