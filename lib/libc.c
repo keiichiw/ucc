@@ -93,8 +93,8 @@ int putchar(int c)
 int getchar(void)
 {
   __asm("\
-    read r1 \n\
-    ret     \n\
+  read r1 \n\
+  ret     \n\
 ");
 }
 
@@ -165,6 +165,9 @@ static int printi(FILE *fp, int x, int base, int w, int prec, int flag)
   int i, n, len = 0, plen = 0;
   unsigned u = x;
 
+  if (prec >= 0)
+    flag &= ~ZEROPAD;
+
   if (flag & SIGN) {
     if (x < 0) {
       u = -x;
@@ -188,14 +191,14 @@ static int printi(FILE *fp, int x, int base, int w, int prec, int flag)
 
   n = max(len, prec) + plen;
 
-  if (! (flag & LEFT || (flag & ZEROPAD && prec < 0)))
+  if (! (flag & (LEFT | ZEROPAD)))
     for (i = 0; i < w - n; ++i)
       fp->write(' ');
 
   for (i = 0; i < plen; ++i)
     fp->write(pbuf[i]);
 
-  if (!(flag & LEFT) && flag & ZEROPAD && prec < 0)
+  if (flag & ZEROPAD)
     for (i = 0; i < w - n; ++i)
       fp->write('0');
 
@@ -256,6 +259,7 @@ static int printef(FILE *fp, float f, int w, int prec, int flag)
   if ((u.i >> 23 & 255) == 255) {
     int ofs = flag & CAP ? 'A' - 'a' : 0;
     sp = 1;
+    flag &= ~ZEROPAD;
     if ((u.i & 0x7fffff) == 0) {
       buf[len++] = 'i' + ofs;
       buf[len++] = 'n' + ofs;
@@ -299,19 +303,19 @@ static int printef(FILE *fp, float f, int w, int prec, int flag)
   if (flag & TRUNC)
     while (buf[len - 1] == '0')
       --len;
-  if (buf[len - 1] == '.' && !(flag & DOT))
+  if (buf[len - 1] == '.' && ~flag & DOT)
     --len;
 
   n = len + plen + (sp || flag & TRUNC ? 0 : max(prec - 8, 0)) + (sp ? 0 : 4);
 
-  if (! (flag & LEFT || (flag & ZEROPAD && !sp)))
+  if (! (flag & (LEFT | ZEROPAD)))
     for (i = 0; i < w - n; ++i)
       fp->write(' ');
 
   for (i = 0; i < plen; ++i)
     fp->write(pbuf[i]);
 
-  if (!(flag & LEFT) && flag & ZEROPAD && !sp)
+  if (flag & ZEROPAD)
     for (i = 0; i < w - n; ++i)
       fp->write('0');
 
@@ -362,6 +366,7 @@ static int printff(FILE *fp, float f, int w, int prec, int flag)
   if ((u.i >> 23 & 255) == 255) {
     int ofs = flag & CAP ? 'A' - 'a' : 0;
     sp = 1;
+    flag &= ~ZEROPAD;
     if ((u.i & 0x7fffff) == 0) {
       buf[len++] = 'i' + ofs;
       buf[len++] = 'n' + ofs;
@@ -401,19 +406,19 @@ static int printff(FILE *fp, float f, int w, int prec, int flag)
   if (flag & TRUNC)
     while (buf[len - 1] == '0')
       --len;
-  if (buf[len - 1] == '.' && !(flag & DOT))
+  if (buf[len - 1] == '.' && ~flag & DOT)
     --len;
 
   n = len + plen + (sp || flag & TRUNC ? 0 : max(prec - 9, 0));
 
-  if (! (flag & LEFT || (flag & ZEROPAD && !sp)))
+  if (! (flag & (LEFT | ZEROPAD)))
     for (i = 0; i < w - n; ++i)
       fp->write(' ');
 
   for (i = 0; i < plen; ++i)
     fp->write(pbuf[i]);
 
-  if (! (flag & LEFT) && flag & ZEROPAD && !sp)
+  if (flag & ZEROPAD)
     for (i = 0; i < w - n; ++i)
       fp->write('0');
 
@@ -511,6 +516,10 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap)
           case '0': flag |= ZEROPAD; break;
         }
       }
+      if (flag & LEFT)
+        flag &= ~ZEROPAD;
+      if (flag & PLUS)
+        flag &= ~SPACE;
       if (*fmt == '*') {
         ++fmt;
         w = va_arg(ap, int);
@@ -557,22 +566,22 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap)
           ret += printi(fp, va_arg(ap, int), 16, w, prec, flag | HEXPRE);
           break;
         case 'e':
-          ret += printef(fp, va_arg(ap, float), w, prec, flag | (alt & DOT));
+          ret += printef(fp, va_arg(ap, double), w, prec, flag | (alt & DOT));
           break;
         case 'E':
-          ret += printef(fp, va_arg(ap, float), w, prec, flag | (alt & DOT) | CAP);
+          ret += printef(fp, va_arg(ap, double), w, prec, flag | (alt & DOT) | CAP);
           break;
         case 'f':
-          ret += printff(fp, va_arg(ap, float), w, prec, flag | (alt & DOT));
+          ret += printff(fp, va_arg(ap, double), w, prec, flag | (alt & DOT));
           break;
         case 'F':
-          ret += printff(fp, va_arg(ap, float), w, prec, flag | (alt & DOT) | CAP);
+          ret += printff(fp, va_arg(ap, double), w, prec, flag | (alt & DOT) | CAP);
           break;
         case 'g':
-          ret += printgf(fp, va_arg(ap, float), w, prec, flag | (~alt & TRUNC));
+          ret += printgf(fp, va_arg(ap, double), w, prec, flag | (~alt & TRUNC));
           break;
         case 'G':
-          ret += printgf(fp, va_arg(ap, float), w, prec, flag | (~alt & TRUNC) | CAP);
+          ret += printgf(fp, va_arg(ap, double), w, prec, flag | (~alt & TRUNC) | CAP);
           break;
         case 'n':
           *va_arg(ap, int*) = ret;
