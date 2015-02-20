@@ -834,6 +834,18 @@ static Header *morecore(size_t nunits)
 }
 
 
+void *calloc(size_t n, size_t size)
+{
+  char *ptr = malloc(n * size);
+
+  if (! ptr)
+    return NULL;
+
+  memset(ptr, 0, n * size);
+
+  return (void *) ptr;
+}
+
 
 /* string.h */
 
@@ -895,4 +907,3 @@ void *memcpy(void *dst, const void *src, size_t n)
   }
   return dst;
 }
-
