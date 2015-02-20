@@ -602,10 +602,11 @@ let rec ex ret_reg = function
         emit "xor r%d, r%d, r%d" ret_reg ret_reg flg;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg flg;
         reg_free flg
-     | t, _ when is_real t ->
-        raise_error "ECast: float"
-     | _, t when is_real t ->
-        raise_error "ECast: float"
+     | t1, t2 when is_real t1 || is_real t2 ->
+        if is_real t1 && is_real t2 then
+          ex ret_reg e
+        else
+          raise_error "ECast: float"
      | _ ->
         ex ret_reg e
      end
