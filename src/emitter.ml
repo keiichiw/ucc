@@ -257,8 +257,12 @@ let rec ex ret_reg = function
               emit "shr r%d, r%d, %d" ret_reg ret_reg (log2 x)
            | Div, _ ->
               let reg = reg_alloc () in
-              emit "sar r%d, r%d, 31" reg ret_reg;
-              emit "and r%d, r%d, %d" reg reg (x - 1);
+              if x = 2 then
+                emit "shr r%d, r%d, 31" reg ret_reg
+              else begin
+                emit "sar r%d, r%d, 31" reg ret_reg;
+                emit "shr r%d, r%d, %d" reg reg (32 - log2 x)
+              end;
               emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
               emit "sar r%d, r%d, %d" ret_reg ret_reg (log2 x);
               reg_free reg
@@ -581,7 +585,7 @@ let rec ex ret_reg = function
      begin match t1, t2 with
      | _, _ when not (t1 = TVoid || (is_scalar t1 && is_scalar t2)) ->
         raise_error "ECast: %s, %s" (pp_type t1) (pp_type t2)
-     | _, _ when t1 = t2 ->
+     | _, _ when t1 = t2 || t1 = TVoid ->
         ex ret_reg e
      | t1, t2 when is_real t1 && is_integral t2 ->
         if is_unsigned t2 then
