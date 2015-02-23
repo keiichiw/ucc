@@ -200,7 +200,10 @@ let emit_native_call ret_reg func arg1 arg2 =
   emit "add rsp, rsp, %d" size
 
 let mem_access (reg, disp) =
-  let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
+  let reg =
+    if reg = 30 then "rsp" else
+    if reg = 31 then "rbp" else
+    sprintf "r%d" reg in
   if disp > 0 then sprintf "[%s + %d]" reg disp else
   if disp < 0 then sprintf "[%s - %d]" reg (-disp) else
   sprintf "[%s]" reg
@@ -495,9 +498,13 @@ let rec ex ret_reg = function
      let size = 4 * List.length used_reg + argsize in
      emit "sub rsp, rsp, %d" size;
      (* save registers *)
-     List.iteri (fun i -> emit "mov [rsp + %d], r%d" (size - 4 * i - 4)) used_reg;
+     List.iteri
+       (fun i -> emit "mov %s, r%d" (mem_access (30, (size - 4 * i - 4))))
+       used_reg;
      (* push arguments *)
-     List.iteri (fun i -> emit "mov [rsp + %d], r%d" (argsize - 4 * i - 4)) (List.rev arg_list);
+     List.iteri
+       (fun i -> emit "mov %s, r%d" (mem_access (30, (argsize - 4 * i - 4))))
+       (List.rev arg_list);
      emit "call r%d" fun_reg;
      reg_free_all ();
      reg_use ret_reg;
@@ -508,7 +515,7 @@ let rec ex ret_reg = function
      List.iteri
        (fun i n ->
         reg_use n;
-        emit "mov r%d, [rsp + %d]" n (argsize + 4 * i))
+        emit "mov r%d, %s" n (mem_access (30, (argsize + 4 * i))))
        (List.rev used_reg);
      emit "add rsp, rsp, %d" size
   | EVar (ty, name)
