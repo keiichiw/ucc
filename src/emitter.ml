@@ -133,8 +133,13 @@ let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
     | (Decl (_, ty, name, _))::xs ->
+       let sz =
+         if ty = TVoid then
+           1
+         else
+           sizeof ty in
        env_ref := (name, (ty, Mem i))::!env_ref;
-       go (i-4) xs in
+       go (i - 4 * sz) xs in
   go (-4) args
 
 let push_local_vars vars =
@@ -487,14 +492,20 @@ let rec ex ret_reg = function
      emit_raw "%s" (String.concat "" (Util.take (List.length slist - 1) slist))
   | ECall (_, f, exlst) ->
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
-     let arg_list = List.map
-                      (fun e ->
-                       let reg = reg_alloc () in
-                       ex reg e;
-                       reg) exlst in
+     let arg_list =
+       let go e =
+         let reg = reg_alloc () in
+         let ty = Typing.typeof e in
+         let sz = sizeof ty in
+         if sz = 1 then
+           ex reg e
+         else (* assign address instead of value *)
+           ex reg (EAddr (TPtr ty, e));
+         (sz, reg) in
+       List.map go exlst in
      let fun_reg = reg_alloc () in
      ex fun_reg f;
-     let argsize = 4 * List.length arg_list in
+     let argsize = 4 * sum_of (List.map fst arg_list) in
      let size = 4 * List.length used_reg + argsize in
      emit "sub rsp, rsp, %d" size;
      (* save registers *)
@@ -502,21 +513,29 @@ let rec ex ret_reg = function
        (fun i -> emit "mov %s, r%d" (mem_access (30, (size - 4 * i - 4))))
        used_reg;
      (* push arguments *)
-     List.iteri
-       (fun i -> emit "mov %s, r%d" (mem_access (30, (argsize - 4 * i - 4))))
-       (List.rev arg_list);
+     let _ = List.fold_left
+       (fun n (sz, reg) ->
+         if sz = 1 then
+           emit "mov %s, r%d" (mem_access (30, n)) reg
+         else (* reg has an address *)
+           (let temp = reg_alloc() in
+            for i = 0 to (sz - 1) do
+              emit "mov r%d, %s" temp (mem_access (reg, i * 4));
+              emit "mov %s, r%d" (mem_access (30, n + i * 4)) temp
+            done);
+         n + 4 * sz) 0 arg_list in
      emit "call r%d" fun_reg;
      reg_free_all ();
      reg_use ret_reg;
      if ret_reg != 1 then
        emit "mov r%d, r1" ret_reg;
-     (* clean arguments *)
      (* restore registers *)
      List.iteri
        (fun i n ->
         reg_use n;
         emit "mov r%d, %s" n (mem_access (30, (argsize + 4 * i))))
        (List.rev used_reg);
+     (* reset rsp *)
      emit "add rsp, rsp, %d" size
   | EVar (ty, name)
   | EDot (ty, _, name) as expr ->

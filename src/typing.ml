@@ -456,7 +456,10 @@ and ex' = function
             List.map2 go elist argtys
           else
             List.map ex elist in
-        ECall (retty, ex1, args)
+        if retty = TVoid || sizeof retty = 1 then
+          ECall (retty, ex1, args)
+        else
+          raise_error "ECall : function that returns struct is not supported"
      | _ ->
         raise_error "ECall: not a function given"
      end
@@ -601,6 +604,8 @@ let def = function
      fun_name_ref := fname;
      let d1 = dv d in
      ret_ty_ref := get_ret_ty d1;
+     if !ret_ty_ref != TVoid && sizeof !ret_ty_ref != 1 then
+       raise_error "def : function that returns struct is not supported";
      let old_venv = !venv_ref in
      let a1 = List.map dv dlist in
      let b1 = st b in
