@@ -133,8 +133,11 @@ let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
     | (Decl (_, ty, name, _))::xs ->
+       let sz =
+         if ty = TVoid then 0
+         else sizeof ty in
        env_ref := (name, (ty, Mem i))::!env_ref;
-       go (i-4) xs in
+       go (i - 4 * sz) xs in
   go (-4) args
 
 let push_local_vars vars =
@@ -485,25 +488,36 @@ let rec ex ret_reg = function
      emit_raw "%s" (String.concat "" (Util.take (List.length slist - 1) slist))
   | ECall (_, f, exlst) ->
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
-     let arg_list = List.map
-                      (fun e ->
-                       let reg = reg_alloc () in
-                       ex reg e;
-                       reg) exlst in
+     let arg_list =
+       let go e =
+         let reg = reg_alloc () in
+         let ty = Typing.typeof e in
+         let sz = sizeof ty in
+         ex reg e;
+         (sz, reg) in
+       List.map go exlst in
      let fun_reg = reg_alloc () in
      ex fun_reg f;
-     let argsize = 4 * List.length arg_list in
+     let argsize = 4 * sum_of (List.map fst arg_list) in
      let size = 4 * List.length used_reg + argsize in
      if size > 0 then
        emit "sub rsp, rsp, %d" size;
-     (* push arguments *)
-     List.iteri
-       (fun i -> emit "mov [rsp%s], r%d" (show_disp (4 * i)))
-       arg_list;
      (* save registers *)
      List.iteri
        (fun i -> emit "mov [rsp%s], r%d" (show_disp (4 * i + argsize)))
        used_reg;
+     (* push arguments *)
+     ignore (List.fold_left
+       (fun n (sz, reg) ->
+         if sz = 1 then
+           emit "mov %s, r%d" (mem_access (30, n)) reg
+         else (* reg has an address *)
+           (let temp = reg_alloc() in
+            for i = 0 to (sz - 1) do
+              emit "mov r%d, %s" temp (mem_access (reg, i * 4));
+              emit "mov %s, r%d" (mem_access (30, n + i * 4)) temp
+            done);
+         n + 4 * sz) 0 arg_list);
      emit "call r%d" fun_reg;
      reg_free_all ();
      reg_use ret_reg;
@@ -512,8 +526,8 @@ let rec ex ret_reg = function
      (* restore registers *)
      List.iteri
        (fun i n ->
-        reg_use n;
-        emit "mov r%d, [rsp%s]" n (show_disp (4 * i + argsize)))
+         reg_use n;
+         emit "mov r%d, [rsp%s]" n (show_disp (4 * i + argsize)))
        used_reg;
      (* clean stack *)
      if size > 0 then
