@@ -493,10 +493,7 @@ let rec ex ret_reg = function
          let reg = reg_alloc () in
          let ty = Typing.typeof e in
          let sz = sizeof ty in
-         if sz = 1 then
-           ex reg e
-         else (* assign address instead of value *)
-           ex reg (EAddr (TPtr ty, e));
+         ex reg e;
          (sz, reg) in
        List.map go exlst in
      let fun_reg = reg_alloc () in
@@ -514,7 +511,7 @@ let rec ex ret_reg = function
        (fun i -> emit "mov [rsp%s], r%d" (show_disp (4 * i + argsize)))
        used_reg;
      (* push arguments *)
-     let _ = List.fold_left
+     ignore (List.fold_left
        (fun n (sz, reg) ->
          if sz = 1 then
            emit "mov %s, r%d" (mem_access (30, n)) reg
@@ -524,7 +521,7 @@ let rec ex ret_reg = function
               emit "mov r%d, %s" temp (mem_access (reg, i * 4));
               emit "mov %s, r%d" (mem_access (30, n + i * 4)) temp
             done);
-         n + 4 * sz) 0 arg_list in
+         n + 4 * sz) 0 arg_list);
      emit "call r%d" fun_reg;
      reg_free_all ();
      reg_use ret_reg;
