@@ -134,10 +134,8 @@ let push_args args = (* add args in env *)
     | [] -> ()
     | (Decl (_, ty, name, _))::xs ->
        let sz =
-         if ty = TVoid then
-           1
-         else
-           sizeof ty in
+         if ty = TVoid then 0
+         else sizeof ty in
        env_ref := (name, (ty, Mem i))::!env_ref;
        go (i - 4 * sz) xs in
   go (-4) args
