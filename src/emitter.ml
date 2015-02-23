@@ -345,7 +345,7 @@ let rec ex ret_reg = function
      let reg  = reg_alloc () in
      ex reg e2;
      let sreg = reg_alloc () in
-     emit "ldh r%d, r0, 0x8000" sreg;
+     emit "mov r%d, 0x80000000" sreg;
      emit "xor r%d, r%d, r%d" ret_reg ret_reg sreg;
      emit "xor r%d, r%d, r%d" reg reg sreg;
      emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
@@ -396,9 +396,8 @@ let rec ex ret_reg = function
         let reg = reg_alloc () in
         ex reg e2;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg reg;
-        emit "mov r%d, %d" reg (4 * sizeof t1);
-        emit_native_call ret_reg "__signed_div" ret_reg reg;
-        reg_free reg
+        reg_free reg;
+        ex ret_reg (EArith (TInt, Div, ENil, (EConst (TInt, VInt (4 * sizeof t1)))))
      | _ ->
         failwith "EPDiff"
      end
@@ -461,7 +460,7 @@ let rec ex ret_reg = function
         ex ret_reg e
      | Minus ->
         ex ret_reg e;
-       emit "xor r%d, r%d, 0x80000000" ret_reg ret_reg
+        emit "xor r%d, r%d, 0x80000000" ret_reg ret_reg
      | _ ->
         raise_error "FUnary"
      end
