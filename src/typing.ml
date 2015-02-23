@@ -442,14 +442,19 @@ and ex' = function
      | TPtr (TFun (retty, argtys)) ->
         let go a t =
           let arg = ex a in
-          if typeof arg = t then
+          if t = TVoid || typeof arg = t then
             arg
           else
             ECast(t, typeof arg, arg) in
+        let exlen = List.length elist in
+        let tylen = List.length argtys in
         let args =
-          if List.length elist = List.length argtys then
+          if exlen = tylen then
             List.map2 go elist argtys
-          else (* for variadic function *)
+          else if exlen > tylen then (* for variadic function *)
+            let argtys = argtys @ (rep TVoid (exlen - tylen)) in
+            List.map2 go elist argtys
+          else
             List.map ex elist in
         ECall (retty, ex1, args)
      | _ ->
