@@ -185,9 +185,9 @@ let emit_native_call ret_reg func arg1 arg2 =
   let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
   let size = 4 * (List.length used_reg + 2) in
   emit "sub rsp, rsp, %d" size;
-  List.iteri (fun i -> emit "mov [rsp + %d], r%d" (size - 4 * i - 4)) used_reg;
-  emit "mov [rsp + 4], r%d" arg2;
   emit "mov [rsp], r%d" arg1;
+  emit "mov [rsp + 4], r%d" arg2;
+  List.iteri (fun i -> emit "mov [rsp + %d], r%d" (4 * i + 8)) used_reg;
   let fun_reg = reg_alloc () in
   emit "mov r%d, %s" fun_reg func;
   emit "call r%d" fun_reg;
@@ -199,17 +199,16 @@ let emit_native_call ret_reg func arg1 arg2 =
     (fun i n ->
      reg_use n;
      emit "mov r%d, [rsp + %d]" n (4 * i + 8))
-    (List.rev used_reg);
+    used_reg;
   emit "add rsp, rsp, %d" size
 
+let show_disp disp =
+  if disp > 0 then sprintf " + %d" disp else
+  if disp < 0 then sprintf " - %d" (-disp) else ""
+
 let mem_access (reg, disp) =
-  let reg =
-    if reg = 30 then "rsp" else
-    if reg = 31 then "rbp" else
-    sprintf "r%d" reg in
-  if disp > 0 then sprintf "[%s + %d]" reg disp else
-  if disp < 0 then sprintf "[%s - %d]" reg (-disp) else
-  sprintf "[%s]" reg
+  let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
+  sprintf "[%s%s]" reg (show_disp disp)
 
 let rec int_const = function
   | EConst (_, VInt i) -> Some i
@@ -349,7 +348,7 @@ let rec ex ret_reg = function
      let reg  = reg_alloc () in
      ex reg e2;
      let sreg = reg_alloc () in
-     emit "ldh r%d, r0, 0x8000" sreg;
+     emit "mov r%d, 0x80000000" sreg;
      emit "xor r%d, r%d, r%d" ret_reg ret_reg sreg;
      emit "xor r%d, r%d, r%d" reg reg sreg;
      emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
@@ -400,9 +399,8 @@ let rec ex ret_reg = function
         let reg = reg_alloc () in
         ex reg e2;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg reg;
-        emit "mov r%d, %d" reg (4 * sizeof t1);
-        emit_native_call ret_reg "__signed_div" ret_reg reg;
-        reg_free reg
+        reg_free reg;
+        ex ret_reg (EArith (TInt, Div, ENil, (EConst (TInt, VInt (4 * sizeof t1)))))
      | _ ->
         failwith "EPDiff"
      end
@@ -465,7 +463,7 @@ let rec ex ret_reg = function
         ex ret_reg e
      | Minus ->
         ex ret_reg e;
-       emit "xor r%d, r%d, 0x80000000" ret_reg ret_reg
+        emit "xor r%d, r%d, 0x80000000" ret_reg ret_reg
      | _ ->
         raise_error "FUnary"
      end
@@ -505,10 +503,15 @@ let rec ex ret_reg = function
      ex fun_reg f;
      let argsize = 4 * sum_of (List.map fst arg_list) in
      let size = 4 * List.length used_reg + argsize in
-     emit "sub rsp, rsp, %d" size;
+     if size > 0 then
+       emit "sub rsp, rsp, %d" size;
+     (* push arguments *)
+     List.iteri
+       (fun i -> emit "mov [rsp%s], r%d" (show_disp (4 * i)))
+       (List.map snd arg_list);
      (* save registers *)
      List.iteri
-       (fun i -> emit "mov %s, r%d" (mem_access (30, (size - 4 * i - 4))))
+       (fun i -> emit "mov [rsp%s], r%d" (show_disp (4 * i + argsize)))
        used_reg;
      (* push arguments *)
      let _ = List.fold_left
@@ -530,11 +533,12 @@ let rec ex ret_reg = function
      (* restore registers *)
      List.iteri
        (fun i n ->
-        reg_use n;
-        emit "mov r%d, %s" n (mem_access (30, (argsize + 4 * i))))
-       (List.rev used_reg);
-     (* reset rsp *)
-     emit "add rsp, rsp, %d" size
+         reg_use n;
+         emit "mov r%d, [rsp%s]" n (show_disp (4 * i + argsize)))
+       used_reg;
+     (* clean stack *)
+     if size > 0 then
+       emit "add rsp, rsp, %d" size
   | EVar (ty, name)
   | EDot (ty, _, name) as expr ->
      begin match ty with
@@ -609,7 +613,8 @@ let rec ex ret_reg = function
      ex ret_reg e;
   | EPtr (_, EConst (_, VInt i)) when abs i < 1 lsl 17 ->
      emit "mov r%d, [%d]" ret_reg i
-  | EPtr (ty, EPAdd (_, e, EConst (_, VInt i))) ->
+  | EPtr (ty, EPAdd (_, e, EConst (_, VInt i)))
+    when abs (4 * sizeof ty * i) < 1 lsl 17 ->
      ex ret_reg e;
      emit "mov r%d, %s" ret_reg (mem_access (ret_reg, 4 * sizeof ty * i))
   | EPtr (_, e) ->
