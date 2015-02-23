@@ -502,10 +502,6 @@ let rec ex ret_reg = function
      let size = 4 * List.length used_reg + argsize in
      if size > 0 then
        emit "sub rsp, rsp, %d" size;
-     (* push arguments *)
-     List.iteri
-       (fun i -> emit "mov [rsp%s], r%d" (show_disp (4 * i)))
-       (List.map snd arg_list);
      (* save registers *)
      List.iteri
        (fun i -> emit "mov [rsp%s], r%d" (show_disp (4 * i + argsize)))
