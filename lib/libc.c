@@ -122,6 +122,82 @@ int fgetc(FILE *stream)
   return stream->read();
 }
 
+int fputs(char *s, FILE *stream)
+{
+
+  while(*s != '\0') {
+
+    if (fputc(*s, stream) == EOF)
+      return EOF;
+
+    ++s;
+
+  }
+
+  return 1;
+
+}
+
+
+int puts(char *s)
+{
+  int i = 0;
+
+  while(*s != '\0') {
+
+    if (putchar(*s) == EOF)
+      return EOF;
+
+    ++i; ++s;
+
+  }
+
+  putchar('\n');
+
+  return i + 1;
+}
+
+
+
+char *fgets(char *s, int size, FILE *stream)
+{
+  int c;
+  char *buf;
+  buf = s;
+
+  if (size == 0)
+    return NULL;
+
+  while (--size > 0 && (c = fgetc(stream)) != EOF) {
+
+    if ((*buf++ = c) == '\n')
+      break;
+
+  }
+
+  *buf = '\0';
+
+  return (c == EOF && buf == s) ? NULL : s;
+
+}
+
+char *gets(char *s)
+{
+  int c;
+  char *buf;
+  buf = s;
+
+  while ((c = getc(stdin)) != EOF && c != '\n') {
+
+    *buf++ = c;
+
+  }
+
+  *buf = '\0';
+
+  return (c == EOF && buf == s) ? NULL : s;
+
+}
 
 #define LEFT      (1 << 0)
 #define ZEROPAD   (1 << 1)

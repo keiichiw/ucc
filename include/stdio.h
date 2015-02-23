@@ -21,6 +21,11 @@ int putc(int, FILE *);
 int fputc(int, FILE *);
 int getc(FILE *);
 int fgetc(FILE *);
+int puts(char *);
+int fputs(char *, FILE *);
+char *fgets(char *, int, FILE *);
+char *gets(char *);
+
 
 int printf(const char *, ...);
 int fprintf(FILE *, const char *, ...);
