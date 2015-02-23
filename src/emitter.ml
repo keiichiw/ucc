@@ -180,9 +180,11 @@ let emit_global_var name init =
 
 let emit_native_call ret_reg func arg1 arg2 =
   let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
-  List.iter (emit "push r%d") used_reg;
-  emit "push r%d" arg2;
-  emit "push r%d" arg1;
+  let size = 4 * (List.length used_reg + 2) in
+  emit "sub rsp, rsp, %d" size;
+  List.iteri (fun i -> emit "mov [rsp + %d], r%d" (size - 4 * i - 4)) used_reg;
+  emit "mov [rsp + 4], r%d" arg2;
+  emit "mov [rsp], r%d" arg1;
   let fun_reg = reg_alloc () in
   emit "mov r%d, %s" fun_reg func;
   emit "call r%d" fun_reg;
@@ -190,8 +192,12 @@ let emit_native_call ret_reg func arg1 arg2 =
   reg_use ret_reg;
   if ret_reg != 1 then
     emit "mov r%d, r1" ret_reg;
-  emit "add rsp, rsp, 8";
-  List.iter (fun i -> reg_use i; emit "pop r%d" i) (List.rev used_reg)
+  List.iteri
+    (fun i n ->
+     reg_use n;
+     emit "mov r%d, [rsp + %d]" n (4 * i + 8))
+    (List.rev used_reg);
+  emit "add rsp, rsp, %d" size
 
 let mem_access (reg, disp) =
   let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
@@ -485,22 +491,26 @@ let rec ex ret_reg = function
                        reg) exlst in
      let fun_reg = reg_alloc () in
      ex fun_reg f;
+     let argsize = 4 * List.length arg_list in
+     let size = 4 * List.length used_reg + argsize in
+     emit "sub rsp, rsp, %d" size;
      (* save registers *)
-     List.iter (fun reg -> emit "push r%d" reg) used_reg;
+     List.iteri (fun i -> emit "mov [rsp + %d], r%d" (size - 4 * i - 4)) used_reg;
      (* push arguments *)
-     List.iter (fun reg -> emit "push r%d" reg) (List.rev arg_list);
+     List.iteri (fun i -> emit "mov [rsp + %d], r%d" (argsize - 4 * i - 4)) (List.rev arg_list);
      emit "call r%d" fun_reg;
      reg_free_all ();
      reg_use ret_reg;
      if ret_reg != 1 then
        emit "mov r%d, r1" ret_reg;
      (* clean arguments *)
-     emit "add rsp, rsp, %d" (List.length arg_list*4);
      (* restore registers *)
-     List.iter (fun i ->
-                reg_use i;
-                emit "pop r%d" i)
-               (List.rev used_reg)
+     List.iteri
+       (fun i n ->
+        reg_use n;
+        emit "mov r%d, [rsp + %d]" n (argsize + 4 * i))
+       (List.rev used_reg);
+     emit "add rsp, rsp, %d" size
   | EVar (ty, name)
   | EDot (ty, _, name) as expr ->
      begin match ty with
