@@ -1,4 +1,4 @@
 #!/bin/bash
 dir=`dirname "$0"`
 $dir/ucc -o ${1%.*}.out $1 || exit 1
-$dir/sim -no-mmu -no-interrupt ${1%.*}.out
+$dir/sim -simple ${1%.*}.out
