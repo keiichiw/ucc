@@ -105,13 +105,15 @@ let resolve_var name =
   with
   | Not_found -> raise_error "not found %s" name
 
+let padding n = (n + 3) / 4 * 4
+
 let sizeof_decl = function
   | Decl (NoLink,TFun _,_,_)
   | Decl (Extern,_,_,_)
   | Decl (Static,_,_,_) ->
      0
   | Decl (NoLink,ty,_,_) ->
-     sizeof ty * 4
+    padding (sizeof ty)
 
 let rec sizeof_block = function
   | SBlock (d, s) ->
@@ -137,7 +139,7 @@ let push_args args = (* add args in env *)
          if ty = TVoid then 0
          else sizeof ty in
        env_ref := (name, (ty, Mem i))::!env_ref;
-       go (i - 4 * sz) xs in
+       go (i - sz) xs in
   go (-4) args
 
 let push_local_vars vars =
@@ -147,7 +149,7 @@ let push_local_vars vars =
        push env_ref (name, (ty, Global name))
     | Decl (NoLink, ty, name, _) ->
        let sz = sizeof ty in
-       sp_offset_ref := !sp_offset_ref + sz*4;
+       sp_offset_ref := !sp_offset_ref + sz;
        push env_ref (name, (ty, Mem !sp_offset_ref))
     | Decl (Static, ty, name, _) ->
        let label_id = label_create () in
@@ -379,11 +381,11 @@ let rec ex ret_reg = function
         ex ret_reg e1;
         begin match e2 with
         | EConst (_, VInt i) ->
-           emit "add r%d, r%d, %d" ret_reg ret_reg (4 * sizeof ty * i)
+           emit "add r%d, r%d, %d" ret_reg ret_reg (sizeof ty * i)
         | _ ->
            let reg = reg_alloc () in
            ex reg e2;
-           ex reg (EArith (TInt, Mul, ENil, EConst (TInt, VInt (4 * sizeof ty))));
+           ex reg (EArith (TInt, Mul, ENil, EConst (TInt, VInt (sizeof ty))));
            emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
            reg_free reg
         end
@@ -476,9 +478,9 @@ let rec ex ret_reg = function
      let reg = reg_alloc () in
      emit "mov r%d, %s" ret_reg (mem_access mem);
      if op = Inc then
-       emit "add r%d, r%d, %d" reg ret_reg (4 * sizeof ty)
+       emit "add r%d, r%d, %d" reg ret_reg (sizeof ty)
      else
-       emit "sub r%d, r%d, %d" reg ret_reg (4 * sizeof ty);
+       emit "sub r%d, r%d, %d" reg ret_reg (sizeof ty);
      emit "mov %s, r%d" (mem_access mem) reg;
      reg_free areg;
      reg_free reg
@@ -499,7 +501,7 @@ let rec ex ret_reg = function
        List.map go exlst in
      let fun_reg = reg_alloc () in
      ex fun_reg f;
-     let argsize = 4 * sum_of (List.map fst arg_list) in
+     let argsize = sum_of (List.map fst arg_list) in
      let size = 4 * List.length used_reg + argsize in
      if size > 0 then
        emit "sub rsp, rsp, %d" size;
@@ -539,7 +541,7 @@ let rec ex ret_reg = function
      | TVoid | TArray _ | TFun _ ->
         raise_error "logic flaw: EVar"
      | _ ->
-        if sizeof ty > 1 then
+        if sizeof ty > 4 then
           ex ret_reg (EAddr (TPtr ty, expr))
         else
           let mem = emit_lv_addr ret_reg expr in
@@ -551,7 +553,7 @@ let rec ex ret_reg = function
      begin match op with
      | None ->
         ex ret_reg e2;
-        if sizeof ty > 1 then begin
+        if sizeof ty > 4 then begin
           let tmp = reg_alloc () in
           for i = 0 to sizeof ty - 1 do
             let dst = mem_access (fst mem, snd mem + 4 * i) in
@@ -603,14 +605,14 @@ let rec ex ret_reg = function
        if disp > 0 then emit "add r%d, %s, %d" ret_reg reg disp else
        if disp < 0 then emit "sub r%d, %s, %d" ret_reg reg (-disp) else
        emit "mov r%d, %s" ret_reg reg
-  | EPtr (ty, e) when sizeof ty > 1 ->
+  | EPtr (ty, e) when sizeof ty > 4 ->
      ex ret_reg e;
   | EPtr (_, EConst (_, VInt i)) when abs i < 1 lsl 17 ->
      emit "mov r%d, [%d]" ret_reg i
   | EPtr (ty, EPAdd (_, e, EConst (_, VInt i)))
-    when abs (4 * sizeof ty * i) < 1 lsl 17 ->
+    when abs (sizeof ty * i) < 1 lsl 17 ->
      ex ret_reg e;
-     emit "mov r%d, %s" ret_reg (mem_access (ret_reg, 4 * sizeof ty * i))
+     emit "mov r%d, %s" ret_reg (mem_access (ret_reg, sizeof ty * i))
   | EPtr (_, e) ->
      ex ret_reg e;
      emit "mov r%d, [r%d]" ret_reg ret_reg;
@@ -678,7 +680,7 @@ and emit_lv_addr reg = function
         let rec go i s = function
           | [] -> failwith "edot"
           | (v, _)::_ when v=s -> i
-          | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
+          | (_, ty)::xs -> go (i + sizeof ty) s xs in
         let memlist = List.nth !struct_env s_id in
         let mem_offset = go 0 mem memlist in
         let (reg, disp) = emit_lv_addr reg expr in

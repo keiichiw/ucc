@@ -30,9 +30,10 @@ let rev_table_struct : (int * string) list ref = ref []
 let rev_table_union  : (int * string) list ref = ref []
 
 let rec sizeof = function
-  | TInt  | TShort  | TLong  | TChar
-  | TUInt | TUShort | TULong | TUChar -> 1
-  | TFloat| TDouble | TPtr _ -> 1
+  | TChar | TUChar -> 1
+  | TInt  | TShort  | TLong
+  | TUInt | TUShort | TULong
+  | TFloat| TDouble | TPtr _ -> 4
   | TStruct s_id ->
      s_id |> List.nth !struct_env
           |> List.map (snd >> sizeof)
