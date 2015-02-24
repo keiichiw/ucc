@@ -399,8 +399,9 @@ let rec ex ret_reg = function
         let reg = reg_alloc () in
         ex reg e2;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg reg;
-        reg_free reg;
-        ex ret_reg (EArith (TInt, Div, ENil, (EConst (TInt, VInt (4 * sizeof t1)))))
+        emit "mov r%d, %d" reg (4 * sizeof t1);
+        emit_native_call ret_reg "__signed_div" ret_reg reg;
+        reg_free reg
      | _ ->
         failwith "EPDiff"
      end
