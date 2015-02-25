@@ -29,19 +29,42 @@ let union_env  : (string * ctype) list list ref = ref []
 let rev_table_struct : (int * string) list ref = ref []
 let rev_table_union  : (int * string) list ref = ref []
 
-let rec sizeof = function
+let rec align = function
   | TChar | TUChar -> 1
   | TInt  | TShort  | TLong
   | TUInt | TUShort | TULong
   | TFloat| TDouble | TPtr _ -> 4
   | TStruct s_id ->
      s_id |> List.nth !struct_env
-          |> List.map (snd >> sizeof)
-          |> Util.sum_of
+          |> List.map (snd >> align)
+          |> Util.max_of
   | TUnion u_id ->
+     u_id |> List.nth !union_env
+          |> List.map (snd >> align)
+          |> Util.max_of
+  | TArray (ty, _) -> align ty
+  | TFun _ -> failwith "align function"
+  | TVoid -> failwith "align void"
+
+let aligned ty n =
+  let a = align ty in
+  (n + a - 1) / a * a
+
+let rec sizeof = function
+  | TChar | TUChar -> 1
+  | TInt  | TShort  | TLong
+  | TUInt | TUShort | TULong
+  | TFloat| TDouble | TPtr _ -> 4
+  | TStruct s_id as ty ->
+     s_id |> List.nth !struct_env
+          |> List.map snd
+          |> List.fold_left (fun n t -> aligned t n + sizeof t) 0
+          |> aligned ty
+  | TUnion u_id as ty ->
      u_id |> List.nth !union_env
           |> List.map (snd >> sizeof)
           |> Util.max_of
+          |> aligned ty
   | TArray (ty, sz) -> (sizeof ty) * sz
   | TFun _ -> failwith "sizeof function"
   | TVoid -> failwith "sizeof void"

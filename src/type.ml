@@ -32,7 +32,7 @@ type expr =
   | EDot     of ctype * expr * name
   | ECast    of ctype * ctype * expr
   | EAsm     of ctype * (int list)
-  | EPadding
+  | ESpace   of ctype
 
 type decl =
   | Decl of linkage * ctype * name * (expr list)
@@ -85,4 +85,4 @@ let typeof = function
   | ECast   (t, _, _) -> t
   | EAsm    (t, _) -> t
   | ENil -> failwith "typeof ENil"
-  | EPadding -> failwith "typeof EPadding"
+  | ESpace _ -> failwith "typeof ESpace"

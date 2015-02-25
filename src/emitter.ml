@@ -160,50 +160,33 @@ let push_local_vars vars =
        push env_ref (name, (ty, Global (label, 0))) in
   List.iter go vars
 
-let create_defualt_init ty =
-  Util.rep (EConst (TInt, (VInt 0))) (sizeof ty)
-
 let emit_global_var name init =
   let contents = ref [] in
   emit_raw "%s:\n" name;
-  let pad n =
-    let p = padding n in
-    emit ".align 4";
-    p in
-  let rec go n = function
+  let rec go = function
     | EConst (ty, (VInt v)) when sizeof ty = 1 ->
-       emit ".byte %d" v;
-       n + 1
+       emit ".byte %d" v
     | EConst (ty, (VInt v)) ->
-       let n = pad n in
-       emit ".int %d" v;
-       n + 4
+       emit ".int %d" v
     | EConst (_, (VFloat v)) ->
-       let n = pad n in
-       emit ".float %.15F" v;
-       n + 4
+       emit ".float %.15F" v
     | EAddr (TPtr TChar, EConst (_, VStr s)) ->
-       let n = pad n in
        contents := s :: !contents;
-       emit ".int %s_contents_%d" name (List.length !contents);
-       n + 4
+       emit ".int %s_contents_%d" name (List.length !contents)
     | EAddr (TPtr _, EVar (_, name)) when List.mem_assoc name !env_ref ->
-       let n = pad n in
-       emit ".int %s" name;
-       n + 4
+       emit ".int %s" name
     | ECast (TPtr _, TPtr _, e) ->
-       go n e
-    | EPadding ->
-       pad n
+       go e
+    | ESpace ty ->
+       emit ".space %d" (sizeof ty)
     | _ -> raise_error "global initializer must be constant" in
-  let n = List.fold_left go 0 init in
-  ignore (pad n);
+  List.iter go init;
   List.iteri
     (fun i c ->
      emit_raw "%s_contents_%d:\n" name (i + 1);
-     List.iter (fun n -> emit ".byte %d" n) c;
-     emit ".align 4")
-    (List.rev !contents)
+     List.iter (fun n -> emit ".byte %d" n) c)
+    (List.rev !contents);
+  emit ".align 4"
 
 let emit_native_call ret_reg func arg1 arg2 =
   let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
@@ -721,6 +704,8 @@ let rec ex ret_reg = function
      | _ ->
         ex ret_reg e
      end
+  | ESpace _ ->
+     raise_error "ex: ESpace"
 
 and emit_bin ret_reg op e1 e2 =
   match int_const e1, int_const e2 with
@@ -787,20 +772,19 @@ let init_local_vars vars =
     | (_, Mem (31, offset, sz)) ->
        let reg = reg_alloc () in
        let go2 n e =
-         if e = EPadding then padding n else begin
          ex reg e;
          let sz = (typeof >> sizeof) e in
          let n1 = if sz = 1 then n else padding n in
          emit_mov
            (Mem (31, offset + n1, (typeof >> sizeof) e))
            (Reg reg);
-         n1 + sz end in
+         n1 + sz in
        ignore (List.fold_left go2 0 init);
        reg_free reg
     | (_, Global (label, _)) ->
        match (ln, init) with
        | Static, [] ->
-          push static_locals_ref (label, create_defualt_init ty)
+          push static_locals_ref (label, [ESpace ty])
        | Static, xs ->
           push static_locals_ref (label, xs)
        | Extern, [] | NoLink, [] ->
@@ -1045,9 +1029,9 @@ let emitter oc = function
      begin match (ln, init) with
      | NoLink, [] when not (is_funty ty) ->
         emit_raw ".global %s\n" name;
-        emit_global_var name (create_defualt_init ty)
+        emit_global_var name [ESpace ty]
      | Static, [] when not (is_funty ty) ->
-        emit_global_var name (create_defualt_init ty)
+        emit_global_var name [ESpace ty]
      | NoLink, []
      | Extern, []
      | Static, [] ->

@@ -49,6 +49,10 @@ let arith_conv = function
   | _ -> Some TInt
 
 let initialize ty init =
+  let pad pos ty =
+    let a = align ty in
+    let x = if pos mod a = 0 then 0 else a - pos mod a in
+    (rep (TChar, Syntax.EConst (Syntax.VInt 0)) x, pos + x) in
   let scalar ty = function
     | Syntax.IVect ((Syntax.IVect _)::_) ->
        raise_error "too many braces around scalar initializer"
@@ -56,35 +60,39 @@ let initialize ty init =
     | Syntax.IVect _ ->
        raise_error "invalid scalar initializer"
     | Syntax.IScal e -> [(ty, e)] in
-  let rec compound ty init idx =
-    let pad = (TVoid, Syntax.EPadding) in
+  let rec compound ty init idx pos =
     match ty, init with
     | TStruct s_id, Syntax.IVect ilist ->
        let s = List.nth !struct_env s_id in
-       if List.length s = idx then ([pad], init)
+       if List.length s = idx then ([], init, pos)
        else
-         let l, rem  = inner (snd (List.nth s idx)) ilist in
-         let r, tail = compound ty rem (idx + 1) in
-         (l @ r, tail)
+         let pad_ty =
+           if List.length s = idx + 1 then ty else
+           snd (List.nth s (idx + 1)) in
+         let l, rem, pos = inner (snd (List.nth s idx)) ilist pos in
+         let padding, pos = pad pos pad_ty in
+         let r, tail, pos = compound ty rem (idx + 1) pos in
+         (l @ padding @ r, tail, pos)
     | TUnion u_id, Syntax.IVect ilist ->
        let u = List.nth !union_env u_id in
-       let (l, r) = inner (snd (List.hd u)) ilist in
-       (l @ [pad], r)
+       let res, tail, pos = inner (snd (List.hd u)) ilist pos in
+       let padding, pos = pad pos ty in
+       (res @ padding, tail, pos)
     | TArray (inner_ty, sz), Syntax.IVect ilist ->
-       if sz > 0 && sz = idx then ([pad], init)
+       if sz > 0 && sz = idx then ([], init, pos)
        else
-         let l, rem = inner inner_ty ilist in
-         if sz = 0 && rem = Syntax.IVect [] then (l @ [pad], rem)
+         let l, rem, pos = inner inner_ty ilist pos in
+         if sz = 0 && rem = Syntax.IVect [] then (l, rem, pos)
          else
-           let r, tail = compound ty rem (idx + 1) in
-           (l @ r, tail)
+           let r, tail, pos = compound ty rem (idx + 1) pos in
+           (l @ r, tail, pos)
     | TArray (TChar, sz), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
        let str = if sz > 0 then List.rev (List.tl (List.rev str)) else str in
        let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
        let ilist = Syntax.IVect (List.map f str) in
-       compound ty ilist 0
+       compound ty ilist 0 pos
     | _ -> raise_error "requied initializer list"
-  and inner inner_ty ilist =
+  and inner inner_ty ilist pos =
     let i, is =
       if ilist = [] then
         Syntax.IScal (Syntax.EConst (Syntax.VInt 0)), []
@@ -92,23 +100,23 @@ let initialize ty init =
         List.hd ilist, List.tl ilist in
     match inner_ty, i with
     | TStruct _, Syntax.IVect _ | TArray _, Syntax.IVect _ ->
-       let res, tail = compound inner_ty i 0 in
+       let res, tail, pos = compound inner_ty i 0 pos in
        if tail <> Syntax.IVect [] then
          raise_error "initializer eccess elements";
-       (res, Syntax.IVect is)
+       (res, Syntax.IVect is, pos)
     | TArray (TChar, sz), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
        let str = if sz > 0 then List.rev (List.tl (List.rev str)) else str in
        let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
-       inner inner_ty (Syntax.IVect (List.map f str) :: is)
+       inner inner_ty (Syntax.IVect (List.map f str) :: is) pos
     | TStruct _, _ | TArray _, _ ->
-       compound inner_ty (Syntax.IVect ilist) 0
-    | _, _ -> (scalar inner_ty i, Syntax.IVect is) in
+       compound inner_ty (Syntax.IVect ilist) 0 pos
+    | _, _ -> (scalar inner_ty i, Syntax.IVect is, pos + sizeof inner_ty) in
   match init with
   | None -> []
   | Some init ->
      match ty with
      | TStruct _ | TUnion _ | TArray _ ->
-        let res, tail = compound ty init 0 in
+        let res, tail, _ = compound ty init 0 0 in
         if tail <> Syntax.IVect [] then
           raise_error "initializer eccess elements";
         res
@@ -212,7 +220,6 @@ let fold_expr = function
 
 let rec ex e =
   let e = ex' e in
-  if e = EPadding then e else
   match typeof e with
   | TArray (ty, _) ->
      EAddr (TPtr ty, e)
@@ -487,8 +494,6 @@ and ex' = function
   | Syntax.ESizeofExpr (e) ->
      let i = sizeof (typeof (ex' e)) in
      EConst (TUInt, VInt i)
-  | Syntax.EPadding ->
-     EPadding
 
 let ex_opt = function
   | Some e ->
@@ -507,7 +512,6 @@ let dv = function
      push venv_ref (name, ty);
      let f (ty, e) =
        let e = ex e in
-       if e = EPadding then e else
        deref_cast (ECast(ty, typeof e, e)) in
      Decl(ln, ty, name, List.map f init)
 
