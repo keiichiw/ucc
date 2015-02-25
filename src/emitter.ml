@@ -700,14 +700,19 @@ let rec ex ret_reg = function
         (* (x^flg)-flg equals (flg==-1?-x:x) *)
         emit "xor r%d, r%d, r%d" ret_reg ret_reg flg;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg flg;
+        if t1 = TChar then
+          emit "and r%d, r%d, 0xff" ret_reg ret_reg;
         reg_free flg
      | t1, t2 when is_real t1 || is_real t2 ->
         if is_real t1 && is_real t2 then
           ex ret_reg e
         else
           raise_error "ECast: float"
+     | t1, t2 when sizeof t1 = 1 && sizeof t2 > 1 ->
+        ex ret_reg e;
+        emit "and r%d, r%d, 0xff\n" ret_reg ret_reg
      | _ ->
-        ex ret_reg e
+       ex ret_reg e
      end
   | ESpace _ ->
      raise_error "ex: ESpace"
