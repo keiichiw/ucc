@@ -254,11 +254,15 @@ let emit_mov mem1 mem2 =
      emit "movb r%d, [r%d%s]" r1 r2 (show_disp ofs)
   | Reg r1, Mem(r2, ofs, _) ->
      emit "mov r%d, %s" r1 (mem_access (r2, ofs))
-  | Reg r, Global (l, ofs, _) -> (* TODO: size = 1 *)
+  | Reg r, Global (l, ofs, 1) ->
+     emit "movb r%d, [%s%s]" r l (show_disp ofs)
+  | Reg r, Global (l, ofs, _) ->
      let reg = reg_alloc () in
      emit "mov r%d, %s%s" reg l (show_disp ofs);
      emit "mov r%d, [r%d]" r reg;
      reg_free reg
+  | Global (l, ofs, 1), Reg r -> (* TODO: size = 1 *)
+     emit "mov [%s%s], r%d" l (show_disp ofs) r;
   | Global (l, ofs, _), Reg r -> (* TODO: size = 1 *)
      let reg = reg_alloc () in
      emit "mov r%d, %s%s" reg l (show_disp ofs);
