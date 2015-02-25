@@ -112,15 +112,20 @@ let initialize ty init =
        compound inner_ty (Syntax.IVect ilist) 0 pos
     | _, _ -> (scalar inner_ty i, Syntax.IVect is, pos + sizeof inner_ty) in
   match init with
-  | None -> []
+  | None -> ([], 0)
   | Some init ->
      match ty with
-     | TStruct _ | TUnion _ | TArray _ ->
-        let res, tail, _ = compound ty init 0 0 in
+     | TStruct _ | TUnion _ ->
+        let res, tail, pos = compound ty init 0 0 in
         if tail <> Syntax.IVect [] then
           raise_error "initializer eccess elements";
-        res
-     | _ -> scalar ty init
+        (res, 1)
+     | TArray (t, _) ->
+        let res, tail, pos = compound ty init 0 0 in
+        if tail <> Syntax.IVect [] then
+          raise_error "initializer eccess elements";
+        (res, pos / sizeof t)
+     | _ -> (scalar ty init, 1)
 
 let rec deref_cast = function
   | ECast (t1, t2, e) when t1 = t2 -> e
@@ -503,11 +508,11 @@ let ex_opt = function
 
 let dv = function
   | Syntax.Decl(ln, ty, name, x) ->
-     let init = initialize ty x in
+     let init, len = initialize ty x in
      let ty =
        match ty with
        | TArray (t, 0) ->
-          TArray (t, List.length init / sizeof t)
+          TArray (t, len)
        | _ -> ty in
      push venv_ref (name, ty);
      let f (ty, e) =
