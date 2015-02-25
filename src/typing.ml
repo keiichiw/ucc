@@ -34,34 +34,6 @@ let resolve_member_type ty mem_name =
      List.assoc mem_name dvs
   | _ -> failwith "resolve_member_type"
 
-let typeof = function
-  | EArith  (t, _, _, _) -> t
-  | EFArith (t, _, _, _) -> t
-  | ERel    (t, _, _, _) -> t
-  | EURel   (t, _, _, _) -> t
-  | EFRel   (t, _, _, _) -> t
-  | EPAdd   (t, _, _) -> t
-  | EPDiff  (t, _, _) -> t
-  | EEq     (t, _, _, _) -> t
-  | EFEq    (t, _, _, _) -> t
-  | ELog    (t, _, _, _) -> t
-  | EUnary  (t, _, _) -> t
-  | EFUnary (t, _, _) -> t
-  | EPPost  (t, _, _) -> t
-  | EConst  (t, _) -> t
-  | EVar    (t, _) -> t
-  | EComma  (t, _, _) -> t
-  | EAssign (t, _, _, _) -> t
-  | EFAssign(t, _, _, _) -> t
-  | ECall   (t, _, _) -> t
-  | EAddr   (t, _) -> t
-  | EPtr    (t, _) -> t
-  | ECond   (t, _, _, _) -> t
-  | EDot    (t, _, _) -> t
-  | ECast   (t, _, _) -> t
-  | EAsm    (t, _) -> t
-  | ENil -> failwith "typeof ENil"
-
 let is_null = function
   | EConst (_, VInt 0) -> true
   | _ -> false
@@ -85,22 +57,24 @@ let initialize ty init =
        raise_error "invalid scalar initializer"
     | Syntax.IScal e -> [(ty, e)] in
   let rec compound ty init idx =
+    let pad = (TVoid, Syntax.EPadding) in
     match ty, init with
     | TStruct s_id, Syntax.IVect ilist ->
        let s = List.nth !struct_env s_id in
-       if List.length s = idx then ([], init)
+       if List.length s = idx then ([pad], init)
        else
          let l, rem  = inner (snd (List.nth s idx)) ilist in
          let r, tail = compound ty rem (idx + 1) in
          (l @ r, tail)
     | TUnion u_id, Syntax.IVect ilist ->
        let u = List.nth !union_env u_id in
-       inner (snd (List.hd u)) ilist
+       let (l, r) = inner (snd (List.hd u)) ilist in
+       (l @ [pad], r)
     | TArray (inner_ty, sz), Syntax.IVect ilist ->
-       if sz > 0 && sz = idx then ([], init)
+       if sz > 0 && sz = idx then ([pad], init)
        else
          let l, rem = inner inner_ty ilist in
-         if sz = 0 && rem = Syntax.IVect [] then (l, rem)
+         if sz = 0 && rem = Syntax.IVect [] then (l @ [pad], rem)
          else
            let r, tail = compound ty rem (idx + 1) in
            (l @ r, tail)
@@ -238,6 +212,7 @@ let fold_expr = function
 
 let rec ex e =
   let e = ex' e in
+  if e = EPadding then e else
   match typeof e with
   | TArray (ty, _) ->
      EAddr (TPtr ty, e)
@@ -512,6 +487,8 @@ and ex' = function
   | Syntax.ESizeofExpr (e) ->
      let i = sizeof (typeof (ex' e)) in
      EConst (TUInt, VInt i)
+  | Syntax.EPadding ->
+     EPadding
 
 let ex_opt = function
   | Some e ->
@@ -530,6 +507,7 @@ let dv = function
      push venv_ref (name, ty);
      let f (ty, e) =
        let e = ex e in
+       if e = EPadding then e else
        deref_cast (ECast(ty, typeof e, e)) in
      Decl(ln, ty, name, List.map f init)
 

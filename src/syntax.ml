@@ -23,6 +23,7 @@ type expr =
   | ECast        of ctype * expr
   | ESizeof      of ctype
   | ESizeofExpr  of expr
+  | EPadding
 
 type init =
   | IScal of expr
