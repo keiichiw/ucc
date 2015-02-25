@@ -6,7 +6,7 @@ open Util
 type storageplace =
   | Reg of int
   | Mem of (int * int * size) (*memory*)
-  | Global of (string * int)
+  | Global of (string * int * size)
 
 let register_list = Array.init 27 succ |> Array.to_list
 let free_reg_stack = ref register_list
@@ -149,7 +149,8 @@ let push_local_vars vars =
   let go = function
     | Decl (NoLink, ((TFun _) as ty), name, _)
     | Decl (Extern, ty, name, _) ->
-       push env_ref (name, (ty, Global (name, 0)))
+       let sz = if is_funty ty then -1 else sizeof ty in
+       push env_ref (name, (ty, Global (name, 0, sz)))
     | Decl (NoLink, ty, name, _) ->
        let sz = padded_size ty in
        sp_offset_ref := !sp_offset_ref - sz;
@@ -157,7 +158,7 @@ let push_local_vars vars =
     | Decl (Static, ty, name, _) ->
        let label_id = label_create () in
        let label = sprintf "L_%s_%d" name label_id in
-       push env_ref (name, (ty, Global (label, 0))) in
+       push env_ref (name, (ty, Global (label, 0, sizeof ty))) in
   List.iter go vars
 
 let emit_global_var name init =
@@ -253,12 +254,12 @@ let emit_mov mem1 mem2 =
      emit "movb r%d, [r%d%s]" r1 r2 (show_disp ofs)
   | Reg r1, Mem(r2, ofs, _) ->
      emit "mov r%d, %s" r1 (mem_access (r2, ofs))
-  | Reg r, Global (l, ofs) ->
+  | Reg r, Global (l, ofs, _) -> (* TODO: size = 1 *)
      let reg = reg_alloc () in
      emit "mov r%d, %s%s" reg l (show_disp ofs);
      emit "mov r%d, [r%d]" r reg;
      reg_free reg
-  | Global (l, ofs), Reg r ->
+  | Global (l, ofs, _), Reg r -> (* TODO: size = 1 *)
      let reg = reg_alloc () in
      emit "mov r%d, %s%s" reg l (show_disp ofs);
      emit "mov [r%d], r%d" reg r;
@@ -663,7 +664,7 @@ let rec ex ret_reg = function
         ()
      | Mem (reg, ofs, _) ->
         emit "add r%d, r%d, %d" ret_reg reg ofs
-     | Global (l, ofs) ->
+     | Global (l, ofs, _) ->
         emit "mov r%d, %s%s" ret_reg l (show_disp ofs)
      end
   | EPtr (ty, e) when sizeof ty > 4 ->
@@ -722,49 +723,38 @@ and emit_bin ret_reg op e1 e2 =
      emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
      reg_free reg
 
-
-and emit_lv_addr ret_reg e = (* address of left *)
-  let rec go reg = function
-    | EVar (_, name) ->
-      begin match resolve_var name with
-      | (_, Mem (r, ofs, _)) ->
-        (Reg r, ofs)  (* rbp = r31 *)
-      | (_, Global (label, ofs)) ->
-        (Global (label, ofs), 0)
+and emit_lv_addr reg = function (* address of left *)
+  | EVar (ty, name) ->
+    snd (resolve_var name)
+  | EDot (ty, expr, mem) ->
+    begin match typeof expr with
+    | TStruct s_id ->
+      let rec go i s = function
+        | [] -> failwith "edot"
+        | (v, _) :: _ when v = s -> i
+        | (_, ty) :: xs -> go (aligned ty i + sizeof ty) s xs in
+      let memlist = List.nth !struct_env s_id in
+      let mem_offset = go 0 mem memlist in
+      begin match emit_lv_addr reg expr with
+      | Mem (reg, ofs, _) -> Mem (reg, ofs + mem_offset, sizeof ty)
+      | Global (label, ofs, _) -> Global (label, ofs + mem_offset, sizeof ty)
+      | Reg _ -> failwith "emit_lv_addr: EDot (struct)"
       end
-    | EDot (_, expr, mem) ->
-      begin match typeof expr with
-      | TStruct s_id ->
-        let rec go i s = function
-          | [] -> failwith "edot"
-          | (v, _)::_ when v=s -> i
-          | (_, ty)::xs -> go (i + sizeof ty) s xs in
-        let memlist = List.nth !struct_env s_id in
-        let mem_offset = go 0 mem memlist in
-        let mem  = emit_lv_addr reg expr in
-        (mem, mem_offset)
-      | TUnion _ ->
-        go reg expr
-      | _ -> raise_error "emit_lv_addr dot"
-      end
-    | EPtr (_, e) ->
-      ex reg e;
-      (Reg reg, 0)
-    | EConst (_, VStr s) ->
-      let label = sprintf "L%d" (label_create ()) in
-      let t = List.map (fun i -> EConst (TChar, VInt i)) s in
-      push static_locals_ref (label, t);
-      emit "mov r%d, %s" reg label;
-      (Reg reg, 0)
-    | _ ->
-      raise_error "this expr is not lvalue" in
-  match go ret_reg e with
-  | (Mem (r, ofs, sz), d) ->
-     Mem (r, ofs + d, sz)
-  | (Reg reg, d) ->
-     Mem (reg, d, (typeof >> sizeof) e)
-  | (Global (l, ofs), d) ->
-     Global (l, ofs + d)
+    | TUnion _ ->
+      emit_lv_addr reg expr
+    | _ -> raise_error "emit_lv_addr: EDot"
+    end
+  | EPtr (ty, e) ->
+    ex reg e;
+    Mem (reg, 0, sizeof ty)
+  | EConst (_, VStr s) ->
+    let label = sprintf "L%d" (label_create ()) in
+    let t = List.map (fun i -> EConst (TChar, VInt i)) s in
+    push static_locals_ref (label, t);
+    emit "mov r%d, %s" reg label;
+    Mem (reg, 0, -1)
+  | _ ->
+    raise_error "this expr is not lvalue"
 
 let init_local_vars vars =
   let go (Decl (ln, ty, name, init)) =
@@ -781,7 +771,7 @@ let init_local_vars vars =
          n1 + sz in
        ignore (List.fold_left go2 0 init);
        reg_free reg
-    | (_, Global (label, _)) ->
+    | (_, Global (label, _, _)) ->
        match (ln, init) with
        | Static, [] ->
           push static_locals_ref (label, [ESpace ty])
@@ -993,7 +983,7 @@ let rec st = function
 
 let emitter oc = function
   | DefFun(Decl(ln, ty, name, _), args, b) ->
-     push env_ref (name, (ty, Global (name, 0)));
+     push env_ref (name, (ty, Global (name, 0, -1)));
      fun_name_ref := name;
      static_locals_ref := [];
      begin match ln with
@@ -1025,7 +1015,8 @@ let emitter oc = function
      fun_name_ref := "";
      flush_buffer oc
   | DefVar (Decl (ln, ty, name, init)) ->
-     push env_ref (name, (ty, Global (name, 0)));
+     let sz = if is_funty ty then -1 else sizeof ty in
+     push env_ref (name, (ty, Global (name, 0, sz)));
      begin match (ln, init) with
      | NoLink, [] when not (is_funty ty) ->
         emit_raw ".global %s\n" name;
