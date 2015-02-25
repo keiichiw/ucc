@@ -11,8 +11,8 @@ int main()
     char *p[1200];
 
     while (i < 1200) {
-        int s1 = rand() % 4096;
-        int s2 = rand() % 4096;
+        int s1 = rand() % 0x4000;
+        int s2 = rand() % 0x4000;
 
         if (! (p[i] = malloc(s1))) goto end;
         p[i++][s1 - 1] = 0;
