@@ -429,7 +429,10 @@ and ex' = function
      | TPtr (TFun (retty, argtys)) ->
         let go a t =
           let arg = ex a in
-          if t = TVoid || typeof arg = t then
+          let ty = typeof arg in
+          if t = TVoid && is_arith ty then
+            ECast(promote ty, ty, arg)
+          else if t = TVoid || typeof arg = t then
             arg
           else
             ECast(t, typeof arg, arg) in

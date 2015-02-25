@@ -69,6 +69,13 @@ let rec sizeof = function
   | TFun _ -> failwith "sizeof function"
   | TVoid -> failwith "sizeof void"
 
+let promote = function
+  | TChar | TUChar
+  | TInt  | TShort  | TLong -> TInt
+  | TUInt | TUShort | TULong -> TUInt
+  | TFloat| TDouble -> TDouble
+  | ty -> failwith "promote"
+
 
 (* operator definitions *)
 
