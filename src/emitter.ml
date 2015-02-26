@@ -229,24 +229,35 @@ let emit_mov mem1 mem2 =
      emit "mov %s, %s" (show_reg r1) (show_reg r2)
   | Reg r, Mem (base, ofs, 1) ->
      emit "movb %s, %s" (show_reg r) (show_mem base ofs)
-  | Reg r, Mem (base, ofs, _) ->
+  | Reg r, Mem (base, ofs, 4) ->
      emit "mov %s, %s"  (show_reg r) (show_mem base ofs)
   | Reg r, Global (l, ofs, 1) ->
      emit "movb %s, %s" (show_reg r) (show_glob l ofs)
-  | Reg r, Global (l, ofs, _) ->
+  | Reg r, Global (l, ofs, 4) ->
      emit "mov %s, %s"  (show_reg r) (show_glob l ofs)
   | Mem (base, ofs, 1), Reg r ->
      emit "movb %s, %s" (show_mem base ofs) (show_reg r)
-  | Mem (base, ofs, _), Reg r ->
+  | Mem (base, ofs, 4), Reg r ->
      emit "mov %s, %s"  (show_mem base ofs) (show_reg r)
+  | Mem (base1, ofs1, sz1), Mem (base2, ofs2, sz2) when sz1 = sz2 ->
+     if sz1 mod 4 <> 0 || sz1 <= 0 then
+       raise_error "emit_mov: Mem Mem (sz = %d)" sz1;
+     let reg = reg_alloc () in
+     for i = 0 to sz1 / 4 - 1 do
+       emit "mov %s, %s" (show_reg reg) (show_mem base2 (ofs2 + i * 4));
+       emit "mov %s, %s" (show_mem base1 (ofs1 + i * 4)) (show_reg reg)
+     done;
+     reg_free reg
   | Global (l, ofs, 1), Reg r ->
      emit "movb %s, %s" (show_glob l ofs) (show_reg r)
-  | Global (l, ofs, _), Reg r ->
+  | Global (l, ofs, 4), Reg r ->
      emit "mov %s, %s"  (show_glob l ofs) (show_reg r)
-  | Mem _, _ ->
-     raise_error "emit_mov (mem)"
-  | Global _, _ ->
-     raise_error "emit_mov (global)"
+  | Mem _, Global _
+  | Global _, Global _
+  | Global _, Mem _ ->
+     raise_error "emit_mov: TODO"
+  | _ ->
+     raise_error "emit_mov"
 
 let rec int_const = function
   | EConst (_, VInt i) -> Some i
@@ -551,11 +562,7 @@ let rec ex ret_reg = function
          if sz = 4 then
            emit_mov (Mem (30, n, sz)) (Reg reg)
          else (* reg has an address *)
-           (let temp = reg_alloc() in
-            for i = 0 to (sz - 1) do
-              emit "mov r%d, %s" temp (mem_access (reg, i * 4));
-              emit "mov %s, r%d" (mem_access (30, n + i * 4)) temp
-            done);
+           emit_mov (Mem (30, n, sz)) (Mem (reg, 0, sz));
          n + sz) 0 arg_list);
      emit "call r%d" fun_reg;
      reg_free_all ();
@@ -588,18 +595,11 @@ let rec ex ret_reg = function
      let mem = emit_lv_addr reg e1 in
      begin match op with
      | None ->
+        let sz = sizeof ty in
         ex ret_reg e2;
-        if sizeof ty > 4 then begin
-          let tmp = reg_alloc () in
-          for i = 0 to sizeof ty - 1 do
-            let Reg mem = mem in
-            let dst = mem_access (mem, 4 * i) in
-            let src = mem_access (ret_reg, 4 * i) in
-            emit "mov r%d, %s" tmp src;
-            emit "mov %s, r%d" dst tmp
-          done;
-          reg_free tmp
-        end else
+        if sz > 4 then
+          emit_mov mem (Mem (ret_reg, 0, sz))
+        else
           emit_mov mem (Reg ret_reg)
      | Some op ->
         emit_mov (Reg ret_reg) mem;
@@ -727,7 +727,11 @@ and emit_lv_addr reg = function (* address of left *)
       | Reg _ -> failwith "emit_lv_addr: EDot (struct)"
       end
     | TUnion _ ->
-      emit_lv_addr reg expr
+      begin match emit_lv_addr reg expr with
+      | Mem (reg, ofs, _) -> Mem (reg, ofs, sizeof ty)
+      | Global (label, ofs, _) -> Global (label, ofs, sizeof ty)
+      | Reg _ -> failwith "emit_lv_addr: EDot (union)"
+      end
     | _ -> raise_error "emit_lv_addr: EDot"
     end
   | EPtr (ty, e) ->
@@ -745,6 +749,8 @@ and emit_lv_addr reg = function (* address of left *)
 let init_local_vars vars =
   let go (Decl (ln, ty, name, init)) =
     match resolve_var name with
+    | (_, Reg _) ->
+       raise_error "logic flaw: init_local_vars Reg"
     | (_, Mem (31, offset, sz)) ->
        let reg = reg_alloc () in
        let go2 n e =
@@ -756,6 +762,8 @@ let init_local_vars vars =
          n + sz in
        ignore (List.fold_left go2 0 init);
        reg_free reg
+    | (_, Mem _) ->
+       raise_error "logic flaw: init_local_vars Mem"
     | (_, Global (label, _, _)) ->
        match (ln, init) with
        | Static, [] ->
