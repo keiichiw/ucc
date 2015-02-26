@@ -210,44 +210,49 @@ let emit_native_call ret_reg func arg1 arg2 =
     used_reg;
   emit "add rsp, rsp, %d" size
 
+let show_reg reg =
+  if reg = 30 then "rsp" else
+  if reg = 31 then "rbp" else
+  sprintf "r%d" reg
+
 let show_disp disp =
   if disp > 0 then sprintf " + %d" disp else
   if disp < 0 then sprintf " - %d" (-disp) else ""
 
+let show_mem reg disp =
+  sprintf "[%s%s]" (show_reg reg) (show_disp disp)
+
+let show_glob label disp =
+  sprintf "[%s%s]" label (show_disp disp)
+
+(* deprecated *)
 let mem_access (reg, disp) =
-  let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
-  sprintf "[%s%s]" reg (show_disp disp)
+  sprintf "[%s%s]" (show_reg reg) (show_disp disp)
 
 let emit_mov mem1 mem2 =
   match (mem1, mem2) with
-  | Mem (r1, ofs, 1), Reg r2 ->
-     emit "movb [r%d%s], r%d" r1 (show_disp ofs) r2
-  | Mem (r1, ofs, _), Reg r2 ->
-     emit "mov %s, r%d" (mem_access (r1, ofs)) r2
-  | Mem _, _ ->
-     raise_error "emit_mov Mem, _"
   | Reg r1, Reg r2 ->
-     emit "mov r%d, r%d" r1 r2
-  | Reg r1, Mem (r2, ofs, 1) ->
-     emit "movb r%d, [r%d%s]" r1 r2 (show_disp ofs)
-  | Reg r1, Mem(r2, ofs, _) ->
-     emit "mov r%d, %s" r1 (mem_access (r2, ofs))
+     emit "mov %s, %s" (show_reg r1) (show_reg r2)
+  | Reg r, Mem (base, ofs, 1) ->
+     emit "movb %s, %s" (show_reg r) (show_mem base ofs)
+  | Reg r, Mem (base, ofs, _) ->
+     emit "mov %s, %s"  (show_reg r) (show_mem base ofs)
   | Reg r, Global (l, ofs, 1) ->
-     emit "movb r%d, [%s%s]" r l (show_disp ofs)
+     emit "movb %s, %s" (show_reg r) (show_glob l ofs)
   | Reg r, Global (l, ofs, _) ->
-     let reg = reg_alloc () in
-     emit "mov r%d, %s%s" reg l (show_disp ofs);
-     emit "mov r%d, [r%d]" r reg;
-     reg_free reg
-  | Global (l, ofs, 1), Reg r -> (* TODO: size = 1 *)
-     emit "mov [%s%s], r%d" l (show_disp ofs) r;
-  | Global (l, ofs, _), Reg r -> (* TODO: size = 1 *)
-     let reg = reg_alloc () in
-     emit "mov r%d, %s%s" reg l (show_disp ofs);
-     emit "mov [r%d], r%d" reg r;
-     reg_free reg
+     emit "mov %s, %s"  (show_reg r) (show_glob l ofs)
+  | Mem (base, ofs, 1), Reg r ->
+     emit "movb %s, %s" (show_mem base ofs) (show_reg r)
+  | Mem (base, ofs, _), Reg r ->
+     emit "mov %s, %s"  (show_mem base ofs) (show_reg r)
+  | Global (l, ofs, 1), Reg r ->
+     emit "movb %s, %s" (show_glob l ofs) (show_reg r)
+  | Global (l, ofs, _), Reg r ->
+     emit "mov %s, %s"  (show_glob l ofs) (show_reg r)
+  | Mem _, _ ->
+     raise_error "emit_mov (mem)"
   | Global _, _ ->
-     raise_error "emit_mov Global"
+     raise_error "emit_mov (global)"
 
 let rec int_const = function
   | EConst (_, VInt i) -> Some i
