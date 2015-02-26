@@ -242,18 +242,36 @@ let strg_size = function
   | Global (_, _, sz) -> sz
 
 let rec emit_mov mem1 mem2 =
+  let go n = function
+    | Mem   (b, d, _) -> Mem   (b, d + n, 4)
+    | Global(b, d, _) -> Global(b, d + n, 4)
+    | Reg _ -> raise_error "emit_mov: go" in
   match strg_size mem1, strg_size mem2 with
   | 4, 4 ->
      emit "mov %s, %s" (show_strg mem1) (show_strg mem2)
   | 4, 1 | 1, 4 ->
      emit "movb %s, %s" (show_strg mem1) (show_strg mem2)
+  | 2, 4 | 4, 2 ->
+    begin match mem1, mem2 with
+    | Reg r, _ ->
+      let reg = reg_alloc () in
+      emit "movb %s, %s" (show_strg (Reg r))   (show_strg (go 0 mem2));
+      emit "movb %s, %s" (show_strg (Reg reg)) (show_strg (go 1 mem2));
+      emit "shl r%d, r%d, 8" reg reg;
+      emit "or r%d, r%d, r%d" r r reg;
+      reg_free reg
+    | _, Reg r ->
+      let reg = reg_alloc () in
+      emit "movb %s, %s" (show_strg (go 0 mem1)) (show_strg (Reg r));
+      emit "shr r%d, r%d, 8" reg r;
+      emit "movb %s, %s" (show_strg (go 1 mem1)) (show_strg (Reg reg));
+      reg_free reg
+    | _ ->
+      raise_error "logic flaw: emit_mov short"
+    end
   | a, b when a = b ->
      if a mod 4 <> 0 || a <= 0 then
-       raise_error "emit_mov: Mem Mem (sz = %d)" a;
-    let go n = function
-      | Mem   (b, d, _) -> Mem   (b, d + n, 4)
-      | Global(b, d, _) -> Global(b, d + n, 4)
-      | Reg _ -> raise_error "emit_mov: go" in
+       raise_error "emit_mov: same size (size = %d)" a;
     let reg = reg_alloc () in
     for i = 0 to a / 4 - 1 do
       emit_mov (Reg reg) (go (i * 4) mem2);
@@ -672,9 +690,10 @@ let rec ex ret_reg = function
         if is_unsigned t2 then
           raise_error "ECast: unsigned -> float is unsupported";
         ex ret_reg e;
-        if t1 = TChar then begin
-          emit "shl r%d, r%d, 24" ret_reg ret_reg;
-          emit "sar r%d, r%d, 24" ret_reg ret_reg
+        if t2 = TChar || t2 == TShort then begin
+          let d = if t2 = TChar then 24 else 16 in
+          emit "shl r%d, r%d, %d" ret_reg ret_reg d;
+          emit "sar r%d, r%d, %d" ret_reg ret_reg d
         end;
         emit "itof r%d, r%d" ret_reg ret_reg
      | t1, t2 when is_integral t1 && is_real t2 ->
@@ -691,20 +710,33 @@ let rec ex ret_reg = function
         emit "xor r%d, r%d, r%d" ret_reg ret_reg flg;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg flg;
         if sizeof t1 = 1 then
-          emit "and r%d, r%d, 0xff" ret_reg ret_reg;
+          emit "and r%d, r%d, 0xff" ret_reg ret_reg
+        else if sizeof t1 = 2 then
+          emit "ldh r%d, r%d, 0" ret_reg ret_reg;
         reg_free flg
      | t1, t2 when is_real t1 || is_real t2 ->
         if is_real t1 && is_real t2 then
           ex ret_reg e
         else
           raise_error "ECast: float"
-     | t1, t2 when sizeof t1 = 1 && sizeof t2 > 1 ->
+     | t1, t2 when sizeof t1 < sizeof t2 ->
         ex ret_reg e;
-        emit "and r%d, r%d, 0xff\n" ret_reg ret_reg
-     | t1, TChar when sizeof t1 > 1 ->
+        if sizeof t1 = 1 then
+          emit "and r%d, r%d, 0xff" ret_reg ret_reg
+        else
+          emit "ldh r%d, r%d, 0" ret_reg ret_reg
+     | t, TChar when sizeof t > 1 ->
         ex ret_reg e;
         emit "shl r%d, r%d, 24" ret_reg ret_reg;
-        emit "sar r%d, r%d, 24" ret_reg ret_reg
+        if sizeof t = 2 then begin
+          emit "sar r%d, r%d, 8" ret_reg ret_reg;
+          emit "shr r%d, r%d, 16" ret_reg ret_reg
+        end else
+          emit "sar r%d, r%d, 24" ret_reg ret_reg
+     | t, TShort when sizeof t > 2 ->
+        ex ret_reg e;
+        emit "shl r%d, r%d, 16" ret_reg ret_reg;
+        emit "sar r%d, r%d, 16" ret_reg ret_reg
      | _ ->
        ex ret_reg e
      end

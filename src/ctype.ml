@@ -30,10 +30,11 @@ let rev_table_struct : (int * string) list ref = ref []
 let rev_table_union  : (int * string) list ref = ref []
 
 let rec align = function
-  | TChar | TUChar -> 1
-  | TInt  | TShort  | TLong
-  | TUInt | TUShort | TULong
-  | TFloat| TDouble | TPtr _ -> 4
+  | TChar  | TUChar -> 1
+  | TShort | TUShort -> 2
+  | TInt   | TLong
+  | TUInt  | TULong
+  | TFloat | TDouble | TPtr _ -> 4
   | TStruct _
   | TUnion  _ -> 4
   | TArray (ty, _) -> align ty
@@ -45,10 +46,11 @@ let aligned ty n =
   (n + a - 1) / a * a
 
 let rec sizeof = function
-  | TChar | TUChar -> 1
-  | TInt  | TShort  | TLong
-  | TUInt | TUShort | TULong
-  | TFloat| TDouble | TPtr _ -> 4
+  | TChar  | TUChar -> 1
+  | TShort | TUShort -> 2
+  | TInt   | TLong
+  | TUInt  | TULong
+  | TFloat | TDouble | TPtr _ -> 4
   | TStruct s_id as ty ->
      s_id |> List.nth !struct_env
           |> List.map snd
