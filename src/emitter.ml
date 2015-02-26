@@ -204,58 +204,43 @@ let emit_native_call ret_reg func arg1 arg2 =
     used_reg;
   emit "add rsp, rsp, %d" size
 
-let show_reg reg =
-  if reg = 30 then "rsp" else
-  if reg = 31 then "rbp" else
-  sprintf "r%d" reg
-
 let show_disp disp =
   if disp > 0 then sprintf " + %d" disp else
   if disp < 0 then sprintf " - %d" (-disp) else ""
 
-let show_mem reg disp =
-  sprintf "[%s%s]" (show_reg reg) (show_disp disp)
+let rec show_strg = function
+  | Reg 30 -> "rsp"
+  | Reg 31 -> "rbp"
+  | Reg r  -> sprintf "r%d" r
+  | Mem (base, ofs, _) ->
+    sprintf "[%s%s]" (show_strg (Reg base)) (show_disp ofs)
+  | Global (l, ofs, _) ->
+    sprintf "[%s%s]" l (show_disp ofs)
 
-let show_glob label disp =
-  sprintf "[%s%s]" label (show_disp disp)
+let strg_size = function
+  | Reg _ -> 4
+  | Mem    (_, _, sz)
+  | Global (_, _, sz) -> sz
 
-(* deprecated *)
-let mem_access (reg, disp) =
-  sprintf "[%s%s]" (show_reg reg) (show_disp disp)
-
-let emit_mov mem1 mem2 =
-  match (mem1, mem2) with
-  | Reg r1, Reg r2 ->
-     emit "mov %s, %s" (show_reg r1) (show_reg r2)
-  | Reg r, Mem (base, ofs, 1) ->
-     emit "movb %s, %s" (show_reg r) (show_mem base ofs)
-  | Reg r, Mem (base, ofs, 4) ->
-     emit "mov %s, %s"  (show_reg r) (show_mem base ofs)
-  | Reg r, Global (l, ofs, 1) ->
-     emit "movb %s, %s" (show_reg r) (show_glob l ofs)
-  | Reg r, Global (l, ofs, 4) ->
-     emit "mov %s, %s"  (show_reg r) (show_glob l ofs)
-  | Mem (base, ofs, 1), Reg r ->
-     emit "movb %s, %s" (show_mem base ofs) (show_reg r)
-  | Mem (base, ofs, 4), Reg r ->
-     emit "mov %s, %s"  (show_mem base ofs) (show_reg r)
-  | Mem (base1, ofs1, sz1), Mem (base2, ofs2, sz2) when sz1 = sz2 ->
-     if sz1 mod 4 <> 0 || sz1 <= 0 then
-       raise_error "emit_mov: Mem Mem (sz = %d)" sz1;
-     let reg = reg_alloc () in
-     for i = 0 to sz1 / 4 - 1 do
-       emit "mov %s, %s" (show_reg reg) (show_mem base2 (ofs2 + i * 4));
-       emit "mov %s, %s" (show_mem base1 (ofs1 + i * 4)) (show_reg reg)
-     done;
-     reg_free reg
-  | Global (l, ofs, 1), Reg r ->
-     emit "movb %s, %s" (show_glob l ofs) (show_reg r)
-  | Global (l, ofs, 4), Reg r ->
-     emit "mov %s, %s"  (show_glob l ofs) (show_reg r)
-  | Mem _, Global _
-  | Global _, Global _
-  | Global _, Mem _ ->
-     raise_error "emit_mov: TODO"
+let rec emit_mov mem1 mem2 =
+  match strg_size mem1, strg_size mem2 with
+  | 4, 4 ->
+     emit "mov %s, %s" (show_strg mem1) (show_strg mem2)
+  | 4, 1 | 1, 4 ->
+     emit "movb %s, %s" (show_strg mem1) (show_strg mem2)
+  | a, b when a = b ->
+     if a mod 4 <> 0 || a <= 0 then
+       raise_error "emit_mov: Mem Mem (sz = %d)" a;
+    let go n = function
+      | Mem   (b, d, _) -> Mem   (b, d + n, 4)
+      | Global(b, d, _) -> Global(b, d + n, 4)
+      | Reg _ -> raise_error "emit_mov: go" in
+    let reg = reg_alloc () in
+    for i = 0 to a / 4 - 1 do
+      emit_mov (Reg reg) (go (i * 4) mem2);
+      emit_mov (go (i * 4) mem1) (Reg reg)
+    done;
+    reg_free reg
   | _ ->
      raise_error "emit_mov"
 
