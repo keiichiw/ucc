@@ -227,11 +227,11 @@ let show_disp disp =
   if disp < 0 then sprintf " - %d" (-disp) else ""
 
 let rec show_strg = function
-  | Reg  0 -> ""
   | Reg 30 -> "rsp"
   | Reg 31 -> "rbp"
   | Reg r  -> sprintf "r%d" r
   | Mem (base, ofs, _) ->
+    if base = 0 then sprintf "[%#x]" (ofs land 0xffffffff) else
     sprintf "[%s%s]" (show_strg (Reg base)) (show_disp ofs)
   | Global (l, ofs, _) ->
     sprintf "[%s%s]" l (show_disp ofs)
@@ -751,6 +751,11 @@ and emit_lv_addr reg = function (* address of left *)
       end
     | _ -> raise_error "emit_lv_addr: EDot"
     end
+  | EPtr (ty, EConst (_, VInt i)) ->
+    Mem (0, i, sizeof ty)
+  | EPtr (ty, EPAdd (_, e, EConst (_, VInt i))) ->
+    ex reg e;
+    Mem (reg, i * sizeof ty, sizeof ty)
   | EPtr (ty, e) ->
     ex reg e;
     Mem (reg, 0, sizeof ty)
