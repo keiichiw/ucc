@@ -227,6 +227,7 @@ let show_disp disp =
   if disp < 0 then sprintf " - %d" (-disp) else ""
 
 let rec show_strg = function
+  | Reg  0 -> ""
   | Reg 30 -> "rsp"
   | Reg 31 -> "rbp"
   | Reg r  -> sprintf "r%d" r
@@ -640,19 +641,24 @@ let rec ex ret_reg = function
      reg_free reg
   | EAddr (_, e) ->
      begin match emit_lv_addr ret_reg e with
-     | Reg reg when ret_reg = reg ->
-        ()
      | Reg reg ->
-        emit_mov (Reg ret_reg) (Reg reg)
-     | Mem (reg, 0, _)  when ret_reg = reg ->
+        if ret_reg <> reg then raise_error "EAddr: reg"
+     | Mem (reg, 0, _) when ret_reg = reg ->
         ()
      | Mem (reg, ofs, _) ->
-        emit "add r%d, r%d, %d" ret_reg reg ofs
+        if ofs > 0 then emit "add r%d, r%d, %d" ret_reg reg ofs else
+        if ofs < 0 then emit "sub r%d, r%d, %d" ret_reg reg (-ofs) else
+        emit "mov r%d, r%d" ret_reg reg
      | Global (l, ofs, _) ->
         emit "mov r%d, %s%s" ret_reg l (show_disp ofs)
      end
   | EPtr (ty, e) when sizeof ty > 4 ->
      ex ret_reg e;
+  | EPtr (ty, EConst (_, VInt i)) ->
+     emit_mov (Reg ret_reg) (Mem (0, i, sizeof ty))
+  | EPtr (ty, EPAdd (_, e, EConst (_, VInt i))) ->
+     ex ret_reg e;
+     emit_mov (Reg ret_reg) (Mem (ret_reg, i * sizeof ty, sizeof ty))
   | EPtr (ty, e) ->
      ex ret_reg e;
      emit_mov (Reg ret_reg) (Mem (ret_reg, 0, sizeof ty))
