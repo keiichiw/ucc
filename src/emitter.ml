@@ -554,7 +554,7 @@ let rec ex ret_reg = function
        let go e =
          let reg = reg_alloc () in
          let ty = typeof e in
-         let sz = sizeof ty in
+         let sz = max 4 sizeof ty in
          ex reg e;
          (sz, reg) in
        List.map go exlst in
@@ -571,7 +571,7 @@ let rec ex ret_reg = function
      (* push arguments *)
      ignore (List.fold_left
        (fun n (sz, reg) ->
-         if sz <= 4 then
+         if sz = 4 then
            emit_mov (Mem (30, n, sz)) (Reg reg)
          else (* reg has an address *)
            (let temp = reg_alloc() in
