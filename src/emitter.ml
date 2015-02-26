@@ -717,7 +717,7 @@ and emit_lv_addr reg = function (* address of left *)
     | TStruct s_id ->
       let rec go i s = function
         | [] -> failwith "edot"
-        | (v, _) :: _ when v = s -> i
+        | (v, _) :: _ when v = s -> aligned ty i
         | (_, ty) :: xs -> go (aligned ty i + sizeof ty) s xs in
       let memlist = List.nth !struct_env s_id in
       let mem_offset = go 0 mem memlist in
