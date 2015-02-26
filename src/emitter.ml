@@ -220,21 +220,6 @@ let mem_access (reg, disp) =
 
 let emit_mov mem1 mem2 =
   match (mem1, mem2) with
-  | Mem (r1, ofs, 1), Reg r2 when r1 = 31 ->
-     let n = (ofs - 3) / 4 * 4 in
-     let m = ofs - n in
-     let reg1 = reg_alloc () in
-     let reg2 = reg_alloc () in
-     let c = 0xffffffff - (0xff000000 lsr (m * 8)) in
-     emit "mov r%d, %s" reg1 (mem_access (r1, n));
-     emit "and r%d, r%d, 0x%x" reg1 reg1 c;
-     emit "shl r%d, r%d, 24" reg2 r2;
-     if m > 0 then
-       emit "shr r%d, r%d, %d" reg2 reg2 (m * 8);
-     emit "or r%d, r%d, r%d" reg1 reg1 reg2;
-     emit "mov %s, r%d" (mem_access (r1, n)) reg1;
-     reg_free reg1;
-     reg_free reg2
   | Mem (r1, ofs, 1), Reg r2 ->
      emit "movb [r%d%s], r%d" r1 (show_disp ofs) r2
   | Mem (r1, ofs, _), Reg r2 ->
@@ -243,13 +228,6 @@ let emit_mov mem1 mem2 =
      raise_error "emit_mov Mem, _"
   | Reg r1, Reg r2 ->
      emit "mov r%d, r%d" r1 r2
-  | Reg r1, Mem (r2, ofs, 1) when r1 = 31 ->
-     let n = (ofs - 3) / 4 * 4 in
-     let m = ofs - n in
-     emit "mov r%d, %s" r1 (mem_access (r2, n));
-     if m > 0 then
-       emit "shl r%d, r%d, %d" r1 r1 (m * 8);
-     emit "shr r%d, r%d, 24" r1 r1
   | Reg r1, Mem (r2, ofs, 1) ->
      emit "movb r%d, [r%d%s]" r1 r2 (show_disp ofs)
   | Reg r1, Mem(r2, ofs, _) ->
