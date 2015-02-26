@@ -34,14 +34,8 @@ let rec align = function
   | TInt  | TShort  | TLong
   | TUInt | TUShort | TULong
   | TFloat| TDouble | TPtr _ -> 4
-  | TStruct s_id ->
-     s_id |> List.nth !struct_env
-          |> List.map (snd >> align)
-          |> Util.max_of
-  | TUnion u_id ->
-     u_id |> List.nth !union_env
-          |> List.map (snd >> align)
-          |> Util.max_of
+  | TStruct _
+  | TUnion  _ -> 4
   | TArray (ty, _) -> align ty
   | TFun _ -> failwith "align function"
   | TVoid -> failwith "align void"
