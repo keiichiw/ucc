@@ -554,7 +554,7 @@ let rec ex ret_reg = function
        let go e =
          let reg = reg_alloc () in
          let ty = typeof e in
-         let sz = max 4 sizeof ty in
+         let sz = max 4 (sizeof ty) in
          ex reg e;
          (sz, reg) in
        List.map go exlst in
