@@ -106,21 +106,17 @@ let resolve_var name =
   with
   | Not_found -> raise_error "not found %s" name
 
-let padding n = (n + 3) / 4 * 4
-
-let padded_size = sizeof >> padding
-
 let sizeof_decl = function
   | Decl (NoLink,TFun _,_,_)
   | Decl (Extern,_,_,_)
   | Decl (Static,_,_,_) ->
      0
   | Decl (NoLink,ty,_,_) ->
-    padded_size ty
+    sizeof ty
 
 let rec sizeof_block = function
   | SBlock (d, s) ->
-     let s1 = sum_of (List.map sizeof_decl d) in
+     let s1 = aligned TInt (sum_of (List.map sizeof_decl d)) in
      let s2 = max_of (List.map sizeof_block s) in
      s1 + s2
   | SWhile (_, s)
@@ -138,10 +134,8 @@ let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
     | (Decl (_, ty, name, _))::xs ->
-       let sz =
-         if ty = TVoid then 0
-         else padded_size ty in
-       env_ref := (name, (ty, Mem (31, i, sz)))::!env_ref;
+       let sz = if ty = TVoid then 0 else max 4 (sizeof ty) in
+       env_ref := (name, (ty, Mem (31, i, sz))) :: !env_ref;
        go (i + sz) xs in
   go 4 args
 
@@ -152,9 +146,9 @@ let push_local_vars vars =
        let sz = if is_funty ty then -1 else sizeof ty in
        push env_ref (name, (ty, Global (name, 0, sz)))
     | Decl (NoLink, ty, name, _) ->
-       let sz = padded_size ty in
-       sp_offset_ref := !sp_offset_ref - sz;
-       push env_ref (name, (ty, Mem (31, !sp_offset_ref, sz)))
+       let sz = sizeof ty in
+       sp_offset_ref := aligned ty !sp_offset_ref + sz;
+       push env_ref (name, (ty, Mem (31, - !sp_offset_ref, sz)))
     | Decl (Static, ty, name, _) ->
        let label_id = label_create () in
        let label = sprintf "L_%s_%d" name label_id in
@@ -755,12 +749,11 @@ let init_local_vars vars =
        let reg = reg_alloc () in
        let go2 n e =
          ex reg e;
-         let sz = (typeof >> sizeof) e in
-         let n1 = if sz = 1 then n else padding n in
-         emit_mov
-           (Mem (31, offset + n1, (typeof >> sizeof) e))
-           (Reg reg);
-         n1 + sz in
+         let ty = typeof e in
+         let n = aligned ty n in
+         let sz = sizeof ty in
+         emit_mov (Mem (31, offset + n, sz)) (Reg reg);
+         n + sz in
        ignore (List.fold_left go2 0 init);
        reg_free reg
     | (_, Global (label, _, _)) ->
