@@ -742,7 +742,7 @@ string_literal:
 | STR
   { $1 }
 | STR string_literal
-  { (take (List.length $1 - 1) $1) @ $2 }
+  { $1 @ $2 }
 
 arg_expr_list:
 |

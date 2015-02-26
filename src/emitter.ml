@@ -155,16 +155,34 @@ let push_local_vars vars =
        push env_ref (name, (ty, Global (label, 0, sizeof ty))) in
   List.iter go vars
 
+let escaped l =
+  let esc_char = function
+    | 0 -> "\\0"
+    | 7 -> "\\a"
+    | 8 -> "\\b"
+    | 9 -> "\\t"
+    | 10 -> "\\n"
+    | 11 -> "\\v"
+    | 12 -> "\\f"
+    | 13 -> "\\r"
+    | 34 -> "\\\""
+    | 92 -> "\\\\"
+    | c when c < 32 || c = 127 -> sprintf "\\x%02x" c
+    | c -> sprintf "%c" (Char.chr c) in
+  String.concat "" (List.map esc_char l)
+
 let emit_global_var name init =
   let contents = ref [] in
   emit_raw "%s:\n" name;
   let rec go = function
-    | EConst (ty, (VInt v)) when sizeof ty = 1 ->
+    | EConst (ty, VInt v) when sizeof ty = 1 ->
        emit ".byte %d" v
-    | EConst (ty, (VInt v)) ->
+    | EConst (ty, VInt v) ->
        emit ".int %d" v
-    | EConst (_, (VFloat v)) ->
+    | EConst (_, VFloat v) ->
        emit ".float %.15F" v
+    | EConst (_, VStr v) ->
+       emit ".string \"%s\"" (escaped v)
     | EAddr (TPtr TChar, EConst (_, VStr s)) ->
        contents := s :: !contents;
        emit ".int %s_contents_%d" name (List.length !contents)
@@ -177,9 +195,9 @@ let emit_global_var name init =
     | _ -> raise_error "global initializer must be constant" in
   List.iter go init;
   List.iteri
-    (fun i c ->
+    (fun i s ->
      emit_raw "%s_contents_%d:\n" name (i + 1);
-     List.iter (fun n -> emit ".byte %d" n) c)
+     emit ".string \"%s\"" (escaped s))
     (List.rev !contents);
   emit ".align 4"
 
@@ -520,7 +538,7 @@ let rec ex ret_reg = function
      raise_error "EPPost: not pointer"
   | EAsm (_, asm) ->
      let slist = List.map (Char.chr >> String.make 1) asm in
-     emit_raw "%s" (String.concat "" (Util.take (List.length slist - 1) slist))
+     emit_raw "%s" (String.concat "" slist)
   | ECall (_, f, exlst) ->
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
      let arg_list =
@@ -724,8 +742,7 @@ and emit_lv_addr reg = function (* address of left *)
     Mem (reg, 0, sizeof ty)
   | EConst (_, VStr s) ->
     let label = sprintf "L%d" (label_create ()) in
-    let t = List.map (fun i -> EConst (TChar, VInt i)) s in
-    push static_locals_ref (label, t);
+    push static_locals_ref (label, [EConst (TVoid, VStr s)]);
     emit "mov r%d, %s" reg label;
     Mem (reg, 0, -1)
   | _ ->

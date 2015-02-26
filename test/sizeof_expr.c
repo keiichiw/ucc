@@ -1,6 +1,7 @@
 /*
 256
 4096
+6
 */
 
 #include "test.h"
@@ -12,4 +13,5 @@ int main()
 
   print_int(sizeof(buf));
   print_int(sizeof buf2);
+  print_int(sizeof "abcde");
 }

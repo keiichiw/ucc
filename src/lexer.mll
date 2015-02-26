@@ -240,7 +240,7 @@ rule token = parse
 
 and string_elements = parse
 | '\"'
-  { [0] }
+  { [] }
 | char as c
   { (cast_char_to_int c)::(string_elements lexbuf) }
 
