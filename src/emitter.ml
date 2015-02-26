@@ -666,6 +666,10 @@ let rec ex ret_reg = function
         if is_unsigned t2 then
           raise_error "ECast: unsigned -> float is unsupported";
         ex ret_reg e;
+        if t1 = TChar then begin
+          emit "shl r%d, r%d, 24" ret_reg ret_reg;
+          emit "sar r%d, r%d, 24" ret_reg ret_reg
+        end;
         emit "itof r%d, r%d" ret_reg ret_reg
      | t1, t2 when is_integral t1 && is_real t2 ->
         if is_unsigned t1 then
@@ -680,7 +684,7 @@ let rec ex ret_reg = function
         (* (x^flg)-flg equals (flg==-1?-x:x) *)
         emit "xor r%d, r%d, r%d" ret_reg ret_reg flg;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg flg;
-        if t1 = TChar then
+        if sizeof t1 = 1 then
           emit "and r%d, r%d, 0xff" ret_reg ret_reg;
         reg_free flg
      | t1, t2 when is_real t1 || is_real t2 ->
@@ -691,6 +695,10 @@ let rec ex ret_reg = function
      | t1, t2 when sizeof t1 = 1 && sizeof t2 > 1 ->
         ex ret_reg e;
         emit "and r%d, r%d, 0xff\n" ret_reg ret_reg
+     | t1, TChar when sizeof t1 > 1 ->
+        ex ret_reg e;
+        emit "shl r%d, r%d, 24" ret_reg ret_reg;
+        emit "sar r%d, r%d, 24" ret_reg ret_reg
      | _ ->
        ex ret_reg e
      end
