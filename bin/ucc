@@ -104,7 +104,7 @@ for filename in args.inputs:
     elif ext == '.S':
         call('clang', '-E', filename, '-o', fname + '.tmp.s', *(CPPOPTS + args.D + args.I + args.Wp))
         move_asm(fname)
-    elif exp == '.s':
+    elif ext == '.s':
         ASMS.append(filename)
     else:
         print >> sys.stderr, 'ucc: error: unknown extension:', ext
@@ -118,4 +118,3 @@ if not args.o:
 
 call(AS, '-o', args.o, *(ASOPTS + args.Wa + args.l + ASMS))
 call('rm', '-f', *ASMS)
-
