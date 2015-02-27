@@ -270,18 +270,22 @@ let rec emit_mov ty mem1 mem2 =
      emit "movb %s, %s" (show_strg mem1) (show_strg mem2);
      sgn_ext ty r
   | _, Reg r when sz1 = 1 ->
-     sgn_ext ty r;
-     emit "movb %s, %s" (show_strg mem1) (show_strg mem2)
+     let reg = reg_alloc () in (* Don't pollute Reg r *)
+     emit "mov r%d, r%d" reg r;
+     sgn_ext ty reg;
+     emit "movb %s, %s" (show_strg mem1) (show_strg (Reg reg));
+     reg_free reg
   | Reg r, _ when sz2 = 2 ->
-     let reg = reg_alloc () in
-     emit "movb %s, %s" (show_strg (Reg r))   (show_strg (go 0 mem2));
-     emit "movb %s, %s" (show_strg (Reg reg)) (show_strg (go 1 mem2));
-     emit "shl r%d, r%d, 8" reg reg;
+     let reg = reg_alloc () in (* Reg r may appear in mem2 *)
+     emit "movb %s, %s" (show_strg (Reg reg)) (show_strg (go 0 mem2));
+     emit "and r%d, r%d, 0xffff00ff" reg reg;
+     emit "movb %s, %s" (show_strg (Reg r))   (show_strg (go 1 mem2));
+     emit "shl r%d, r%d, 8" r r;
      emit "or r%d, r%d, r%d" r r reg;
      sgn_ext ty r;
      reg_free reg
   | _, Reg r when sz1 = 2 ->
-     let reg = reg_alloc () in
+     let reg = reg_alloc () in (* Don't pollute Reg r *)
      emit "mov r%d, r%d" reg r;
      sgn_ext ty reg;
      emit "movb %s, %s" (show_strg (go 0 mem1)) (show_strg (Reg reg));
