@@ -175,10 +175,12 @@ let emit_global_var name init =
   let contents = ref [] in
   emit_raw "%s:\n" name;
   let rec go = function
-    | EConst (ty, VInt v) when sizeof ty = 1 ->
-       emit ".byte %d" v
     | EConst (ty, VInt v) ->
-       emit ".int %d" v
+      begin match sizeof ty with
+      | 1 -> emit ".byte %d" v
+      | 2 -> emit ".short %d" v
+      | _ -> emit ".int %d" v
+      end
     | EConst (_, VFloat v) ->
        emit ".float %.15F" v
     | EConst (_, VStr v) ->
