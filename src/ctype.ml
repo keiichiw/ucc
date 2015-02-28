@@ -87,7 +87,7 @@ type rel_bin = Lt | Le | Gt | Ge
 
 type eq_bin = Eq | Ne
 
-type unary = Plus | Minus | BitNot | LogNot | PostInc | PostDec
+type unary = Plus | Minus | BitNot | PostInc | PostDec
 
 type inc = Inc | Dec
 
@@ -184,7 +184,6 @@ let unary2fun = function
   | Plus   -> (+) 0
   | Minus  -> (-) 0
   | BitNot -> (lnot)
-  | LogNot -> (fun x -> if x=0 then 1 else 0)
   | _ -> failwith "unary2fun: PostInc/PostDec"
 
 

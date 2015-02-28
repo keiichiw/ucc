@@ -369,25 +369,21 @@ and ex' = function
        raise_error "logical"
   | Syntax.EUnary (op, e1) ->
      let ex1 = ex e1 in
-     begin match (op, typeof ex1) with
+     begin match op, typeof ex1 with
+     | (Plus, ty) | (Minus, ty) when is_integral ty ->
+        EUnary (from_some (arith_conv (ty, TInt)), op, ex1)
+     | (Plus, ty) | (Minus, ty) when is_real ty ->
+        EFUnary (ty, op, ex1)
+     | (BitNot, ty) when is_integral ty ->
+        EUnary (from_some (arith_conv (ty, TInt)), op, ex1)
      | (PostInc, TPtr t) ->
-        EPPost(TPtr t, Inc, ex1)
+        EPPost (TPtr t, Inc, ex1)
      | (PostDec, TPtr t) ->
-        EPPost(TPtr t, Dec, ex1)
-     | (Plus,  ty)
-     | (Minus, ty) when is_real ty ->
-        EFUnary(ty, op, ex1)
-     | (LogNot, ty) when is_real ty ->
-        EFEq (TInt, Ne, ex1, EConst (ty, VFloat 0.0))
-     | (LogNot, _) ->
-        EUnary(TInt, op, ex1)
-     | (_, t) ->
-        begin match arith_conv (t, TInt) with
-        | Some t ->
-           EUnary(t, op, ex1)
-        | None ->
-           raise_error "unary"
-        end
+        EPPost (TPtr t, Dec, ex1)
+     | (PostInc, t) | (PostDec, t) when is_integral t ->
+        EUnary(t, op, ex1)
+     | _ ->
+        raise_error "unary"
      end
   | Syntax.EAssign (op, e1, e2) ->
      let ex1 = ex e1 in
