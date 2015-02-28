@@ -410,20 +410,11 @@ let rec ex ret_reg = function
      emit_bin ret_reg op e1 e2
   | EURel (_, op, e1, e2) ->
      let op = match op with
-       | Le -> "cmple"
-       | Lt -> "cmplt"
-       | Ge -> "cmpge"
-       | Gt -> "cmpgt" in
-     ex ret_reg e1;
-     let reg  = reg_alloc () in
-     ex reg e2;
-     let sreg = reg_alloc () in
-     emit "mov r%d, 0x80000000" sreg;
-     emit "xor r%d, r%d, r%d" ret_reg ret_reg sreg;
-     emit "xor r%d, r%d, r%d" reg reg sreg;
-     emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
-     reg_free reg;
-     reg_free sreg
+       | Le -> "cmpule"
+       | Lt -> "cmpult"
+       | Ge -> "cmpuge"
+       | Gt -> "cmpugt" in
+     emit_bin ret_reg op e1 e2
   | EFRel (_, op, e1, e2) ->
      let op = match op with
        | Le -> "fcmple"
