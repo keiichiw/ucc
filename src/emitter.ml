@@ -4,8 +4,9 @@ open Printf
 open Util
 
 type storageplace =
-  | Mem of int (*memory*)
-  | Global of string
+  | Reg of int
+  | Mem of int * int (*memory*)
+  | Global of string * int
 
 let register_list = Array.init 27 succ |> Array.to_list
 let free_reg_stack = ref register_list
@@ -111,11 +112,11 @@ let sizeof_decl = function
   | Decl (Static,_,_,_) ->
      0
   | Decl (NoLink,ty,_,_) ->
-     sizeof ty * 4
+    sizeof ty
 
 let rec sizeof_block = function
   | SBlock (d, s) ->
-     let s1 = sum_of (List.map sizeof_decl d) in
+     let s1 = aligned TInt (sum_of (List.map sizeof_decl d)) in
      let s2 = max_of (List.map sizeof_block s) in
      s1 + s2
   | SWhile (_, s)
@@ -133,39 +134,56 @@ let push_args args = (* add args in env *)
   let rec go i = function
     | [] -> ()
     | (Decl (_, ty, name, _))::xs ->
-       let sz =
-         if ty = TVoid then 0
-         else sizeof ty in
-       env_ref := (name, (ty, Mem i))::!env_ref;
-       go (i - 4 * sz) xs in
-  go (-4) args
+       let sz = if ty = TVoid then 0 else max 4 (sizeof ty) in
+       env_ref := (name, (ty, Mem (31, i))) :: !env_ref;
+       go (i + sz) xs in
+  go 4 args
 
 let push_local_vars vars =
   let go = function
     | Decl (NoLink, ((TFun _) as ty), name, _)
     | Decl (Extern, ty, name, _) ->
-       push env_ref (name, (ty, Global name))
+       push env_ref (name, (ty, Global (name, 0)))
     | Decl (NoLink, ty, name, _) ->
-       let sz = sizeof ty in
-       sp_offset_ref := !sp_offset_ref + sz*4;
-       push env_ref (name, (ty, Mem !sp_offset_ref))
+       sp_offset_ref := aligned ty !sp_offset_ref + sizeof ty;
+       push env_ref (name, (ty, Mem (31, - !sp_offset_ref)))
     | Decl (Static, ty, name, _) ->
        let label_id = label_create () in
        let label = sprintf "L_%s_%d" name label_id in
-       push env_ref (name, (ty, Global label)) in
+       push env_ref (name, (ty, Global (label, 0))) in
   List.iter go vars
 
-let create_defualt_init ty =
-  Util.rep (EConst (TInt, (VInt 0))) (sizeof ty)
+let escaped l =
+  let esc_char = function
+    | 0 -> "\\0"
+    | 7 -> "\\a"
+    | 8 -> "\\b"
+    | 9 -> "\\t"
+    | 10 -> "\\n"
+    | 11 -> "\\v"
+    | 12 -> "\\f"
+    | 13 -> "\\r"
+    | 34 -> "\\\""
+    | 92 -> "\\\\"
+    | c when c < 32 || c = 127 -> sprintf "\\x%02x" c
+    | c -> sprintf "%c" (Char.chr c) in
+  String.concat "" (List.map esc_char l)
 
 let emit_global_var name init =
   let contents = ref [] in
   emit_raw "%s:\n" name;
   let rec go = function
-    | EConst (_, (VInt v)) ->
-       emit ".int %d" v
-    | EConst (_, (VFloat v)) ->
-      emit ".float %.15F" v
+    | EConst (ty, VInt v) ->
+      begin match sizeof ty with
+      | 1 -> emit ".byte %d" v
+      | 2 -> emit ".short %d" v
+      | 4 -> emit ".int %d" v
+      | _ -> raise_error "emit_global_var: invalid int constant (size = %d)" (sizeof ty)
+      end
+    | EConst (_, VFloat v) ->
+       emit ".float %.15F" v
+    | EConst (_, VStr v) ->
+       emit ".string \"%s\"" (escaped v)
     | EAddr (TPtr TChar, EConst (_, VStr s)) ->
        contents := s :: !contents;
        emit ".int %s_contents_%d" name (List.length !contents)
@@ -173,13 +191,16 @@ let emit_global_var name init =
        emit ".int %s" name
     | ECast (TPtr _, TPtr _, e) ->
        go e
+    | ESpace ty ->
+       emit ".space %d" (sizeof ty)
     | _ -> raise_error "global initializer must be constant" in
   List.iter go init;
   List.iteri
-    (fun i c ->
+    (fun i s ->
      emit_raw "%s_contents_%d:\n" name (i + 1);
-     List.iter (fun n -> emit ".int %d" n) c)
-    (List.rev !contents)
+     emit ".string \"%s\"" (escaped s))
+    (List.rev !contents);
+  emit ".align 4"
 
 let emit_native_call ret_reg func arg1 arg2 =
   let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
@@ -202,13 +223,62 @@ let emit_native_call ret_reg func arg1 arg2 =
     used_reg;
   emit "add rsp, rsp, %d" size
 
+let sgn_ext reg = function
+  | TChar -> emit "sextb r%d, r%d" reg reg
+  | TUChar -> emit "zextb r%d, r%d" reg reg
+  | TShort -> emit "sextw r%d, r%d" reg reg
+  | TUShort -> emit "zextw r%d, r%d" reg reg
+  | _ -> ()
+
 let show_disp disp =
   if disp > 0 then sprintf " + %d" disp else
   if disp < 0 then sprintf " - %d" (-disp) else ""
 
-let mem_access (reg, disp) =
-  let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
-  sprintf "[%s%s]" reg (show_disp disp)
+let rec show_strg = function
+  | Reg 30 -> "rsp"
+  | Reg 31 -> "rbp"
+  | Reg r  -> sprintf "r%d" r
+  | Mem (base, ofs) ->
+    if base = 0 then sprintf "[%#x]" (ofs land 0xffffffff) else
+    sprintf "[%s%s]" (show_strg (Reg base)) (show_disp ofs)
+  | Global (l, ofs) ->
+    sprintf "[%s%s]" l (show_disp ofs)
+
+let rec emit_mov ty mem1 mem2 =
+  let go n = function
+    | Mem    (b, d) -> Mem    (b, d + n)
+    | Global (b, d) -> Global (b, d + n)
+    | Reg _ -> raise_error "emit_mov: go" in
+  match mem1, mem2, sizeof ty with
+  | _, _, 4 ->
+     emit "mov %s, %s" (show_strg mem1) (show_strg mem2)
+  | Reg r, _, 1 ->
+     emit "movb r%d, %s" r (show_strg mem2);
+     if ty = TUChar then sgn_ext r ty
+  | _, Reg r, 1 ->
+     emit "movb %s, r%d" (show_strg mem1) r
+  | Reg r, _, 2 ->
+     let reg = reg_alloc () in (* Reg r may appear in mem2 *)
+     emit "movb r%d, %s" reg (show_strg (go 0 mem2));
+     emit "movb r%d, %s" r (show_strg (go 1 mem2));
+     emit "zextb r%d, r%d" reg reg;
+     emit "shl r%d, r%d, 8" r r;
+     emit "or r%d, r%d, r%d" r r reg;
+     if ty = TUShort then sgn_ext r ty;
+     reg_free reg
+  | _, Reg r, 2 ->
+     let reg = reg_alloc () in (* Don't pollute Reg r *)
+     emit "movb %s, r%d" (show_strg (go 0 mem1)) r;
+     emit "shr r%d, r%d, 8" reg r;
+     emit "movb %s, r%d" (show_strg (go 1 mem1)) reg;
+     reg_free reg
+  | _, _, sz ->
+     let reg = reg_alloc () in
+     for i = 0 to sz / 4 - 1 do
+       emit "mov r%d, %s" reg (show_strg (go (i * 4) mem2));
+       emit "mov %s, r%d" (show_strg (go (i * 4) mem1)) reg
+     done;
+     reg_free reg
 
 let rec int_const = function
   | EConst (_, VInt i) -> Some i
@@ -226,7 +296,7 @@ let rec ex ret_reg = function
   | EComma(_, ex1, ex2) ->
      ex ret_reg ex1;
      ex ret_reg ex2
-  | EConst (_, v) ->
+  | EConst (ty, v) ->
      begin match v with
      | VInt i ->
         emit "mov r%d, %d" ret_reg i
@@ -340,20 +410,11 @@ let rec ex ret_reg = function
      emit_bin ret_reg op e1 e2
   | EURel (_, op, e1, e2) ->
      let op = match op with
-       | Le -> "cmple"
-       | Lt -> "cmplt"
-       | Ge -> "cmpge"
-       | Gt -> "cmpgt" in
-     ex ret_reg e1;
-     let reg  = reg_alloc () in
-     ex reg e2;
-     let sreg = reg_alloc () in
-     emit "mov r%d, 0x80000000" sreg;
-     emit "xor r%d, r%d, r%d" ret_reg ret_reg sreg;
-     emit "xor r%d, r%d, r%d" reg reg sreg;
-     emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
-     reg_free reg;
-     reg_free sreg
+       | Le -> "cmpule"
+       | Lt -> "cmpult"
+       | Ge -> "cmpuge"
+       | Gt -> "cmpugt" in
+     emit_bin ret_reg op e1 e2
   | EFRel (_, op, e1, e2) ->
      let op = match op with
        | Le -> "fcmple"
@@ -379,11 +440,11 @@ let rec ex ret_reg = function
         ex ret_reg e1;
         begin match e2 with
         | EConst (_, VInt i) ->
-           emit "add r%d, r%d, %d" ret_reg ret_reg (4 * sizeof ty * i)
+           emit "add r%d, r%d, %d" ret_reg ret_reg (sizeof ty * i)
         | _ ->
            let reg = reg_alloc () in
            ex reg e2;
-           ex reg (EArith (TInt, Mul, ENil, EConst (TInt, VInt (4 * sizeof ty))));
+           ex reg (EArith (TInt, Mul, ENil, EConst (TInt, VInt (sizeof ty))));
            emit "add r%d, r%d, r%d" ret_reg ret_reg reg;
            reg_free reg
         end
@@ -391,7 +452,7 @@ let rec ex ret_reg = function
         failwith "EPAdd"
      end
   | EPDiff (_, e1, e2) ->
-     begin match (Typing.typeof e1, Typing.typeof e2) with
+     begin match (typeof e1, typeof e2) with
      | (TPtr t1, TPtr t2) when t1 = t2 ->
         if t1 = TVoid then
           raise_error "EPDiff : subtraction of void* is unsupported";
@@ -399,7 +460,7 @@ let rec ex ret_reg = function
         let reg = reg_alloc () in
         ex reg e2;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg reg;
-        emit "mov r%d, %d" reg (4 * sizeof t1);
+        emit "mov r%d, %d" reg (sizeof t1);
         emit_native_call ret_reg "__signed_div" ret_reg reg;
         reg_free reg
      | _ ->
@@ -431,7 +492,7 @@ let rec ex ret_reg = function
         emit "mov r%d, 1" ret_reg;
         emit_label l2
      end
-  | EUnary (_, op, e) ->
+  | EUnary (ty, op, e) ->
      begin match op with
      | Plus ->
         ex ret_reg e
@@ -441,20 +502,18 @@ let rec ex ret_reg = function
      | BitNot ->
         ex ret_reg e;
         emit "not r%d, r%d" ret_reg ret_reg
-     | LogNot ->
-        ex ret_reg e;
-        emit "cmpeq r%d, r%d, 0" ret_reg ret_reg
      | PostInc
      | PostDec ->
         let areg = reg_alloc () in
         let mem = emit_lv_addr areg e in
         let reg = reg_alloc () in
-        emit "mov r%d, %s" ret_reg (mem_access mem);
+        emit_mov ty (Reg ret_reg) mem;
         if op = PostInc then
           emit "add r%d, r%d, 1" reg ret_reg
         else
           emit "sub r%d, r%d, 1" reg ret_reg;
-        emit "mov %s, r%d" (mem_access mem) reg;
+        sgn_ext reg ty;
+        emit_mov ty mem (Reg reg);
         reg_free areg;
         reg_free reg
      end
@@ -474,51 +533,46 @@ let rec ex ret_reg = function
      let areg = reg_alloc () in
      let mem = emit_lv_addr areg e in
      let reg = reg_alloc () in
-     emit "mov r%d, %s" ret_reg (mem_access mem);
+     emit_mov (TPtr ty) (Reg ret_reg) mem;
      if op = Inc then
-       emit "add r%d, r%d, %d" reg ret_reg (4 * sizeof ty)
+       emit "add r%d, r%d, %d" reg ret_reg (sizeof ty)
      else
-       emit "sub r%d, r%d, %d" reg ret_reg (4 * sizeof ty);
-     emit "mov %s, r%d" (mem_access mem) reg;
+       emit "sub r%d, r%d, %d" reg ret_reg (sizeof ty);
+     emit_mov (TPtr ty) mem (Reg reg);
      reg_free areg;
      reg_free reg
   | EPPost _ ->
      raise_error "EPPost: not pointer"
   | EAsm (_, asm) ->
      let slist = List.map (Char.chr >> String.make 1) asm in
-     emit_raw "%s" (String.concat "" (Util.take (List.length slist - 1) slist))
+     emit_raw "%s" (String.concat "" slist)
   | ECall (_, f, exlst) ->
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
      let arg_list =
        let go e =
          let reg = reg_alloc () in
-         let ty = Typing.typeof e in
-         let sz = sizeof ty in
+         let ty = if sizeof (typeof e) <= 4 then TInt else typeof e in
          ex reg e;
-         (sz, reg) in
+         (ty, reg) in
        List.map go exlst in
      let fun_reg = reg_alloc () in
      ex fun_reg f;
-     let argsize = 4 * sum_of (List.map fst arg_list) in
+     let argsize = sum_of (List.map (fst >> sizeof) arg_list) in
      let size = 4 * List.length used_reg + argsize in
      if size > 0 then
        emit "sub rsp, rsp, %d" size;
+     (* push arguments *)
+     ignore (List.fold_left
+       (fun n (ty, reg) ->
+         if ty = TInt then
+           emit "mov [rsp%s], r%d" (show_disp n) reg
+         else (* reg has an address *)
+           emit_mov ty (Mem (30, n)) (Mem (reg, 0));
+         n + sizeof ty) 0 arg_list);
      (* save registers *)
      List.iteri
        (fun i -> emit "mov [rsp%s], r%d" (show_disp (4 * i + argsize)))
        used_reg;
-     (* push arguments *)
-     ignore (List.fold_left
-       (fun n (sz, reg) ->
-         if sz = 1 then
-           emit "mov %s, r%d" (mem_access (30, n)) reg
-         else (* reg has an address *)
-           (let temp = reg_alloc() in
-            for i = 0 to (sz - 1) do
-              emit "mov r%d, %s" temp (mem_access (reg, i * 4));
-              emit "mov %s, r%d" (mem_access (30, n + i * 4)) temp
-            done);
-         n + 4 * sz) 0 arg_list);
      emit "call r%d" fun_reg;
      reg_free_all ();
      reg_use ret_reg;
@@ -539,11 +593,11 @@ let rec ex ret_reg = function
      | TVoid | TArray _ | TFun _ ->
         raise_error "logic flaw: EVar"
      | _ ->
-        if sizeof ty > 1 then
+        if sizeof ty > 4 then
           ex ret_reg (EAddr (TPtr ty, expr))
         else
           let mem = emit_lv_addr ret_reg expr in
-          emit "mov r%d, %s" ret_reg (mem_access mem)
+          emit_mov ty (Reg ret_reg) mem
      end
   | EAssign (ty, op, e1, e2) ->
      let reg = reg_alloc () in
@@ -551,26 +605,21 @@ let rec ex ret_reg = function
      begin match op with
      | None ->
         ex ret_reg e2;
-        if sizeof ty > 1 then begin
-          let tmp = reg_alloc () in
-          for i = 0 to sizeof ty - 1 do
-            let dst = mem_access (fst mem, snd mem + 4 * i) in
-            let src = mem_access (ret_reg, 4 * i) in
-            emit "mov r%d, %s" tmp src;
-            emit "mov %s, r%d" dst tmp
-          done;
-          reg_free tmp
-        end else
-          emit "mov %s, r%d" (mem_access mem) ret_reg
+        if sizeof ty > 4 then
+          emit_mov ty mem (Mem (ret_reg, 0))
+        else
+          emit_mov ty mem (Reg ret_reg)
      | Some op ->
-        emit "mov r%d, %s" ret_reg (mem_access mem);
+        emit_mov ty (Reg ret_reg) mem;
         begin match op, ty with
         | Add, TPtr _ ->
            ex ret_reg (EPAdd (ty, ENil, e2));
         | _ ->
-           ex ret_reg (EArith (ty, op, ENil, e2))
+           let ty' = from_some (Typing.arith_conv (ty, typeof e2)) in
+           ex ret_reg (EArith (ty', op, ENil, e2));
+           sgn_ext ret_reg ty
         end;
-        emit "mov %s, r%d" (mem_access mem) ret_reg
+        emit_mov ty mem (Reg ret_reg)
      end;
      reg_free reg
   | EFAssign (ty, op, e1, e2) ->
@@ -582,7 +631,7 @@ let rec ex ret_reg = function
         ()
      | Some op ->
         let tmp_reg = reg_alloc () in
-        emit "mov r%d, %s" tmp_reg (mem_access mem);
+        emit_mov ty (Reg tmp_reg) mem;
         let fop =
           begin match op with
           | Add -> "fadd"
@@ -594,38 +643,43 @@ let rec ex ret_reg = function
         emit "%s r%d, r%d, r%d" fop ret_reg tmp_reg ret_reg;
         reg_free tmp_reg
      end;
-     emit "mov %s, r%d" (mem_access mem) ret_reg;
+     emit_mov ty mem (Reg ret_reg);
      reg_free reg
   | EAddr (_, e) ->
-     let (reg, disp) = emit_lv_addr ret_reg e in
-     if not (ret_reg = reg && disp = 0) then
-       let reg = if reg = 31 then "rbp" else sprintf "r%d" reg in
-       if disp > 0 then emit "add r%d, %s, %d" ret_reg reg disp else
-       if disp < 0 then emit "sub r%d, %s, %d" ret_reg reg (-disp) else
-       emit "mov r%d, %s" ret_reg reg
-  | EPtr (ty, e) when sizeof ty > 1 ->
+     begin match emit_lv_addr ret_reg e with
+     | Reg reg ->
+        if ret_reg <> reg then raise_error "EAddr: reg"
+     | Mem (reg, 0) when ret_reg = reg ->
+        ()
+     | Mem (reg, ofs) ->
+        if ofs > 0 then emit "add r%d, r%d, %d" ret_reg reg ofs else
+        if ofs < 0 then emit "sub r%d, r%d, %d" ret_reg reg (-ofs) else
+        emit "mov r%d, r%d" ret_reg reg
+     | Global (l, ofs) ->
+        emit "mov r%d, %s%s" ret_reg l (show_disp ofs)
+     end
+  | EPtr (ty, e) when sizeof ty > 4 ->
      ex ret_reg e;
-  | EPtr (_, EConst (_, VInt i)) when abs i < 1 lsl 17 ->
-     emit "mov r%d, [%d]" ret_reg i
-  | EPtr (ty, EPAdd (_, e, EConst (_, VInt i)))
-    when abs (4 * sizeof ty * i) < 1 lsl 17 ->
+  | EPtr (ty, EConst (_, VInt i)) ->
+     emit_mov ty (Reg ret_reg) (Mem (0, i))
+  | EPtr (ty, EPAdd (_, e, EConst (_, VInt i))) ->
      ex ret_reg e;
-     emit "mov r%d, %s" ret_reg (mem_access (ret_reg, 4 * sizeof ty * i))
-  | EPtr (_, e) ->
+     emit_mov ty (Reg ret_reg) (Mem (ret_reg, i * sizeof ty))
+  | EPtr (ty, e) ->
      ex ret_reg e;
-     emit "mov r%d, [r%d]" ret_reg ret_reg;
+     emit_mov ty (Reg ret_reg) (Mem (ret_reg, 0))
   | ECast (t1, t2, e) ->
      begin match t1, t2 with
      | _, _ when not (t1 = TVoid || (is_scalar t1 && is_scalar t2)) ->
         raise_error "ECast: %s, %s" (pp_type t1) (pp_type t2)
      | _, _ when t1 = t2 || t1 = TVoid ->
         ex ret_reg e
-     | t1, t2 when is_real t1 && is_integral t2 ->
+     | t1, t2 when is_real t1 && is_integral t2 -> (* int -> float *)
         if is_unsigned t2 then
           raise_error "ECast: unsigned -> float is unsupported";
         ex ret_reg e;
         emit "itof r%d, r%d" ret_reg ret_reg
-     | t1, t2 when is_integral t1 && is_real t2 ->
+     | t1, t2 when is_integral t1 && is_real t2 -> (* float -> int *)
         if is_unsigned t1 then
           raise_error "ECast: float -> unsigned is unsupported";
         ex ret_reg e;
@@ -638,15 +692,18 @@ let rec ex ret_reg = function
         (* (x^flg)-flg equals (flg==-1?-x:x) *)
         emit "xor r%d, r%d, r%d" ret_reg ret_reg flg;
         emit "sub r%d, r%d, r%d" ret_reg ret_reg flg;
+        sgn_ext ret_reg t1;
         reg_free flg
-     | t1, t2 when is_real t1 || is_real t2 ->
-        if is_real t1 && is_real t2 then
-          ex ret_reg e
-        else
-          raise_error "ECast: float"
-     | _ ->
+     | t1, t2 when is_real t1 && is_real t2 ->
         ex ret_reg e
+     | t1, t2 when is_real t1 || is_real t2 ->
+        raise_error "ECast: float"
+     | _ ->
+        ex ret_reg e;
+        sgn_ext ret_reg t1
      end
+  | ESpace _ ->
+     raise_error "ex: ESpace"
 
 and emit_bin ret_reg op e1 e2 =
   match int_const e1, int_const e2 with
@@ -663,56 +720,64 @@ and emit_bin ret_reg op e1 e2 =
      emit "%s r%d, r%d, r%d" op ret_reg ret_reg reg;
      reg_free reg
 
-and emit_lv_addr reg = function
-  | EVar (_, name) ->
-     begin match resolve_var name with
-     | (_, Mem offset) ->
-        (31, -offset)  (* rbp = r31 *)
-     | (_, Global label) ->
-        emit "mov r%d, %s" reg label;
-        (reg, 0)
-     end
-  | EDot (_, expr, mem) ->
-     begin match Typing.typeof expr with
-     | TStruct s_id ->
-        let rec go i s = function
-          | [] -> failwith "edot"
-          | (v, _)::_ when v=s -> i
-          | (_, ty)::xs -> go (i+(sizeof ty)*4) s xs in
-        let memlist = List.nth !struct_env s_id in
-        let mem_offset = go 0 mem memlist in
-        let (reg, disp) = emit_lv_addr reg expr in
-        (reg, disp + mem_offset)
-     | TUnion _ ->
-        emit_lv_addr reg expr
-     | _ -> raise_error "emit_lv_addr dot"
-     end
-  | EPtr (_, e) ->
-     ex reg e;
-     (reg, 0)
+and emit_lv_addr reg = function (* address of left *)
+  | EVar (ty, name) ->
+    snd (resolve_var name)
+  | EDot (ty, expr, mem) ->
+    begin match typeof expr with
+    | TStruct s_id ->
+      let rec go i s = function
+        | [] -> failwith "edot"
+        | (v, _) :: _ when v = s -> aligned ty i
+        | (_, ty) :: xs -> go (aligned ty i + sizeof ty) s xs in
+      let memlist = List.nth !struct_env s_id in
+      let mem_offset = go 0 mem memlist in
+      begin match emit_lv_addr reg expr with
+      | Mem (reg, ofs) -> Mem (reg, ofs + mem_offset)
+      | Global (label, ofs) -> Global (label, ofs + mem_offset)
+      | Reg _ -> failwith "emit_lv_addr: EDot (struct)"
+      end
+    | TUnion _ ->
+      emit_lv_addr reg expr
+    | _ -> raise_error "emit_lv_addr: EDot"
+    end
+  | EPtr (ty, EConst (_, VInt i)) ->
+    Mem (0, i)
+  | EPtr (ty, EPAdd (_, e, EConst (_, VInt i))) ->
+    ex reg e;
+    Mem (reg, i * sizeof ty)
+  | EPtr (ty, e) ->
+    ex reg e;
+    Mem (reg, 0)
   | EConst (_, VStr s) ->
-     let label = sprintf "L%d" (label_create ()) in
-     let t = List.map (fun i -> EConst (TInt, VInt i)) s in
-     push static_locals_ref (label, t);
-     emit "mov r%d, %s" reg label;
-     (reg, 0)
+    let label = sprintf "L%d" (label_create ()) in
+    push static_locals_ref (label, [EConst (TVoid, VStr s)]);
+    emit "mov r%d, %s" reg label;
+    Mem (reg, 0)
   | _ ->
-     raise_error "this expr is not lvalue"
+    raise_error "this expr is not lvalue"
 
 let init_local_vars vars =
   let go (Decl (ln, ty, name, init)) =
     match resolve_var name with
-    | (_, Mem offset) ->
+    | (_, Reg _) ->
+       raise_error "logic flaw: init_local_vars Reg"
+    | (_, Mem (31, offset)) ->
        let reg = reg_alloc () in
-       List.iteri (fun i e ->
-                   ex reg e;
-                   emit "mov [rbp - %d], r%d" (offset - i * 4) reg
-                  ) init;
+       let go2 n e =
+         ex reg e;
+         let ty = typeof e in
+         let n = aligned ty n in
+         emit_mov ty (Mem (31, offset + n)) (Reg reg);
+         n + sizeof ty in
+       ignore (List.fold_left go2 0 init);
        reg_free reg
-    | (_, Global label) ->
+    | (_, Mem _) ->
+       raise_error "logic flaw: init_local_vars Mem"
+    | (_, Global (label, _)) ->
        match (ln, init) with
        | Static, [] ->
-          push static_locals_ref (label, create_defualt_init ty)
+          push static_locals_ref (label, [ESpace ty])
        | Static, xs ->
           push static_locals_ref (label, xs)
        | Extern, [] | NoLink, [] ->
@@ -921,7 +986,7 @@ let rec st = function
 
 let emitter oc = function
   | DefFun(Decl(ln, ty, name, _), args, b) ->
-     push env_ref (name, (ty, Global name));
+     push env_ref (name, (ty, Global (name, 0)));
      fun_name_ref := name;
      static_locals_ref := [];
      begin match ln with
@@ -953,13 +1018,13 @@ let emitter oc = function
      fun_name_ref := "";
      flush_buffer oc
   | DefVar (Decl (ln, ty, name, init)) ->
-     push env_ref (name, (ty, Global name));
+     push env_ref (name, (ty, Global (name, 0)));
      begin match (ln, init) with
      | NoLink, [] when not (is_funty ty) ->
         emit_raw ".global %s\n" name;
-        emit_global_var name (create_defualt_init ty)
+        emit_global_var name [ESpace ty]
      | Static, [] when not (is_funty ty) ->
-        emit_global_var name (create_defualt_init ty)
+        emit_global_var name [ESpace ty]
      | NoLink, []
      | Extern, []
      | Static, [] ->

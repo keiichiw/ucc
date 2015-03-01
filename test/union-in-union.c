@@ -1,6 +1,6 @@
 /*
 8
-2
+8
 */
 
 #include "test.h"

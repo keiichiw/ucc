@@ -34,34 +34,6 @@ let resolve_member_type ty mem_name =
      List.assoc mem_name dvs
   | _ -> failwith "resolve_member_type"
 
-let typeof = function
-  | EArith  (t, _, _, _) -> t
-  | EFArith (t, _, _, _) -> t
-  | ERel    (t, _, _, _) -> t
-  | EURel   (t, _, _, _) -> t
-  | EFRel   (t, _, _, _) -> t
-  | EPAdd   (t, _, _) -> t
-  | EPDiff  (t, _, _) -> t
-  | EEq     (t, _, _, _) -> t
-  | EFEq    (t, _, _, _) -> t
-  | ELog    (t, _, _, _) -> t
-  | EUnary  (t, _, _) -> t
-  | EFUnary (t, _, _) -> t
-  | EPPost  (t, _, _) -> t
-  | EConst  (t, _) -> t
-  | EVar    (t, _) -> t
-  | EComma  (t, _, _) -> t
-  | EAssign (t, _, _, _) -> t
-  | EFAssign(t, _, _, _) -> t
-  | ECall   (t, _, _) -> t
-  | EAddr   (t, _) -> t
-  | EPtr    (t, _) -> t
-  | ECond   (t, _, _, _) -> t
-  | EDot    (t, _, _) -> t
-  | ECast   (t, _, _) -> t
-  | EAsm    (t, _) -> t
-  | ENil -> failwith "typeof ENil"
-
 let is_null = function
   | EConst (_, VInt 0) -> true
   | _ -> false
@@ -77,6 +49,10 @@ let arith_conv = function
   | _ -> Some TInt
 
 let initialize ty init =
+  let pad pos ty =
+    let a = align ty in
+    let x = if pos mod a = 0 then 0 else a - pos mod a in
+    (rep (TChar, Syntax.EConst (Syntax.VInt 0)) x, pos + x) in
   let scalar ty = function
     | Syntax.IVect ((Syntax.IVect _)::_) ->
        raise_error "too many braces around scalar initializer"
@@ -84,33 +60,39 @@ let initialize ty init =
     | Syntax.IVect _ ->
        raise_error "invalid scalar initializer"
     | Syntax.IScal e -> [(ty, e)] in
-  let rec compound ty init idx =
+  let rec compound ty init idx pos =
     match ty, init with
     | TStruct s_id, Syntax.IVect ilist ->
        let s = List.nth !struct_env s_id in
-       if List.length s = idx then ([], init)
+       if List.length s = idx then ([], init, pos)
        else
-         let l, rem  = inner (snd (List.nth s idx)) ilist in
-         let r, tail = compound ty rem (idx + 1) in
-         (l @ r, tail)
+         let pad_ty =
+           if List.length s = idx + 1 then ty else
+           snd (List.nth s (idx + 1)) in
+         let l, rem, pos = inner (snd (List.nth s idx)) ilist pos in
+         let padding, pos = pad pos pad_ty in
+         let r, tail, pos = compound ty rem (idx + 1) pos in
+         (l @ padding @ r, tail, pos)
     | TUnion u_id, Syntax.IVect ilist ->
        let u = List.nth !union_env u_id in
-       inner (snd (List.hd u)) ilist
+       let res, tail, pos = inner (snd (List.hd u)) ilist pos in
+       let padding, pos = pad pos ty in
+       (res @ padding, tail, pos)
     | TArray (inner_ty, sz), Syntax.IVect ilist ->
-       if sz > 0 && sz = idx then ([], init)
+       if sz > 0 && sz = idx then ([], init, pos)
        else
-         let l, rem = inner inner_ty ilist in
-         if sz = 0 && rem = Syntax.IVect [] then (l, rem)
+         let l, rem, pos = inner inner_ty ilist pos in
+         if sz = 0 && rem = Syntax.IVect [] then (l, rem, pos)
          else
-           let r, tail = compound ty rem (idx + 1) in
-           (l @ r, tail)
+           let r, tail, pos = compound ty rem (idx + 1) pos in
+           (l @ r, tail, pos)
     | TArray (TChar, sz), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
-       let str = if sz > 0 then List.rev (List.tl (List.rev str)) else str in
+       let str = if sz = 0 then str @ [0] else str in
        let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
        let ilist = Syntax.IVect (List.map f str) in
-       compound ty ilist 0
+       compound ty ilist 0 pos
     | _ -> raise_error "requied initializer list"
-  and inner inner_ty ilist =
+  and inner inner_ty ilist pos =
     let i, is =
       if ilist = [] then
         Syntax.IScal (Syntax.EConst (Syntax.VInt 0)), []
@@ -118,27 +100,32 @@ let initialize ty init =
         List.hd ilist, List.tl ilist in
     match inner_ty, i with
     | TStruct _, Syntax.IVect _ | TArray _, Syntax.IVect _ ->
-       let res, tail = compound inner_ty i 0 in
+       let res, tail, pos = compound inner_ty i 0 pos in
        if tail <> Syntax.IVect [] then
          raise_error "initializer eccess elements";
-       (res, Syntax.IVect is)
+       (res, Syntax.IVect is, pos)
     | TArray (TChar, sz), Syntax.IScal (Syntax.EConst (Syntax.VStr str)) ->
-       let str = if sz > 0 then List.rev (List.tl (List.rev str)) else str in
+       let str = if sz = 0 then str @ [0] else str in
        let f i = Syntax.IScal (Syntax.EConst (Syntax.VInt i)) in
-       inner inner_ty (Syntax.IVect (List.map f str) :: is)
+       inner inner_ty (Syntax.IVect (List.map f str) :: is) pos
     | TStruct _, _ | TArray _, _ ->
-       compound inner_ty (Syntax.IVect ilist) 0
-    | _, _ -> (scalar inner_ty i, Syntax.IVect is) in
+       compound inner_ty (Syntax.IVect ilist) 0 pos
+    | _, _ -> (scalar inner_ty i, Syntax.IVect is, pos + sizeof inner_ty) in
   match init with
-  | None -> []
+  | None -> ([], 0)
   | Some init ->
      match ty with
-     | TStruct _ | TUnion _ | TArray _ ->
-        let res, tail = compound ty init 0 in
+     | TStruct _ | TUnion _ ->
+        let res, tail, pos = compound ty init 0 0 in
         if tail <> Syntax.IVect [] then
           raise_error "initializer eccess elements";
-        res
-     | _ -> scalar ty init
+        (res, 1)
+     | TArray (t, _) ->
+        let res, tail, pos = compound ty init 0 0 in
+        if tail <> Syntax.IVect [] then
+          raise_error "initializer eccess elements";
+        (res, pos / sizeof t)
+     | _ -> (scalar ty init, 1)
 
 let rec deref_cast = function
   | ECast (t1, t2, e) when t1 = t2 -> e
@@ -251,7 +238,7 @@ and ex' = function
      let (ty, v) = match v with
        | Syntax.VInt   i -> TInt,   VInt i
        | Syntax.VFloat f -> TFloat, VFloat f
-       | Syntax.VStr   s -> TArray (TChar, List.length s), VStr s in
+       | Syntax.VStr   s -> TArray (TChar, List.length s + 1), VStr s in
      EConst (ty, v)
   | Syntax.EVar name ->
      if name = "__asm" then
@@ -382,25 +369,21 @@ and ex' = function
        raise_error "logical"
   | Syntax.EUnary (op, e1) ->
      let ex1 = ex e1 in
-     begin match (op, typeof ex1) with
+     begin match op, typeof ex1 with
+     | (Plus, ty) | (Minus, ty) when is_integral ty ->
+        EUnary (from_some (arith_conv (ty, TInt)), op, ex1)
+     | (Plus, ty) | (Minus, ty) when is_real ty ->
+        EFUnary (ty, op, ex1)
+     | (BitNot, ty) when is_integral ty ->
+        EUnary (from_some (arith_conv (ty, TInt)), op, ex1)
      | (PostInc, TPtr t) ->
-        EPPost(TPtr t, Inc, ex1)
+        EPPost (TPtr t, Inc, ex1)
      | (PostDec, TPtr t) ->
-        EPPost(TPtr t, Dec, ex1)
-     | (Plus,  ty)
-     | (Minus, ty) when is_real ty ->
-        EFUnary(ty, op, ex1)
-     | (LogNot, ty) when is_real ty ->
-        EFEq (TInt, Ne, ex1, EConst (ty, VFloat 0.0))
-     | (LogNot, _) ->
-        EUnary(TInt, op, ex1)
-     | (_, t) ->
-        begin match arith_conv (t, TInt) with
-        | Some t ->
-           EUnary(t, op, ex1)
-        | None ->
-           raise_error "unary"
-        end
+        EPPost (TPtr t, Dec, ex1)
+     | (PostInc, t) | (PostDec, t) when is_integral t ->
+        EUnary(t, op, ex1)
+     | _ ->
+        raise_error "unary"
      end
   | Syntax.EAssign (op, e1, e2) ->
      let ex1 = ex e1 in
@@ -442,7 +425,10 @@ and ex' = function
      | TPtr (TFun (retty, argtys)) ->
         let go a t =
           let arg = ex a in
-          if t = TVoid || typeof arg = t then
+          let ty = typeof arg in
+          if t = TVoid && is_arith ty then
+            ECast(promote ty, ty, arg)
+          else if t = TVoid || typeof arg = t then
             arg
           else
             ECast(t, typeof arg, arg) in
@@ -456,7 +442,7 @@ and ex' = function
             List.map2 go elist argtys
           else
             List.map ex elist in
-        if retty = TVoid || sizeof retty = 1 then
+        if retty = TVoid || sizeof retty <= 4 then
           ECall (retty, ex1, args)
         else
           raise_error "ECall : function that returns struct is not supported"
@@ -521,11 +507,11 @@ let ex_opt = function
 
 let dv = function
   | Syntax.Decl(ln, ty, name, x) ->
-     let init = initialize ty x in
+     let init, len = initialize ty x in
      let ty =
        match ty with
        | TArray (t, 0) ->
-          TArray (t, List.length init / sizeof t)
+          TArray (t, len)
        | _ -> ty in
      push venv_ref (name, ty);
      let f (ty, e) =
@@ -604,7 +590,7 @@ let def = function
      fun_name_ref := fname;
      let d1 = dv d in
      ret_ty_ref := get_ret_ty d1;
-     if !ret_ty_ref != TVoid && sizeof !ret_ty_ref != 1 then
+     if !ret_ty_ref != TVoid && sizeof !ret_ty_ref > 4 then
        raise_error "def : function that returns struct is not supported";
      let old_venv = !venv_ref in
      let a1 = List.map dv dlist in

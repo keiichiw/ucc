@@ -32,6 +32,7 @@ type expr =
   | EDot     of ctype * expr * name
   | ECast    of ctype * ctype * expr
   | EAsm     of ctype * (int list)
+  | ESpace   of ctype
 
 type decl =
   | Decl of linkage * ctype * name * (expr list)
@@ -56,3 +57,32 @@ type stmt =
 type def =
   | DefFun of decl * (decl list) * stmt
   | DefVar of decl
+
+let typeof = function
+  | EArith  (t, _, _, _) -> t
+  | EFArith (t, _, _, _) -> t
+  | ERel    (t, _, _, _) -> t
+  | EURel   (t, _, _, _) -> t
+  | EFRel   (t, _, _, _) -> t
+  | EPAdd   (t, _, _) -> t
+  | EPDiff  (t, _, _) -> t
+  | EEq     (t, _, _, _) -> t
+  | EFEq    (t, _, _, _) -> t
+  | ELog    (t, _, _, _) -> t
+  | EUnary  (t, _, _) -> t
+  | EFUnary (t, _, _) -> t
+  | EPPost  (t, _, _) -> t
+  | EConst  (t, _) -> t
+  | EVar    (t, _) -> t
+  | EComma  (t, _, _) -> t
+  | EAssign (t, _, _, _) -> t
+  | EFAssign(t, _, _, _) -> t
+  | ECall   (t, _, _) -> t
+  | EAddr   (t, _) -> t
+  | EPtr    (t, _) -> t
+  | ECond   (t, _, _, _) -> t
+  | EDot    (t, _, _) -> t
+  | ECast   (t, _, _) -> t
+  | EAsm    (t, _) -> t
+  | ENil -> failwith "typeof ENil"
+  | ESpace _ -> failwith "typeof ESpace"

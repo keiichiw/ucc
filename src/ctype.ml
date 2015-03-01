@@ -29,21 +29,48 @@ let union_env  : (string * ctype) list list ref = ref []
 let rev_table_struct : (int * string) list ref = ref []
 let rev_table_union  : (int * string) list ref = ref []
 
+let rec align = function
+  | TChar  | TUChar -> 1
+  | TShort | TUShort -> 2
+  | TInt   | TLong
+  | TUInt  | TULong
+  | TFloat | TDouble | TPtr _ -> 4
+  | TStruct _
+  | TUnion  _ -> 4
+  | TArray (ty, _) -> align ty
+  | TFun _ -> failwith "align function"
+  | TVoid -> failwith "align void"
+
+let aligned ty n =
+  let a = align ty in
+  (n + a - 1) / a * a
+
 let rec sizeof = function
-  | TInt  | TShort  | TLong  | TChar
-  | TUInt | TUShort | TULong | TUChar -> 1
-  | TFloat| TDouble | TPtr _ -> 1
-  | TStruct s_id ->
+  | TChar  | TUChar -> 1
+  | TShort | TUShort -> 2
+  | TInt   | TLong
+  | TUInt  | TULong
+  | TFloat | TDouble | TPtr _ -> 4
+  | TStruct s_id as ty ->
      s_id |> List.nth !struct_env
-          |> List.map (snd >> sizeof)
-          |> Util.sum_of
-  | TUnion u_id ->
+          |> List.map snd
+          |> List.fold_left (fun n t -> aligned t n + sizeof t) 0
+          |> aligned ty
+  | TUnion u_id as ty ->
      u_id |> List.nth !union_env
           |> List.map (snd >> sizeof)
           |> Util.max_of
+          |> aligned ty
   | TArray (ty, sz) -> (sizeof ty) * sz
   | TFun _ -> failwith "sizeof function"
   | TVoid -> failwith "sizeof void"
+
+let promote = function
+  | TChar | TUChar
+  | TInt  | TShort  | TLong -> TInt
+  | TUInt | TUShort | TULong -> TUInt
+  | TFloat| TDouble -> TDouble
+  | ty -> failwith "promote"
 
 
 (* operator definitions *)
@@ -60,7 +87,7 @@ type rel_bin = Lt | Le | Gt | Ge
 
 type eq_bin = Eq | Ne
 
-type unary = Plus | Minus | BitNot | LogNot | PostInc | PostDec
+type unary = Plus | Minus | BitNot | PostInc | PostDec
 
 type inc = Inc | Dec
 
@@ -157,7 +184,6 @@ let unary2fun = function
   | Plus   -> (+) 0
   | Minus  -> (-) 0
   | BitNot -> (lnot)
-  | LogNot -> (fun x -> if x=0 then 1 else 0)
   | _ -> failwith "unary2fun: PostInc/PostDec"
 
 

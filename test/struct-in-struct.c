@@ -1,6 +1,6 @@
 /*
 6
-3
+12
 */
 
 #include "test.h"

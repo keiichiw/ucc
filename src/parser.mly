@@ -684,7 +684,7 @@ unary_expr:
 | DEC unary_expr
   { EAssign(Some Sub, $2, EConst(VInt(1))) }
 | NOT cast_expr
-  { EUnary (LogNot, $2) }
+  { EEq (Eq, $2, EConst (VInt 0)) }
 | PLUS cast_expr
   { EUnary (Plus, $2) }
 | MINUS cast_expr
@@ -742,7 +742,7 @@ string_literal:
 | STR
   { $1 }
 | STR string_literal
-  { (take (List.length $1 - 1) $1) @ $2 }
+  { $1 @ $2 }
 
 arg_expr_list:
 |

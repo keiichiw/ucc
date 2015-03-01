@@ -4,9 +4,9 @@
 1
 Hello, world!
 one two three
-9
+36
 14
-3
+12
 */
 
 #include "test.h"

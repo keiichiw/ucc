@@ -1,9 +1,9 @@
 /*
-3, 2, 3, 1, 2, 1
+12, 8, 12, 4, 8, 4
 0, 42
 123, 0
-3, 42
-3, 2
+12, 42
+12, 8
 */
 
 #include <stdio.h>
@@ -26,7 +26,7 @@ union bar {
 
 enum { baz };
 
-int test()
+void test()
 {
   int s1 = sizeof (foo);
   int s2 = sizeof (bar);
