@@ -1,30 +1,33 @@
 /*
 sub start
-jump: 123
 x = 1
 main end
 */
 
 #include <setjmp.h>
-#include "test.h"
+#include <stdio.h>
 
-jmp_buf jmpbuf1;
+int x;
+jmp_buf buf;
 
 void sub(void) {
   printf("sub start\n");
-  longjmp(jmpbuf1, 123);
+  longjmp(buf, 123);
   printf("sub end\n");
 }
 
 int main() {
-  int x = 0;
-  int c = setjmp(jmpbuf1);
-  if (c == 0) {
-    x = 1;
-    sub();
-  } else {
-    printf("jump: %d\n", c);
-    printf("x = %d\n", x);
+  switch (setjmp(buf)) {
+    case 0:
+      x = 1;
+      sub();
+      break;
+    case 123:
+      printf("x = %d\n", x);
+      break;
+    default:
+      printf("NG\n");
+      break;
   }
   printf("main end\n");
 }

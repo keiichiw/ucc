@@ -60,6 +60,8 @@ void longjmp(jmp_buf buf, int val)
 {
   __asm("\
   mov r1, [rbp + 8]     # r1 <- val                   \n\
+  cmpeq r2, r1, 0       # if (val == 0)               \n\
+  add r1, r1, r2        #   r1 <- 1                   \n\
   mov r2, [rbp + 4]     # r2 <- buf                   \n\
   mov r3, [r2]          # r3 <- caller rbp            \n\
   mov r28, [r2 + 4]     # restore r28                 \n\
