@@ -986,37 +986,30 @@ let rec st = function
 
 let emitter oc = function
   | DefFun(Decl(ln, ty, name, _), args, b) ->
-     push env_ref (name, (ty, Global (name, 0)));
      fun_name_ref := name;
-     static_locals_ref := [];
-     begin match ln with
-     | NoLink
-     | Extern ->
-        emit_raw ".global %s\n" name;
-        emit_raw "%s:\n" name
-     | Static ->
-        emit_raw "%s:\n" name
-     end;
-     let free_regs = !free_reg_stack in
+     push env_ref (name, (ty, Global (name, 0)));
      let old_env = !env_ref in
      push_args args;
+     if ln <> Static then
+       emit_raw ".global %s\n" name;
+     emit_raw "%s:\n" name;
      begin match b with
-     | SBlock ([], [SExpr (EAsm _)]) ->
-       ()
-     | _ ->
-        emit "enter %d" (sizeof_block b)
+     | SBlock ([], [SExpr (EAsm _)]) -> ()
+     | _ -> emit "enter %d" (sizeof_block b)
      end;
      st b;
-     free_reg_stack := free_regs;
-     env_ref := old_env;
-     insert_epilogue ();
+     begin match b with
+     | SBlock ([], [SExpr (EAsm _)]) -> ()
+     | _ -> insert_epilogue ()
+     end;
      if name = "main" then
        insert_halt ();
-     List.iter (fun (name,e) ->
-       emit_global_var name e
-     ) (List.rev !static_locals_ref);
-     fun_name_ref := "";
-     flush_buffer oc
+     List.iter
+       (fun (name, e) -> emit_global_var name e)
+       (List.rev !static_locals_ref);
+     flush_buffer oc;
+     env_ref := old_env;
+     static_locals_ref := []
   | DefVar (Decl (ln, ty, name, init)) ->
      push env_ref (name, (ty, Global (name, 0)));
      begin match (ln, init) with
