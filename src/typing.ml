@@ -450,7 +450,7 @@ and ex' = function
         raise_error "ECall: not a function given"
      end
   | Syntax.EAddr e ->
-     let ex1 = ex e in
+     let ex1 = ex' e in
      EAddr (TPtr (typeof ex1), ex1)
   | Syntax.EPtr e ->
      let ex1 = ex e in
