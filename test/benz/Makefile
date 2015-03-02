@@ -8,9 +8,17 @@ build/benz.out:
 	mkdir -p build
 	cp $(UCCDIR)/extlib/benz-gaia/*.c build/
 	cp -r $(UCCDIR)/extlib/benz-gaia/include build/
-	cp main.c build/
-	$(UCCDIR)/bin/ucc -Wa=-Wno-unused-label -I./build/include build/*.c
+	rm build/main.c
+	$(UCCDIR)/bin/ucc -Wa=-Wno-unused-label -I./build/include build/*.c main.c
 	mv a.out build/benz.out
+
+build/repl.out: repl.c
+	mkdir -p build
+	cp $(UCCDIR)/extlib/benz-gaia/*.c build/
+	cp -r $(UCCDIR)/extlib/benz-gaia/include build/
+	rm build/main.c
+	$(UCCDIR)/bin/ucc -Wa=-Wno-unused-label -I./build/include build/*.c repl.c
+	mv a.out build/repl.out
 
 clean:
 	rm -rf build/ log.txt *~
