@@ -492,10 +492,7 @@ and ex' = function
      let e = ex e in
      let ty2 = typeof e in
      ECast (ty, ty2, e)
-  | Syntax.ESizeof (ty) ->
-     let i = sizeof ty in
-     EConst (TUInt, VInt i)
-  | Syntax.ESizeofExpr (e) ->
+  | Syntax.ESizeof e ->
      let i = sizeof (typeof (ex' e)) in
      EConst (TUInt, VInt i)
 

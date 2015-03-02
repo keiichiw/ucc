@@ -696,9 +696,9 @@ unary_expr:
 | TILDE cast_expr
   { EUnary (BitNot, $2) }
 | SIZEOF LPAREN type_name RPAREN
-  { ESizeof $3 }
+  { ECast (TUInt, EConst (VInt (sizeof $3))) }
 | SIZEOF unary_expr
-  { ESizeofExpr $2 }
+  { ESizeof $2 }
 
 postfix_expr:
 | primary_expr
