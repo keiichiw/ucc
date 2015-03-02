@@ -69,7 +69,7 @@ args.Wc = comma_sep_list(args.Wc)
 args.Wp = comma_sep_list(args.Wp)
 
 def abort():
-    subprocess.call(['rm', '-f'] + ASMS)
+    subprocess.call(['rm', '-f'] + filter(lambda s: s.endswith('.tmp.s'), ASMS))
     exit(1)
 
 def call(*cmd):
@@ -117,4 +117,4 @@ if not args.o:
     args.o = 'a.out'
 
 call(AS, '-o', args.o, *(ASOPTS + args.Wa + args.l + ASMS))
-call('rm', '-f', *ASMS)
+call('rm', '-f', *filter(lambda s: s.endswith('.tmp.s'), ASMS))
