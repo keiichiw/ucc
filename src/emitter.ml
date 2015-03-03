@@ -555,8 +555,12 @@ let rec ex ret_reg = function
          ex reg e;
          (ty, reg) in
        List.map go exlst in
-     let fun_reg = reg_alloc () in
-     ex fun_reg f;
+     let callee = match f with
+       | EAddr (_, EVar (TFun _, name)) -> name
+       | _ ->
+          let fun_reg = reg_alloc () in
+          ex fun_reg f;
+          sprintf "r%d" fun_reg in
      let argsize = sum_of (List.map (fst >> sizeof) arg_list) in
      let size = 4 * List.length used_reg + argsize in
      if size > 0 then
@@ -573,7 +577,7 @@ let rec ex ret_reg = function
      List.iteri
        (fun i -> emit "mov [rsp%s], r%d" (show_disp (4 * i + argsize)))
        used_reg;
-     emit "call r%d" fun_reg;
+     emit "call %s" callee;
      reg_free_all ();
      reg_use ret_reg;
      if ret_reg != 1 then
