@@ -209,9 +209,7 @@ let emit_native_call ret_reg func arg1 arg2 =
   emit "mov [rsp], r%d" arg1;
   emit "mov [rsp + 4], r%d" arg2;
   List.iteri (fun i -> emit "mov [rsp + %d], r%d" (4 * i + 8)) used_reg;
-  let fun_reg = reg_alloc () in
-  emit "mov r%d, %s" fun_reg func;
-  emit "call r%d" fun_reg;
+  emit "call %s" func;
   reg_free_all ();
   reg_use ret_reg;
   if ret_reg != 1 then
