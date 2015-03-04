@@ -78,19 +78,10 @@ pic_default_allocf(void *ptr, size_t size)
   }
 }
 
-static int
-pic_default_setjmpf(void *buf)
-{
-  return setjmp(*(jmp_buf *)buf);
-}
-
 static void
-pic_default_longjmpf(void *buf, int val)
+pic_default_abortf()
 {
-  if (buf == NULL) {
-    abort();
-  }
-  longjmp(*(jmp_buf *)buf, val);
+  abort();
 }
 
 /* Simple REPL program */
@@ -151,10 +142,10 @@ main()
 
   title();
 
-  pic = pic_open(pic_default_allocf, pic_default_setjmpf, pic_default_longjmpf, sizeof(jmp_buf), 0, NULL, NULL, xfopen(), xfopen(), stderr);
+  pic = pic_open(pic_default_allocf, pic_default_abortf, sizeof(jmp_buf), 0, NULL, NULL, xfopen(), xfopen(), stderr);
 
   while (1) {
-    /* pic_try { */
+    pic_try {
       pic_printf(pic, "> ");
 
       expr = pic_read(pic, pic->xSTDIN);
@@ -165,10 +156,10 @@ main()
         break;
 
       pic_printf(pic, "~s\r\n", pic_eval(pic, expr, pic->lib));
-    /* } */
-    /* pic_catch { */
-    /*   pic_print_backtrace(pic, stderr); */
-    /* } */
+    }
+    pic_catch {
+      pic_print_backtrace(pic, stderr);
+    }
   }
 
   pic_close(pic);

@@ -75,19 +75,10 @@ pic_default_allocf(void *ptr, size_t size)
   }
 }
 
-static int
-pic_default_setjmpf(void *buf)
-{
-  return setjmp(*(jmp_buf *)buf);
-}
-
 static void
-pic_default_longjmpf(void *buf, int val)
+pic_default_abortf()
 {
-  if (buf == NULL) {
-    abort();
-  }
-  longjmp(*(jmp_buf *)buf, val);
+  abort();
 }
 
 /* Simple REPL program */
@@ -107,9 +98,7 @@ main()
   pic_state *pic;
   pic_value expr;
 
-  pic = pic_open(pic_default_allocf, pic_default_setjmpf, pic_default_longjmpf, sizeof(jmp_buf), 0, NULL, NULL, xfopen(), xfopen(), xfopen());
-
-
+  pic = pic_open(pic_default_allocf, pic_default_abortf, sizeof(jmp_buf), 0, NULL, NULL, xfopen(), xfopen(), xfopen());
 
   expr = pic_read_cstr(pic, sample_expr);
 
