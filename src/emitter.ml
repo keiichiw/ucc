@@ -8,7 +8,7 @@ type storageplace =
   | Mem of int * int (*memory*)
   | Global of string * int
 
-let register_list = Array.init 27 succ |> Array.to_list
+let register_list = Array.init 25 succ |> Array.to_list
 let free_reg_stack = ref register_list
 let buffer_ref : string list ref = ref []
 let env_ref : (string * (ctype * storageplace)) list ref = ref []
