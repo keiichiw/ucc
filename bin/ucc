@@ -35,6 +35,8 @@ argparser.add_argument('-I',
 argparser.add_argument('-l',
     help='search <library> when linking', metavar='<library>',
     action='append', default=LIBS)
+argparser.add_argument('-nostdlib',
+    help='do not use standard libraries when linking', action='store_true')
 argparser.add_argument('-o',
     help='set output file name', metavar='<file>')
 argparser.add_argument('-S', '-s',
@@ -64,9 +66,14 @@ def comma_sep_list(arg):
 args.D = map(lambda s: '-D' + s, args.D)
 args.I = map(lambda s: '-I' + s, args.I)
 args.l = map(lambda s: '-l{}/../lib/lib{}.s'.format(BIN_DIR, s), args.l)
-args.Wa = comma_sep_list(args.Wa)
-args.Wc = comma_sep_list(args.Wc)
-args.Wp = comma_sep_list(args.Wp)
+
+args.Wa = ASOPTS + args.l + comma_sep_list(args.Wa)
+args.Wc = CHKOPTS + comma_sep_list(args.Wc)
+args.Wp = CPPOPTS + args.D + args.I + comma_sep_list(args.Wp)
+
+if args.nostdlib:
+    args.Wa.remove('-f__UCC_HEAP_START')
+    args.Wa.remove('-l{}/../lib/libc.s'.format(BIN_DIR))
 
 def abort():
     subprocess.call(['rm', '-f'] + filter(lambda s: s.endswith('.tmp.s'), ASMS))
@@ -96,13 +103,13 @@ for filename in args.inputs:
         abort()
     fname, ext = os.path.splitext(filename)
     if ext == '.c':
-        call('clang', '-E', filename, '-o', fname + '.tmp.i', *(CPPOPTS + args.D + args.I + args.Wp))
-        call('clang', fname + '.tmp.i', *(CHKOPTS + args.Wc))
+        call('clang', '-E', filename, '-o', fname + '.tmp.i', *args.Wp)
+        call('clang', fname + '.tmp.i', *args.Wc)
         call(CC, fname + '.tmp.i')
         call('rm', '-f', fname + '.tmp.i')
         move_asm(fname)
     elif ext == '.S':
-        call('clang', '-E', filename, '-o', fname + '.tmp.s', *(CPPOPTS + args.D + args.I + args.Wp))
+        call('clang', '-E', filename, '-o', fname + '.tmp.s', *args.Wp)
         move_asm(fname)
     elif ext == '.s':
         ASMS.append(filename)
@@ -116,5 +123,5 @@ if args.S:
 if not args.o:
     args.o = 'a.out'
 
-call(AS, '-o', args.o, *(ASOPTS + args.Wa + args.l + ASMS))
+call(AS, '-o', args.o, *(args.Wa + ASMS))
 call('rm', '-f', *filter(lambda s: s.endswith('.tmp.s'), ASMS))
