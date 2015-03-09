@@ -48,3 +48,13 @@ let opMap2 f a b =
   | (Some x, Some y) ->
      Some (f x y)
   | _ -> None
+
+module String = struct
+  include String
+  let slice str s e =
+    let s = if s < 0 then length str + s else s in
+    let s = max 0 (min (length str) s) in
+    let e = if e < 0 then length str + e else e in
+    let e = max s (min (length str) e) in
+    sub str s (e - s)
+end

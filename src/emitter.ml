@@ -17,6 +17,7 @@ let sp_offset_ref = ref 0
 let static_locals_ref = ref []
 let continue_flg_ref = ref false
 let break_flg_ref = ref false
+let is_leaf_function = ref true
 
 (* label management *)
 let created_label_num = ref 0
@@ -52,10 +53,14 @@ let insert_halt () =
   buffer_ref := List.map trap !buffer_ref
 
 let flush_buffer oc =
-  List.iter
-    (fun s ->
-     fprintf oc "%s" s)
-    (List.rev !buffer_ref);
+  let go s =
+     if !is_leaf_function && String.slice s 2 7 = "enter" then
+      let sz = String.slice s 8 (-1) in
+      if not (sz = "" || sz = "0") then
+        fprintf oc "  sub rsp, rsp, %s\n" sz;
+    else if not (!is_leaf_function && String.slice s 2 7 = "leave") then
+      fprintf oc "%s" s in
+  List.iter go (List.rev !buffer_ref);
   if !buffer_ref <> [] then fprintf oc "\n";
   buffer_ref := []
 
@@ -203,6 +208,7 @@ let emit_global_var name init =
   emit ".align 4"
 
 let emit_native_call ret_reg func arg1 arg2 =
+  is_leaf_function := false;
   let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
   let size = 4 * (List.length used_reg + 2) in
   emit "sub rsp, rsp, %d" size;
@@ -545,6 +551,7 @@ let rec ex ret_reg = function
      let slist = List.map (Char.chr >> String.make 1) asm in
      emit_raw "%s" (String.concat "" slist)
   | ECall (_, f, exlst) ->
+     is_leaf_function := false;
      let used_reg = List.filter (fun x -> x != ret_reg) (get_used_reg ()) in
      let arg_list =
        let go e =
@@ -989,6 +996,7 @@ let rec st = function
 let emitter oc = function
   | DefFun(Decl(ln, ty, name, _), args, b) ->
      fun_name_ref := name;
+     is_leaf_function := true;
      push env_ref (name, (ty, Global (name, 0)));
      let old_env = !env_ref in
      push_args args;
