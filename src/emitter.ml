@@ -661,8 +661,9 @@ let rec ex ret_reg = function
      | Mem (reg, 0) when ret_reg = reg ->
         ()
      | Mem (reg, ofs) ->
-        if ofs > 0 then emit "add r%d, r%d, %d" ret_reg reg ofs else
-        if ofs < 0 then emit "sub r%d, r%d, %d" ret_reg reg (-ofs) else
+        let r = if reg = 31 then "rbp" else sprintf "r%d" reg in
+        if ofs > 0 then emit "add r%d, %s, %d" ret_reg r ofs else
+        if ofs < 0 then emit "sub r%d, %s, %d" ret_reg r (-ofs) else
         emit "mov r%d, r%d" ret_reg reg
      | Global (l, ofs) ->
         emit "mov r%d, %s%s" ret_reg l (show_disp ofs)
@@ -774,10 +775,15 @@ let init_local_vars vars =
     | (_, Mem (31, offset)) ->
        let reg = reg_alloc () in
        let go2 n e =
-         ex reg e;
          let ty = typeof e in
          let n = aligned ty n in
-         emit_mov ty (Mem (31, offset + n)) (Reg reg);
+         if sizeof ty <= 4 then begin
+           ex reg e;
+           emit_mov ty (Mem (31, offset + n)) (Reg reg)
+         end else begin
+           let mem = emit_lv_addr reg e in
+           emit_mov ty (Mem (31, offset + n)) mem
+         end;
          n + sizeof ty in
        ignore (List.fold_left go2 0 init);
        reg_free reg

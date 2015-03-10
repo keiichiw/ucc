@@ -114,13 +114,14 @@ let initialize ty init =
   match init with
   | None -> ([], 0)
   | Some init ->
-     match ty with
-     | TStruct _ | TUnion _ ->
+     match ty, init with
+     | TStruct _, Syntax.IVect _
+     | TUnion  _, Syntax.IVect _ ->
         let res, tail, pos = compound ty init 0 0 in
         if tail <> Syntax.IVect [] then
           raise_error "initializer eccess elements";
         (res, 1)
-     | TArray (t, _) ->
+     | TArray (t, _), _ ->
         let res, tail, pos = compound ty init 0 0 in
         if tail <> Syntax.IVect [] then
           raise_error "initializer eccess elements";
