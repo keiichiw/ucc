@@ -397,12 +397,17 @@ let rec ex ret_reg = function
           | _ -> assert false in
         emit_bin ret_reg op e1 e2
      end
+  | EFArith (ty, Div, e1, e2) ->
+     let reg = reg_alloc () in
+     ex ret_reg e1;
+     ex reg e2;
+     emit_native_call ret_reg "__fdiv" ret_reg reg;
+     reg_free reg
   | EFArith (ty, op, e1, e2) ->
      let op = match op with
        | Add -> "fadd"
        | Sub -> "fsub"
        | Mul -> "fmul"
-       | Div -> "fdiv"
        | _ -> assert false in
      emit_bin ret_reg op e1 e2
   | ERel (_, op, e1, e2) ->
