@@ -9,5 +9,7 @@ char *strchr(const char *, int);
 char *strcpy(char *, const char *);
 void *memset(void *, int, size_t);
 void *memcpy(void *, const void *, size_t);
+int strncmp(const char *, const char *, size_t);
+char *strncpy(char *, const char *, size_t);
 
 #endif  /* string.h */
