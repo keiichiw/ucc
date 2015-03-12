@@ -6,6 +6,9 @@
 0
 OK
 OK
+OK
+OK
+OK
 */
 
 #include <stdio.h>
@@ -14,6 +17,7 @@ int main()
 {
   float t = 0.1;
   float f = -0.0;
+  int ti = (0 == 0.0 * -1.0);
   printf("%d\n",  0.0 ? 1 : 0);
   printf("%d\n", -0.0 ? 1 : 0);
   printf("%d\n",  0.1 ? 1 : 0);
@@ -24,4 +28,9 @@ int main()
   if ( 0.1) printf("OK\n");
   if (t) printf("OK\n");
   if (f) printf("NG\n");
+  if (0.0 == -0.0) printf("OK\n");
+  if (0.0 != -0.0) printf("NG\n");
+  if (0.0 ==  0.0 * -1.0) printf("OK\n");
+  if (0.0 != -0.0) printf("NG\n");
+  if (ti) printf("OK\n");
 }

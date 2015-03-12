@@ -186,6 +186,7 @@ let emit_global_var name init =
       | _ -> raise_error "emit_global_var: invalid int constant (size = %d)" (sizeof ty)
       end
     | EConst (_, VFloat v) ->
+       let v = if v = 0.0 then 0.0 else v in
        emit ".float %.15F" v
     | EConst (_, VStr v) ->
        emit ".string \"%s\"" (escaped v)
@@ -305,6 +306,7 @@ let rec ex ret_reg = function
      | VInt i ->
         emit "mov r%d, %d" ret_reg i
      | VFloat f ->
+        let f = if f = 0.0 then 0.0 else f in
         emit "mov r%d, %F" ret_reg f
      | VStr _ ->
         raise_error "logic flaw: EConst at Emitter.ex"
@@ -431,15 +433,11 @@ let rec ex ret_reg = function
        | Ge -> "fcmpge"
        | Gt -> "fcmpgt" in
      emit_bin ret_reg op e1 e2
-  | EEq (_, op, e1, e2) ->
+  | EEq   (_, op, e1, e2)
+  | EFEq  (_, op, e1, e2) ->
      let op = match op with
        | Eq -> "cmpeq"
        | Ne -> "cmpne" in
-     emit_bin ret_reg op e1 e2
-  | EFEq (_, op, e1, e2) ->
-     let op = match op with
-       | Eq -> "fcmpeq"
-       | Ne -> "fcmpne" in
      emit_bin ret_reg op e1 e2
   | EPAdd (ty, e1, e2) ->
      begin match ty with
