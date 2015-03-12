@@ -17,10 +17,27 @@ static float __pow_fi(float a,int n){
  */
 float sqrt(float x){
   __asm("\
-  mov r1, [rbp + 4]     \n                      \
-  fsqrt r1, r1          \n                      \
-  ret                   \n                      \
-");
+  mov r1, [rbp + 4]     \n\
+  mov     r4, 0.5       \n\
+  mov     r5, 1.5       \n\
+  mov     r3, 0x5f375a86\n\
+  shr     r2, r1, 1     \n\
+  sub     r2, r3, r2    \n\
+  fmul    r4, r1, r4    \n\
+  fmul    r3, r2, r4    \n\
+  fmul    r3, r2, r3    \n\
+  fsub    r3, r5, r3    \n\
+  fmul    r2, r2, r3    \n\
+  fmul    r3, r2, r4    \n\
+  fmul    r3, r2, r3    \n\
+  fsub    r3, r5, r3    \n\
+  fmul    r2, r2, r3    \n\
+  fmul    r3, r2, r4    \n\
+  fmul    r3, r2, r3    \n\
+  fsub    r3, r5, r3    \n\
+  fmul    r2, r2, r3    \n\
+  fmul    r1, r1, r2    \n\
+  ret\n");
 }
 
 float fabs(float x){
