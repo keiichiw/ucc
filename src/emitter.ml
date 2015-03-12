@@ -637,23 +637,13 @@ let rec ex ret_reg = function
   | EFAssign (ty, op, e1, e2) ->
      let reg = reg_alloc () in
      let mem = emit_lv_addr reg e1 in
-     ex ret_reg e2;
      begin match op with
      | None ->
-        ()
+        ex ret_reg e2
      | Some op ->
-        let tmp_reg = reg_alloc () in
-        emit_mov ty (Reg tmp_reg) mem;
-        let fop =
-          begin match op with
-          | Add -> "fadd"
-          | Sub -> "fsub"
-          | Mul -> "fmul"
-          | Div -> "fdiv"
-          | _   -> raise_error "EFAssign"
-          end in
-        emit "%s r%d, r%d, r%d" fop ret_reg tmp_reg ret_reg;
-        reg_free tmp_reg
+        emit_mov ty (Reg ret_reg) mem;
+        let ty' = from_some (Typing.arith_conv (ty, typeof e2)) in
+        ex ret_reg (EFArith (ty', op, ENil, e2))
      end;
      emit_mov ty mem (Reg ret_reg);
      reg_free reg
