@@ -1,20 +1,20 @@
 #ifndef _MATH_H
 #define _MATH_H
 
-float sqrt(float);
-float fabs(float);
-float sin(float);
-float cos(float);
-float tan(float);
-float asin(float);
-float acos(float);
-float atan(float);
-float sinh(float);
-float cosh(float);
-float tanh(float);
-float exp(float);
-float log(float);
-float pow(float, float);
-float floor(float);
+double sqrt(double);
+double fabs(double);
+double sin(double);
+double cos(double);
+double tan(double);
+double asin(double);
+double acos(double);
+double atan(double);
+double sinh(double);
+double cosh(double);
+double tanh(double);
+double exp(double);
+double log(double);
+double pow(double, double);
+double floor(double);
 
 #endif /* math.h */

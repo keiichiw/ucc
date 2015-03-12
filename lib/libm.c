@@ -2,9 +2,9 @@
  * math.h
  */
 
-static float __pow_fi(float a,int n){
+static double __pow_fi(double a,int n){
   // return a^x
-  float r = 1.0;
+  double r = 1.0;
   while(n-- > 0) r *= a;
   return r;
 }
@@ -15,7 +15,7 @@ static float __pow_fi(float a,int n){
  * fabs
  *
  */
-float sqrt(float x){
+double sqrt(double x){
   __asm("\
   mov r1, [rbp + 4]     \n\
   mov     r4, 0.5       \n\
@@ -40,7 +40,7 @@ float sqrt(float x){
   ret\n");
 }
 
-float fabs(float x){
+double fabs(double x){
   return x < 0 ? -x : x;
 }
 
@@ -51,8 +51,8 @@ float fabs(float x){
  * x is in range [-pi/4, pi/4]
  *
  */
-static float __kernel_sin(float x){
-  float a1, a2, a3, a4;
+static double __kernel_sin(double x){
+  double a1, a2, a3, a4;
 
   a1 = 0.1666667;
   a2 = 0.0500000;
@@ -61,8 +61,8 @@ static float __kernel_sin(float x){
 
   return x*(1-a1*x*x*(1-a2*x*x*(1-a3*x*x*(1-a4*x*x))));
 }
-static float __kernel_cos(float x){
-  float a1, a2, a3, a4;
+static double __kernel_cos(double x){
+  double a1, a2, a3, a4;
 
   a1 = 0.5000000;
   a2 = 0.0833333;
@@ -78,8 +78,8 @@ static float __kernel_cos(float x){
  * i is a quotient, x = pi/4 * i + (return value)
  *
  */
-static float __frem_for_triangle(float x, int *i){
-  float pi4;
+static double __frem_for_triangle(double x, int *i){
+  double pi4;
 
   *i=0;
   pi4 = 0.7853981; // const value
@@ -98,9 +98,9 @@ static float __frem_for_triangle(float x, int *i){
  * tan
  *   tan(x) = tan(x + pi/2)
  */
-float sin(float x){
+double sin(double x){
   int i, neg;
-  float y;
+  double y;
 
   neg = x > 0 ? 1 : -1;
   x   = x > 0 ? x : -x;
@@ -120,9 +120,9 @@ float sin(float x){
       return neg * __kernel_sin(0.7853981 - y);
   }
 }
-float cos(float x){
+double cos(double x){
   int i;
-  float y;
+  double y;
 
   x = x > 0 ? x : -x;
   y = __frem_for_triangle(x, &i);
@@ -146,11 +146,11 @@ float cos(float x){
       return __kernel_cos(0.7853981 - y);
   }
 }
-float tan(float x){
+double tan(double x){
   return sin(x)/cos(x);
 }
 
-static float __arctan_sub(float x){
+static double __arctan_sub(double x){
   return x*(1.0 - 0.33333333*x*x*(1.0 - 0.60*x*x*(1.0 - 2.1428571*x*x)));
 }
 
@@ -172,7 +172,7 @@ static float __arctan_sub(float x){
  *    arctan(x) = pi/2 - arctan(z)
  *
  */
-float atan(float x){
+double atan(double x){
   int sign;
 
   sign = x >= 0 ? 1 : -1;
@@ -181,21 +181,21 @@ float atan(float x){
   if(0.0 <= x && x <= 0.41421356){
     return sign * __arctan_sub(x);
   }else if(0.41421356 < x && x <= 1.0){
-    float tmp;
+    double tmp;
     tmp = (1.0 - x) / (1.0 + x);
     return sign * (0.7853981 - __arctan_sub(tmp));
   }else if(1.0 <= x && x <= 2.41421356){
-    float tmp;
+    double tmp;
     tmp = (x - 1.0)/(x + 1.0);
     return sign * (0.7853981 + __arctan_sub(tmp));
   }else{
-    float tmp;
+    double tmp;
     tmp = 1.0/x;
     return sign * (1.5707963 - __arctan_sub(tmp));
   }
 }
 
-float asin(float x){
+double asin(double x){
   if(x < -1.0 || x > 1.0) return -1024; // error
   if(x == -1.0) return -1.5707963;
   if(x == 1.0) return 1.5707963;
@@ -206,7 +206,7 @@ float asin(float x){
     return atan(x/sqrt(1-x*x));
   }
 }
-float acos(float x){
+double acos(double x){
   if(x < -1.0 || x > 1.0) return -1024; // error
   if(x == -1.0) return 3.14159265;
   if(x == 1.0) return 0.0;
@@ -218,22 +218,22 @@ float acos(float x){
   }
 }
 
-static float __exp_sub(float x){
+static double __exp_sub(double x){
   int i, j;
-  float res, a;
+  double res, a;
 
   res = 0;
   for(i=0; i<10; i++){
     a=1.0;
     for(j=1; j<=i; j++){
-      a *= x/(float)j;
+      a *= x/(double)j;
     }
     res += a;
   }
   return res;
 }
-static float __frem_for_exp(float x, int *i){
-  float log2;
+static double __frem_for_exp(double x, int *i){
+  double log2;
 
   *i=0;
   log2 = 0.693147180; // const value
@@ -258,14 +258,14 @@ static float __frem_for_exp(float x, int *i){
  *    exp(x) = 1.0/exp(z)
  *
  */
-float exp(float x){
+double exp(double x){
   if(x < 0){
     return 1.0/exp(-x);
   }else if(x < 0.693147180){
     return __exp_sub(x);
   }else{
     int d, m;
-    float z;
+    double z;
 
     z = __frem_for_exp(x, &m);
 
@@ -292,9 +292,9 @@ float exp(float x){
  *   use exp and log
  *   a^x = exp(x * log_e(a))
  */
-float log(float x){
+double log(double x){
   int i, m;
-  float z, y, t;
+  double z, y, t;
 
   if(x <= 0)
     return -1;
@@ -315,7 +315,7 @@ float log(float x){
 
   return (2.0*t + m*0.693147180);
 }
-float pow(float a, float x){
+double pow(double a, double x){
   return exp(x * log(a));
 }
 
@@ -323,13 +323,13 @@ float pow(float a, float x){
  * hyperbolic function
  *
  */
-float sinh(float x){
+double sinh(double x){
   return (exp(x) - exp(-x))/2.0;
 }
-float cosh(float x){
+double cosh(double x){
   return (exp(x) + exp(-x))/2.0;
 }
-float tanh(float x){
+double tanh(double x){
   return sinh(x)/cosh(x);
 }
 
@@ -337,7 +337,7 @@ float tanh(float x){
  * floor
  */
 
-float floor(float x) {
+double floor(double x) {
   __asm("\
   mov r1, [rbp + 4]     \n                      \
   floor r1, r1          \n                      \
