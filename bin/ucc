@@ -22,19 +22,15 @@ ASMS = []
 
 # parse command line arguments
 argparser = argparse.ArgumentParser(
-    usage='%(prog)s [options] file...',
-    formatter_class=argparse.RawTextHelpFormatter)
+    usage='%(prog)s [options] file...', formatter_class=argparse.RawTextHelpFormatter)
 argparser.add_argument('inputs',
     nargs='*', help='input files', metavar='file...')
 argparser.add_argument('-D',
-    help='predefine <macro> when preprocessing', metavar='<macro>',
-    action='append', default=MACROS)
+    help='predefine <macro> when preprocessing', metavar='<macro>', action='append', default=MACROS)
 argparser.add_argument('-I',
-    help='add <directory> to include search path', metavar='<directory>',
-    action='append', default=INCDIRS)
+    help='add <directory> to include search path', metavar='<directory>', action='append', default=[])
 argparser.add_argument('-l',
-    help='search <library> when linking', metavar='<library>',
-    action='append', default=LIBS)
+    help='search <library> when linking', metavar='<library>', action='append', default=LIBS)
 argparser.add_argument('-nostdlib',
     help='do not use standard libraries when linking', action='store_true')
 argparser.add_argument('-o',
@@ -64,7 +60,7 @@ def comma_sep_list(arg):
     return filter(None, map(str.strip, arg.split(',')))
 
 args.D = map(lambda s: '-D' + s, args.D)
-args.I = map(lambda s: '-I' + s, args.I)
+args.I = map(lambda s: '-I' + s, args.I + INCDIRS)
 args.l = map(lambda s: '-l{}/../lib/lib{}.s'.format(BIN_DIR, s), args.l)
 
 args.Wa = ASOPTS + args.l + comma_sep_list(args.Wa)
