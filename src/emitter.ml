@@ -403,7 +403,8 @@ let rec ex ret_reg = function
      let reg = reg_alloc () in
      ex ret_reg e1;
      ex reg e2;
-     emit_native_call ret_reg "__fdiv" ret_reg reg;
+     emit "finv r%d, r%d" reg reg;
+     emit "fmul r%d, r%d, r%d" ret_reg ret_reg reg;
      reg_free reg
   | EFArith (ty, op, e1, e2) ->
      let op = match op with

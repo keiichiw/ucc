@@ -87,35 +87,3 @@ unsigned __unsigned_mod(unsigned n, unsigned d) {
   unsigned_divmod(n, d, &p, &q);
   return q;
 }
-
-
-float __fdiv(float a, float b) {
-  __asm("\
-  mov     r1, [rbp + 8]   \n\
-  mov     r6, [rbp + 4]   \n\
-  shr     r2, r1, 23      \n\
-  mov     r3, 254         \n\
-  sub     r2, r3, r2      \n\
-  shl     r2, r2, 23      \n\
-  mov     r3, 1.0         \n\
-  shl     r1, r1, 9       \n\
-  shr     r1, r1, 9       \n\
-  or      r1, r1, r3      \n\
-  mov     r3, -0.47058823 \n\
-  mov     r4, 1.4117647   \n\
-  mov     r5, 2.0         \n\
-  fmul    r3, r1, r3      \n\
-  fadd    r3, r3, r4      \n\
-  fmul    r4, r1, r3      \n\
-  fsub    r4, r5, r4      \n\
-  fmul    r3, r3, r4      \n\
-  fmul    r4, r1, r3      \n\
-  fsub    r4, r5, r4      \n\
-  fmul    r3, r3, r4      \n\
-  fmul    r4, r1, r3      \n\
-  fsub    r4, r5, r4      \n\
-  fmul    r3, r3, r4      \n\
-  fmul    r1, r2, r3      \n\
-  fmul    r1, r1, r6      \n\
-  ret\n");
-}
