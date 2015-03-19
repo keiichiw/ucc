@@ -1,7 +1,7 @@
 open Ctype
 open Printf
 open Util
-open Type
+open Typed_syntax
 
 let venv_ref : (string * ctype) list ref = ref []
 let ret_ty_ref : ctype ref = ref TInt

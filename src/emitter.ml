@@ -1,5 +1,5 @@
 open Ctype
-open Type
+open Typed_syntax
 open Printf
 open Util
 
