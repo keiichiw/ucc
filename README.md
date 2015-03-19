@@ -6,7 +6,7 @@ Requirement
 ==============
 * OCaml 4.0.1
 * ocamlbuild 4.0.1
-* Clang
+* Clang (for preprocessing and syntax check)
 
 Build
 ==============
@@ -18,14 +18,13 @@ To run the tests, use the following command.
 
 Example
 ==========
-``./bin/run ./test/fib-loop.c``
+You can compile C file by the following command.
+``./bin/ucc ./test/printf.c``
 
-If you want to see an assembly, run the following command.
+Then, `a.out` will be created. It runs on the simulator.
+``./bin/sim -simple a.out``
 
-``./bin/ucc -S ./test/fib-loop.c``
+You can check generated assembly by `-S` option.
+ ``./bin/ucc -S ./test/printf.c``
 
-Then, `./test/fib-loop.s` will be generated.
-
-You can also run a test.
-
-``prove ./test/fib-loop.c``
+If you want to see other options, please use `-h` option.
