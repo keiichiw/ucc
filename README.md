@@ -19,12 +19,15 @@ To run the tests, use the following command.
 Example
 ==========
 You can compile C file by the following command.
+
 ``./bin/ucc ./test/printf.c``
 
 Then, `a.out` will be created. It runs on the simulator.
+
 ``./bin/sim -simple a.out``
 
 You can check generated assembly by `-S` option.
+
  ``./bin/ucc -S ./test/printf.c``
 
 If you want to see other options, please use `-h` option.
