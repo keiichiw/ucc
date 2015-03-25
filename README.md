@@ -24,6 +24,7 @@ You can compile C file by the following command.
 
 Then, `a.out` will be created. It runs on the simulator.
 
+
 ``./bin/sim -simple a.out``
 
 You can check generated assembly by `-S` option.
@@ -31,3 +32,6 @@ You can check generated assembly by `-S` option.
  ``./bin/ucc -S ./test/printf.c``
 
 If you want to see other options, please use `-h` option.
+
+In addition, UCC can compile [xv6 ported to GAIA](https://github.com/wasabiz/xv6), a simple Unix-like OS.
+Please use this [Makefile](https://gist.github.com/kw-udon/0fcedda2d29c81a2d1be) to try it.
